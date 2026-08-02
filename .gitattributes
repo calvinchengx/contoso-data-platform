@@ -1,0 +1,6 @@
+# LF everywhere. A CRLF checkout on Windows breaks shell scripts the moment
+# they are mounted into a Linux container, and the failure reads as "the
+# container is broken" rather than "your checkout has \r line endings".
+* text=auto eol=lf
+*.png binary
+*.whl binary

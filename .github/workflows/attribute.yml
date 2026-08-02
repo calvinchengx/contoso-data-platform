@@ -1,0 +1,29 @@
+# When Acceptance goes red the first question is always: did the release
+# regress, or did we? Release time is the worst moment to start answering that
+# by hand, so it is answered automatically — the identical suite, one tag back.
+#
+#   N fails, N-1 passes  ->  the release regressed
+#   N fails, N-1 fails   ->  this repo, or a dependency
+name: Attribute
+
+on:
+  workflow_run:
+    workflows: [Acceptance]
+    types: [completed]
+
+jobs:
+  bisect:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    name: Did the release regress, or did we?
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.32"
+      # Re-pin one release back, then run the identical targets. The verdict is
+      # whichever way this goes.
+      - run: uv run --no-project python scripts/pin_previous.py
+      - run: make fixtures
+      - run: make up
+      - run: make verify

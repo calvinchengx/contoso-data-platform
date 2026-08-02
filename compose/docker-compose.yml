@@ -1,0 +1,54 @@
+# The emulator family, at a PINNED release — never `latest`.
+#
+# This repository exists to verify that a published fabric-emulator carries a
+# whole platform. `latest` would make a green run unattributable: you would know
+# something worked, but not which release. The tag comes from .emulator-version
+# and every service reads the same variable, so one file states the pin.
+#
+# Deliberately NOT copied from fabric-emulator's own compose file. That one is
+# for people building the emulator; this one is what a consumer writes from the
+# published docs, which is the thing this repo is here to prove is possible.
+name: contoso-data-platform
+
+services:
+  entra-emulator:
+    image: ghcr.io/calvinchengx/entra-emulator:${FABRIC_EMULATOR_VERSION:?set via make}
+    environment:
+      ORIGIN_MODE: compat
+      PUBLIC_ORIGIN: "https://entra-emulator:8443"
+    ports: ["8443:8443"]
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/entra-emulator", "healthcheck"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+
+  keyvault-emulator:
+    image: ghcr.io/calvinchengx/azure-keyvault-emulator:${FABRIC_EMULATOR_VERSION:?set via make}
+    depends_on:
+      entra-emulator: {condition: service_healthy}
+    ports: ["8444:8444"]
+    environment:
+      KV_ENTRA_ISSUER: "https://entra-emulator:8443/11111111-1111-1111-1111-111111111111/v2.0"
+      KV_ENTRA_TLS_INSECURE: "true"
+      # The image bakes KV_DATA_DIR=/data for volume users; no volume here, so
+      # this must be emptied or the store fails to open a path that is not there.
+      KV_DATA_DIR: ""
+
+  fabric-emulator:
+    image: ghcr.io/calvinchengx/fabric-emulator:${FABRIC_EMULATOR_VERSION:?set via make}
+    depends_on:
+      entra-emulator: {condition: service_healthy}
+    # api.fabric + onelake.dfs + the portal, including the #flow view the
+    # capture harness records while the pipeline runs.
+    ports: ["9443:9443"]
+    environment:
+      FABRIC_ENTRA_ISSUER: "https://entra-emulator:8443/11111111-1111-1111-1111-111111111111/v2.0"
+      FABRIC_ENTRA_JWKS_URL: "https://entra-emulator:8443/11111111-1111-1111-1111-111111111111/discovery/v2.0/keys"
+      FABRIC_ENTRA_TLS_INSECURE: "true"
+      FABRIC_DATA_DIR: ""
+
+# Source systems (mokapi, Postgres, Redpanda, Debezium) and OpenMetadata arrive
+# in later phases. They are the world OUTSIDE the emulator and will live in
+# their own compose files, composed in by the Makefile — so that what is
+# emulator and what is source stays legible from the file layout alone.

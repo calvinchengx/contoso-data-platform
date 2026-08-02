@@ -1,0 +1,40 @@
+# The repository's own gate: does it hold together, on all three platforms?
+#
+# "Works on Windows, macOS and Linux" is exactly the kind of claim that rots
+# silently — it is true when written and nobody notices the day it stops being
+# true. So it is asserted here on every push, by running the SAME make targets
+# a user runs, on all three.
+name: CI
+
+on:
+  push: {branches: [main]}
+  pull_request:
+
+jobs:
+  repo:
+    name: make targets work
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.32"
+      # GNU Make is not on the Windows image. This is the same one-line install
+      # the README tells a Windows user to run, so CI proves the instruction.
+      - if: matrix.os == 'windows-latest'
+        run: choco install make --no-progress -y
+      # `make help` and `make test` need nothing but uv — no Docker, no
+      # emulator, no published wheels. They are the part that is green today.
+      - run: make help
+      - run: make test
+      # Reports, never fails on PENDING: the fixture wheels are published by
+      # fabric-emulator's release workflow, and until a release carries them
+      # this repo is legitimately waiting. Saying so out loud beats a skip.
+      - run: make doctor
+      # Proves the compose file parses and the pin resolves, without pulling
+      # a single image.
+      - run: make config

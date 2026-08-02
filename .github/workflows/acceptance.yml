@@ -1,0 +1,36 @@
+# The claim this repository exists to make: a PUBLISHED fabric-emulator carries
+# a whole platform, from real source systems to Power BI.
+name: Acceptance
+
+on:
+  # Fired by fabric-emulator's release workflow.
+  repository_dispatch:
+    types: [fabric-emulator-release]
+  # THE GUARD. A dispatch that silently fails to fire — revoked token, renamed
+  # event type, workflow auto-disabled after 60 days of inactivity — is
+  # indistinguishable from one that fired and passed. The schedule makes that
+  # absence loud within a day.
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: Verify the released emulator end to end
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.32"
+      - run: make doctor
+      - run: make fixtures
+      - run: make up
+      - run: make verify
+      # Report what was VERIFIED, not merely that nothing failed. "We verified
+      # 0.13.1" is a positive statement; "nothing went red" is not, and the
+      # difference is precisely what a stale trigger hides.
+      - if: always()
+        run: uv run --no-project python scripts/summarise.py >> "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        run: make down
