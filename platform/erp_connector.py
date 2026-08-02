@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import subprocess
 import time
 from typing import LiteralString, cast
 
@@ -20,7 +21,30 @@ from emulator import DEBEZIUM, ERP_DSN, log
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "sources" / "contoso-erp" / "debezium-connector.json"
+TOPIC = "contoso.erp.customer"
 SCHEMA = ROOT / "sources" / "contoso-erp" / "schema.sql"
+
+
+def reset_topic() -> None:
+    """Drop the change topic so the run's watermark means this run.
+
+    rpk lives in the redpanda container; deleting through docker keeps the
+    dependency to `docker`, which is already a prerequisite, rather than adding
+    an admin client to the project.
+    """
+    subprocess.run(
+        [
+            "docker",
+            "exec",
+            "contoso-data-platform-redpanda-1",
+            "rpk",
+            "topic",
+            "delete",
+            TOPIC,
+        ],
+        capture_output=True,
+        check=False,
+    )
 
 
 def main() -> int:
@@ -32,6 +56,20 @@ def main() -> int:
 
     cfg = json.loads(CONFIG.read_text())
     name = cfg["name"]
+
+    # Delete first, so a re-run starts from a clean stream.
+    #
+    # Without this, a second `make verify` replays 93,571 more events onto a
+    # topic that already holds them, and the watermark gate fails against a
+    # doubled count — correctly, but for a reason that reads like a Debezium
+    # fault rather than a re-run. Reproducibility is the property this whole
+    # repository is built on; the ingest path does not get to opt out of it.
+    requests.delete(f"{DEBEZIUM}/connectors/{name}", timeout=60)
+    for _ in range(15):
+        if requests.get(f"{DEBEZIUM}/connectors/{name}", timeout=30).status_code == 404:
+            break
+        time.sleep(1)
+    reset_topic()
     r = requests.put(
         f"{DEBEZIUM}/connectors/{name}/config", json=cfg["config"], timeout=60
     )

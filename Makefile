@@ -24,9 +24,16 @@
 #
 # `make fixtures` installs the generator wheels with `uv pip install`, outside
 # the lock — that is deliberate, because WHICH release they came from is the
-# thing under test and pinning them in the lock would defeat it. Measured: a
-# plain `uv run --frozen` does NOT evict them, so --no-sync is for speed and
-# determinism, not to protect them.
+# thing under test and pinning them in the lock would defeat it.
+#
+# MEASURED, after getting this wrong twice:
+#
+#   uv run --frozen   (lock unchanged)  -> fixtures SURVIVE
+#   uv sync           (explicit)        -> fixtures EVICTED
+#
+# So `uv sync` prunes anything not in the lock, and re-running `make fixtures`
+# after one is required rather than optional. `--no-sync` on the run targets
+# keeps a step from reconciling the environment out from under them.
 
 .DEFAULT_GOAL := help
 .PHONY: help doctor fixtures sources up down config lint fmt verify test clean

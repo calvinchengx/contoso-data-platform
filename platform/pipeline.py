@@ -22,10 +22,31 @@ STEPS = [
     ("erp_connector", "register Debezium against the ERP database"),
     ("erp_source", "seed Contoso ERP and replay its history as real DML"),
     ("ingest_erp_cdc", "consume the change stream into Files/landing"),
+    ("bronze", "landing -> bronze Delta tables, verbatim"),
 ]
 
 
+def preflight() -> None:
+    """Fail with the fix, not with an ImportError six steps in.
+
+    The generators live outside the lock on purpose, so any `uv sync` prunes
+    them. A step that dies on `ModuleNotFoundError: source_system` sends the
+    reader to look for a missing file rather than to `make fixtures`.
+    """
+    try:
+        import erp_system  # noqa: F401
+        import source_system  # noqa: F401
+        import web_store  # noqa: F401
+    except ModuleNotFoundError as exc:
+        raise SystemExit(
+            f"the fixture generators are not installed ({exc.name}).\n"
+            f"  run `make fixtures` — and note that any `uv sync` prunes them, "
+            f"because they are pinned to a release rather than to uv.lock."
+        ) from exc
+
+
 def main() -> int:
+    preflight()
     for i, (step, title) in enumerate(STEPS, 1):
         print(f"==> [{i}/{len(STEPS)}] {title}", flush=True)
         rc = subprocess.run([sys.executable, f"{step}.py"], cwd=HERE).returncode
