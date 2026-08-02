@@ -4,6 +4,7 @@ One file reads `.emulator-version`. Everything else asks this module, so the
 pin cannot be stated in two places and drift — which is the failure this whole
 repository exists to catch one level up.
 """
+
 import pathlib
 import urllib.error
 import urllib.request
@@ -11,14 +12,30 @@ import urllib.request
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 REPO = "calvinchengx/fabric-emulator"
 
+# All three pins. The family ships on independent cadences, so one string
+# cannot describe the stack — see the file's own comment.
+VERSIONS = ROOT / "versions.env"
+
 # The generators. Published from the emulator's release workflow so that this
 # repo's assertions and the in-tree examples' assertions come from ONE seeded
 # generator — see scripts/build_fixture_wheels.py over there.
 WHEELS = ["contoso_fixtures", "contoso_fixtures_advanced"]
 
 
-def version():
-    return (ROOT / ".emulator-version").read_text().strip()
+def pins() -> dict[str, str]:
+    """Every pinned image version, by the variable name compose uses."""
+    out = {}
+    for line in VERSIONS.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            out[k.strip()] = v.strip()
+    return out
+
+
+def version() -> str:
+    """The fabric-emulator release under test — the subject of this repo."""
+    return pins()["FABRIC_EMULATOR_VERSION"]
 
 
 def tag():
@@ -27,8 +44,10 @@ def tag():
 
 def wheel_urls(v=None):
     v = v or version()
-    return [f"https://github.com/{REPO}/releases/download/v{v}/"
-            f"{name}-{v}-py3-none-any.whl" for name in WHEELS]
+    return [
+        f"https://github.com/{REPO}/releases/download/v{v}/{name}-{v}-py3-none-any.whl"
+        for name in WHEELS
+    ]
 
 
 def published(url, timeout=15):

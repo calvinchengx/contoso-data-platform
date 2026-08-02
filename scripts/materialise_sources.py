@@ -8,6 +8,7 @@ request and random in shape, which cannot back an exact-count assertion.
 This step is what makes "the vendor" reproducible: same release, same bytes,
 every run, on every platform.
 """
+
 import hashlib
 import pathlib
 import sys

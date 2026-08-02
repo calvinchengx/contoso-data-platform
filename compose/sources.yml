@@ -4,7 +4,7 @@
 # is a Fabric emulator and what is a vendor a Fabric pipeline pulls from.
 services:
   mokapi:
-    image: mokapi/mokapi:latest
+    image: mokapi/mokapi:${MOKAPI_VERSION:?see versions.env}
     command:
       - /sources/contoso-pos/openapi.yaml
       - /sources/contoso-pos/serve.js

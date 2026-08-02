@@ -30,6 +30,7 @@ jobs:
       # `make help` and `make test` need nothing but uv — no Docker, no
       # emulator, no published wheels. They are the part that is green today.
       - run: make help
+      - run: make lint
       - run: make test
       # Reports, never fails on PENDING: the fixture wheels are published by
       # fabric-emulator's release workflow, and until a release carries them

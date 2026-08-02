@@ -1,4 +1,5 @@
 """List the Makefile targets and their `##` descriptions."""
+
 import pathlib
 import re
 

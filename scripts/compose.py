@@ -5,6 +5,7 @@ $(shell cat ...) — which is not a thing on cmd.exe, where GNU Make on Windows
 runs its recipes. So the Makefile stays a one-liner and the logic lives here,
 where `pathlib.read_text()` means the same on all three platforms.
 """
+
 import os
 import pathlib
 import subprocess
@@ -20,12 +21,12 @@ def main():
     if len(sys.argv) < 2:
         sys.exit("usage: compose.py <up|down|config|ps> [args...]")
     args = sys.argv[1:]
-    env = {**os.environ, "FABRIC_EMULATOR_VERSION": rel.version()}
-    cmd = ["docker", "compose"]
+    env = dict(os.environ)
+    cmd = ["docker", "compose", "--env-file", rel.VERSIONS.name]
     for f in FILES:
         cmd += ["-f", f]
     cmd += args
-    print("$", " ".join(cmd), f"   (FABRIC_EMULATOR_VERSION={rel.version()})")
+    print("$", " ".join(cmd), f"   (fabric-emulator {rel.version()})")
     return subprocess.run(cmd, cwd=ROOT, env=env).returncode
 
 

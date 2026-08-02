@@ -3,8 +3,10 @@
 Used only by the Attribute workflow. If the identical suite passes on N-1 and
 fails on N, the release regressed; if it fails on both, the fault is here.
 """
+
 import json
 import pathlib
+import re
 import sys
 import urllib.request
 
@@ -25,7 +27,16 @@ def main():
     if i + 1 >= len(tags):
         sys.exit(f"{current} is the oldest release listed — nothing to compare against")
     previous = tags[i + 1]
-    (ROOT / ".emulator-version").write_text(previous + "\n")
+    text = rel.VERSIONS.read_text()
+    rel.VERSIONS.write_text(
+        re.sub(
+            r"^FABRIC_EMULATOR_VERSION=.*$",
+            f"FABRIC_EMULATOR_VERSION={previous}",
+            text,
+            count=1,
+            flags=re.M,
+        )
+    )
     print(f"re-pinned {current} -> {previous} for attribution")
     return 0
 

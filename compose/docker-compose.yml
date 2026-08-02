@@ -2,8 +2,12 @@
 #
 # This repository exists to verify that a published fabric-emulator carries a
 # whole platform. `latest` would make a green run unattributable: you would know
-# something worked, but not which release. The tag comes from .emulator-version
-# and every service reads the same variable, so one file states the pin.
+# something worked, but not which release.
+#
+# THREE VARIABLES, NOT ONE. The family ships on independent cadences —
+# fabric-emulator is at 0.13.x while entra and keyvault are at 0.3.x — so a
+# single pin cannot describe the stack. versions.env holds all of them and
+# compose reads it directly with --env-file.
 #
 # Deliberately NOT copied from fabric-emulator's own compose file. That one is
 # for people building the emulator; this one is what a consumer writes from the
@@ -12,7 +16,7 @@ name: contoso-data-platform
 
 services:
   entra-emulator:
-    image: ghcr.io/calvinchengx/entra-emulator:${FABRIC_EMULATOR_VERSION:?set via make}
+    image: ghcr.io/calvinchengx/entra-emulator:${ENTRA_EMULATOR_VERSION:?see versions.env}
     environment:
       ORIGIN_MODE: compat
       PUBLIC_ORIGIN: "https://entra-emulator:8443"
@@ -24,7 +28,7 @@ services:
       retries: 10
 
   keyvault-emulator:
-    image: ghcr.io/calvinchengx/azure-keyvault-emulator:${FABRIC_EMULATOR_VERSION:?set via make}
+    image: ghcr.io/calvinchengx/azure-keyvault-emulator:${KEYVAULT_EMULATOR_VERSION:?see versions.env}
     depends_on:
       entra-emulator: {condition: service_healthy}
     ports: ["8444:8444"]
@@ -36,7 +40,7 @@ services:
       KV_DATA_DIR: ""
 
   fabric-emulator:
-    image: ghcr.io/calvinchengx/fabric-emulator:${FABRIC_EMULATOR_VERSION:?set via make}
+    image: ghcr.io/calvinchengx/fabric-emulator:${FABRIC_EMULATOR_VERSION:?see versions.env}
     depends_on:
       entra-emulator: {condition: service_healthy}
     # api.fabric + onelake.dfs + the portal, including the #flow view the

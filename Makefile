@@ -29,7 +29,7 @@
 # determinism, not to protect them.
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor fixtures sources up down config verify test clean
+.PHONY: help doctor fixtures sources up down config lint fmt verify test clean
 
 help:  ## Show the targets
 	@uv run --no-project python scripts/help.py
@@ -54,6 +54,15 @@ config:  ## Show the resolved compose config (proves the pin)
 
 verify:  ## Run the platform end to end against the pinned release
 	@uv run --frozen --no-sync python platform/pipeline.py
+
+lint:  ## ruff (lint + format check) and ty (types)
+	@uv run --frozen ruff check .
+	@uv run --frozen ruff format --check .
+	@uv run --frozen ty check .
+
+fmt:  ## Apply ruff's formatting and safe fixes
+	@uv run --frozen ruff check --fix .
+	@uv run --frozen ruff format .
 
 test:  ## The repo's own tests — version lockstep, boundaries, config
 	@uv run --frozen pytest -q tests

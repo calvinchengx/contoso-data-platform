@@ -36,9 +36,19 @@ Run `make` for the target list.
 
 ## How it is pinned
 
-`.emulator-version` names one release. Every image tag and the fixture wheels
-come from it, so a green run says *which* release was verified rather than that
-something, somewhere, worked.
+`versions.env` pins every image — and there are **four**, not one:
+
+```
+FABRIC_EMULATOR_VERSION=0.13.0
+ENTRA_EMULATOR_VERSION=0.3.0
+KEYVAULT_EMULATOR_VERSION=0.3.0
+MOKAPI_VERSION=0.50.0
+```
+
+The emulator family ships on independent cadences, so a single pin cannot
+describe the stack — assuming otherwise is how this repo first failed to start.
+`docker compose --env-file` reads the file directly, so the pins are stated once
+and nothing translates them.
 
 The generators are the boundary between the two repositories:
 
@@ -70,7 +80,11 @@ phases:
 | governance | OpenMetadata: API, database and messaging services, lineage from source |
 | capture | the Data flow graph recorded *while* it runs; the catalog after |
 
-`make doctor` currently reports **PENDING** for the fixture wheels: they are
-published from the first `fabric-emulator` release after the packaging landed,
-and `0.13.0` predates it. That is a real, named, temporary state — not a
+Working today, against **fabric-emulator 0.13.0**: the vendor's REST API serves
+169.8 MB of seeded export over HTTP, a workspace and lakehouse are provisioned,
+and the export lands in OneLake byte-identical — verified by reading it back.
+
+`make doctor` reports **PENDING** for the fixture wheels: they are published
+from the first `fabric-emulator` release after the packaging landed, and
+`0.13.0` predates it. That is a real, named, temporary state — not a
 failure, and not something to skip past.

@@ -4,6 +4,7 @@ None of these need the emulator, Docker, or the fixture wheels — they are abou
 the repository itself, so they are the part of CI that is green from day one and
 runs identically on all three platforms.
 """
+
 import pathlib
 import re
 
@@ -11,9 +12,42 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 MAKEFILE = (ROOT / "Makefile").read_text()
 
 
-def test_pinned_version_is_a_release():
-    v = (ROOT / ".emulator-version").read_text().strip()
-    assert re.fullmatch(r"\d+\.\d+\.\d+", v), v
+def _pins():
+    out = {}
+    for line in (ROOT / "versions.env").read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            out[k.strip()] = v.strip()
+    return out
+
+
+def test_every_image_is_pinned_to_a_version():
+    """All THREE emulator images plus mokapi.
+
+    The family ships on independent cadences — fabric-emulator at 0.13.x while
+    entra and keyvault are at 0.3.x — so one pin cannot describe the stack.
+    Assuming it could is how this repo first failed to start: `manifest
+    unknown`, because 0.13.0 exists for one image and not the others.
+    """
+    pins = _pins()
+    expected = {
+        "FABRIC_EMULATOR_VERSION",
+        "ENTRA_EMULATOR_VERSION",
+        "KEYVAULT_EMULATOR_VERSION",
+        "MOKAPI_VERSION",
+    }
+    assert expected <= set(pins), expected - set(pins)
+    for k, v in pins.items():
+        assert re.fullmatch(r"\d+\.\d+\.\d+", v), f"{k}={v} is not a version"
+
+
+def test_compose_reads_every_pin():
+    """A pin nothing substitutes is a comment. Each variable must appear in a
+    compose file, or the image silently falls back to whatever is there."""
+    composed = "".join(p.read_text() for p in (ROOT / "compose").glob("*.yml"))
+    for k in _pins():
+        assert "${" + k in composed, f"{k} is pinned but never used"
 
 
 def test_compose_never_uses_latest():
@@ -32,8 +66,10 @@ def test_every_make_recipe_survives_cmd_exe():
     the third — and it fails for the user, not for us, which is the wrong place
     to find out. Logic belongs in scripts/, which is Python.
     """
-    banned = re.compile(r"(\|\||&&|\|(?!\|)|`|\brm\b|\bcp\b|\bmv\b|\bcat\b|"
-                        r"\bsed\b|\btest\b\s+-|\bif\b\s|\bfor\b\s|\$\(shell)")
+    banned = re.compile(
+        r"(\|\||&&|\|(?!\|)|`|\brm\b|\bcp\b|\bmv\b|\bcat\b|"
+        r"\bsed\b|\btest\b\s+-|\bif\b\s|\bfor\b\s|\$\(shell)"
+    )
     offenders = []
     for line in MAKEFILE.splitlines():
         if not line.startswith("\t"):
@@ -41,8 +77,7 @@ def test_every_make_recipe_survives_cmd_exe():
         recipe = line.lstrip("\t").lstrip("@")
         if banned.search(recipe):
             offenders.append(recipe)
-    assert not offenders, ("these recipes would not run on cmd.exe: "
-                           f"{offenders}")
+    assert not offenders, f"these recipes would not run on cmd.exe: {offenders}"
 
 
 def test_make_targets_are_documented():
@@ -81,7 +116,7 @@ def test_python_is_only_ever_invoked_through_uv():
     point of committing uv.lock is that those are the same.
     """
     bad = []
-    files = [ROOT / "Makefile"] + sorted((ROOT / ".github/workflows").glob("*.yml"))
+    files = [ROOT / "Makefile", *sorted((ROOT / ".github/workflows").glob("*.yml"))]
     for f in files:
         for i, line in enumerate(f.read_text().splitlines(), 1):
             stripped = line.strip().lstrip("@- ")

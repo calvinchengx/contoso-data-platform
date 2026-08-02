@@ -3,6 +3,7 @@
 These are static checks on the specs and scripts — no Docker, no network — so
 they run on all three platforms in CI from day one.
 """
+
 import pathlib
 import re
 
@@ -42,8 +43,9 @@ def test_every_operation_requires_a_key():
         assert "securitySchemes" in text, f"{spec.parent.name}: no auth declared"
         ops = len(re.findall(r"^\s{6}operationId:", text, re.M))
         secured = len(re.findall(r"^\s{6}security:", text, re.M))
-        assert ops == secured, (f"{spec.parent.name}: {ops} operations, "
-                                f"{secured} declare security")
+        assert ops == secured, (
+            f"{spec.parent.name}: {ops} operations, {secured} declare security"
+        )
 
 
 def test_specs_are_pinned_to_no_host_we_do_not_control():

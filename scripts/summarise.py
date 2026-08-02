@@ -4,6 +4,7 @@
 compatible with the run never having happened — which is exactly what a stale
 trigger looks like from the outside.
 """
+
 import pathlib
 import sys
 

@@ -8,6 +8,7 @@ quietly describe different datasets.
 Installed by URL at the pinned tag, so the version cannot be stated twice and
 drift — the tag IS the URL.
 """
+
 import os
 import pathlib
 import subprocess
@@ -68,7 +69,8 @@ def main():
             f"  missing:\n  {missing}\n\n"
             f"They are built by scripts/build_fixture_wheels.py in that repo and\n"
             f"attached from the first release carrying it. Bump .emulator-version\n"
-            f"to a release that has them.")
+            f"to a release that has them."
+        )
 
     # Both together, always. contoso-fixtures-advanced requires contoso-fixtures
     # as plain metadata — its [tool.uv.sources] path is a uv-local convenience
@@ -80,13 +82,25 @@ def main():
     # from Y would produce confident, wrong numbers — the worst failure
     # available to this repository.
     out = subprocess.run(
-        ["uv", "run", "--no-sync", "python", "-c",
-         "import importlib.metadata as m; print(m.version('contoso-fixtures'))"],
-        cwd=ROOT, capture_output=True, text=True, check=True)
+        [
+            "uv",
+            "run",
+            "--no-sync",
+            "python",
+            "-c",
+            "import importlib.metadata as m; print(m.version('contoso-fixtures'))",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
     got = out.stdout.strip()
     if got != v:
-        sys.exit(f"installed contoso-fixtures {got}, but .emulator-version "
-                 f"pins {v} — these must match")
+        sys.exit(
+            f"installed contoso-fixtures {got}, but .emulator-version "
+            f"pins {v} — these must match"
+        )
     print(f"fixtures {got} installed and matched to the pinned release")
 
 

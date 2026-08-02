@@ -14,7 +14,30 @@ dependencies = [
 # Locked, not resolved fresh on every run: `--with pytest` would pull whatever
 # version exists that day, which is a different test suite than the one that
 # passed yesterday.
-dev = ["pytest>=8,<9"]
+dev = ["pytest>=8,<9", "ruff>=0.14,<0.15", "ty>=0.0.1a1"]
 
 [tool.uv]
 package = false
+
+# Astral's toolchain throughout: uv resolves, ruff lints and formats, ty checks
+# types. One vendor, one config file, and every contributor gets the same
+# versions because they are in uv.lock.
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",   # pycodestyle + pyflakes
+    "I",             # import order
+    "UP",            # pyupgrade — this repo is >=3.12, so say so
+    "B",             # bugbear
+    "SIM",           # simplify
+    "PTH",           # pathlib over os.path: the one that actually bites on Windows
+    "RUF",
+]
+
+[tool.ty.rules]
+# The generators arrive from a wheel installed outside the lock, so ty cannot
+# see them when it runs on a clean checkout. Their absence is not a type error.
+unresolved-import = "ignore"

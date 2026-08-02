@@ -4,6 +4,7 @@ A doctor that only prints when something is wrong teaches you nothing about
 what it checked. Every line below says what was examined and what was found,
 so "green" is a statement rather than the absence of a complaint.
 """
+
 import platform
 import shutil
 import subprocess
@@ -19,11 +20,10 @@ def tool(name, args, hint):
     if not exe:
         return BAD, f"not on PATH — {hint}"
     try:
-        out = subprocess.run([name, *args], capture_output=True, text=True,
-                             timeout=60)
+        out = subprocess.run([name, *args], capture_output=True, text=True, timeout=60)
         first = (out.stdout or out.stderr).strip().splitlines()
         return OK, first[0] if first else exe
-    except Exception as exc:  # noqa: BLE001 — reporting, not handling
+    except Exception as exc:
         return BAD, f"found at {exe} but would not run: {exc}"
 
 
@@ -31,12 +31,23 @@ def main():
     rows = []
     rows.append(("platform", OK, f"{platform.system()} {platform.machine()}"))
     rows.append(("python", OK, sys.version.split()[0]))
-    rows.append(("docker", *tool("docker", ["--version"],
-                                 "install Docker Desktop, or docker-ce on Linux")))
-    rows.append(("uv", *tool("uv", ["--version"],
-                             "https://docs.astral.sh/uv/getting-started/")))
-    rows.append(("make", *tool("make", ["--version"],
-                               "Windows: winget install ezwinports.make")))
+    rows.append(
+        (
+            "docker",
+            *tool(
+                "docker", ["--version"], "install Docker Desktop, or docker-ce on Linux"
+            ),
+        )
+    )
+    rows.append(
+        ("uv", *tool("uv", ["--version"], "https://docs.astral.sh/uv/getting-started/"))
+    )
+    rows.append(
+        (
+            "make",
+            *tool("make", ["--version"], "Windows: winget install ezwinports.make"),
+        )
+    )
 
     v = rel.version()
     rows.append(("pinned release", OK, f"fabric-emulator {v}"))
@@ -51,8 +62,9 @@ def main():
         rows.append(("fixture wheels", OK, f"published for {v}"))
     else:
         missing = [u.rsplit("/", 1)[1] for u, s in per.items() if not s]
-        rows.append(("fixture wheels", PEND,
-                     f"not published for {v} — {', '.join(missing)}"))
+        rows.append(
+            ("fixture wheels", PEND, f"not published for {v} — {', '.join(missing)}")
+        )
 
     width = max(len(r[0]) for r in rows)
     for name, status, detail in rows:
@@ -65,8 +77,9 @@ def main():
     pending = [n for n, s, _ in rows if s == PEND]
     if pending:
         print(f"\npending (not a failure): {', '.join(pending)}")
-        print("`make fixtures` and `make verify` need the wheels; `make test` "
-              "does not.")
+        print(
+            "`make fixtures` and `make verify` need the wheels; `make test` does not."
+        )
     return 0
 
 
