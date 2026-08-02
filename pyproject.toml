@@ -1,0 +1,14 @@
+# This repo's own environment. The generators are NOT listed here: they are
+# installed by `make fixtures` from the pinned release, because which release
+# they came from is the thing under test.
+[project]
+name = "contoso-data-platform"
+version = "0.1.0"
+description = "A complete analytics platform on a released fabric-emulator"
+requires-python = ">=3.12"
+dependencies = [
+    "requests>=2.32,<3",
+]
+
+[tool.uv]
+package = false

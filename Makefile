@@ -13,7 +13,7 @@
 # If not, it goes in a script.
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor fixtures up down config verify test clean
+.PHONY: help doctor fixtures sources up down config verify test clean
 
 help:  ## Show the targets
 	@uv run --no-project python scripts/help.py
@@ -23,6 +23,9 @@ doctor:  ## Check prerequisites and report what is and is not ready
 
 fixtures:  ## Install the seeded generators published by the pinned release
 	@uv run --no-project python scripts/fixtures.py
+
+sources:  ## Materialise the vendor exports the source APIs serve
+	@uv run python scripts/materialise_sources.py
 
 up:  ## Start the emulator family and the source systems
 	@uv run --no-project python scripts/compose.py up -d

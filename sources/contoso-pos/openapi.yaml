@@ -1,0 +1,53 @@
+# Contoso POS — the vendor's export API, as its docs would describe it.
+#
+# This spec is the artifact OpenMetadata ingests to make Contoso POS a node in
+# lineage, so it is written to describe the SOURCE SYSTEM, not our convenience.
+#
+# The response bodies are served from files by serve.js, never generated from
+# these schemas. mokapi's schema generation is random per request AND random in
+# SHAPE — optional properties are dropped per row — so a generated body cannot
+# back an assertion like `247,500 orders`. Measured, not assumed.
+openapi: 3.0.3
+info:
+  title: Contoso POS Export API
+  version: "1.0.0"
+  description: >-
+    Nightly batch export from the point-of-sale system. Customers as delimited
+    text, orders as JSON Lines, one object per line. Authenticated with a static
+    API key, as the vendor's integration guide specifies.
+servers:
+  - url: http://localhost:8090
+    description: mokapi, standing in for the vendor
+paths:
+  /api/v1/export/customers:
+    get:
+      operationId: exportCustomers
+      summary: Full customer snapshot
+      security: [{ApiKey: []}]
+      responses:
+        "200":
+          description: Delimited text, header row included.
+          content:
+            text/csv:
+              schema: {type: string}
+        "401":
+          description: Missing or wrong API key.
+  /api/v1/export/orders:
+    get:
+      operationId: exportOrders
+      summary: Orders since the last export, at-least-once
+      security: [{ApiKey: []}]
+      responses:
+        "200":
+          description: JSON Lines — one order per line, not a JSON array.
+          content:
+            application/x-ndjson:
+              schema: {type: string}
+        "401":
+          description: Missing or wrong API key.
+components:
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key

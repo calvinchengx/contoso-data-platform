@@ -1,0 +1,17 @@
+# The source systems. NOT the emulator — this is the world outside it.
+#
+# Kept in its own file so the boundary is legible from the layout alone: what
+# is a Fabric emulator and what is a vendor a Fabric pipeline pulls from.
+services:
+  mokapi:
+    image: mokapi/mokapi:latest
+    command:
+      - /sources/contoso-pos/openapi.yaml
+      - /sources/contoso-pos/serve.js
+    volumes:
+      # Read-only: mokapi serves the vendor's bytes, it never writes them.
+      # `make sources` materialises them from the published generators.
+      - ../sources:/sources:ro
+    ports:
+      - "8090:8090"   # the vendor APIs
+      - "8080:8080"   # mokapi's own dashboard — useful when a spec misbehaves

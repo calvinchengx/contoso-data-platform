@@ -18,8 +18,44 @@ import release_info as rel
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
+def local_override():
+    """Wheels built from a fabric-emulator checkout, for developing ahead of a
+    release. Announced loudly every time: a local artifact quietly standing in
+    for the published one would make this repository's whole claim — that a
+    RELEASED emulator carries a platform — untrue while still reporting green.
+    """
+    d = os.environ.get("FIXTURE_WHEELS_DIR")
+    if not d:
+        return None
+    wheels = sorted(pathlib.Path(d).glob("*.whl"))
+    if not wheels:
+        sys.exit(f"FIXTURE_WHEELS_DIR={d} contains no wheels")
+    print("!" * 72)
+    print("LOCAL WHEELS — not the published artifact. This run verifies your")
+    print(f"working tree, NOT a released fabric-emulator.  {d}")
+    print("!" * 72)
+    return [str(w) for w in wheels]
+
+
+def ensure_env():
+    """Create the project venv before installing into it.
+
+    `uv pip install` needs a target environment; on a fresh clone there is
+    none, and its exit code 2 says nothing about the cause. `uv sync` builds it
+    from pyproject.toml and is a no-op afterwards.
+    """
+    subprocess.run(["uv", "sync", "--quiet"], cwd=ROOT, check=True)
+
+
 def main():
     v = rel.version()
+    ensure_env()
+    override = local_override()
+    if override:
+        subprocess.run(["uv", "pip", "install", *override], cwd=ROOT, check=True)
+        print("installed local fixture wheels (version lockstep NOT asserted)")
+        return 0
+
     urls = rel.wheel_urls(v)
     all_there, per = rel.wheels_published(v)
 

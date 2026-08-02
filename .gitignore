@@ -4,3 +4,4 @@ __pycache__/
 capture/shots/
 state.json
 *_summary.json
+sources/_data/
