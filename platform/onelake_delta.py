@@ -44,6 +44,11 @@ def write(workspace: str, item: str, name: str, table: pa.Table, tok=None) -> in
         table,
         storage_options=storage_options(tok),
         mode="overwrite",
+        # The schema is overwritten too. Every step here is a full refresh, so a
+        # table whose shape changed between runs must follow — otherwise the
+        # write fails with `number of fields does not match`, which reads as a
+        # data error rather than "the previous run wrote a different table".
+        schema_mode="overwrite",
     )
     return table.num_rows
 

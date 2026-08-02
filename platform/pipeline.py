@@ -23,6 +23,7 @@ STEPS = [
     ("erp_source", "seed Contoso ERP and replay its history as real DML"),
     ("ingest_erp_cdc", "consume the change stream into Files/landing"),
     ("bronze", "landing -> bronze Delta tables, verbatim"),
+    ("silver", "bronze -> silver: dedupe, conform, quarantine"),
 ]
 
 

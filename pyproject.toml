@@ -15,6 +15,10 @@ dependencies = [
     # Delta without a JVM or a Spark container — the emulator serves the Blob
     # dialect that Rust object_store speaks (docs/08-onelake).
     "deltalake>=0.24,<2",
+    # SQL over Arrow, in-process. Silver is set logic — dedupe, latest-event-wins,
+    # quarantine — and expressing that as SQL is clearer than chained Arrow
+    # compute calls, without adding an engine to the stack.
+    "duckdb>=1.1,<2",
 ]
 
 [dependency-groups]
