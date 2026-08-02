@@ -38,8 +38,15 @@ def test_every_image_is_pinned_to_a_version():
         "MOKAPI_VERSION",
     }
     assert expected <= set(pins), expected - set(pins)
+    # The invariant is IMMUTABLE, not a particular shape. Upstream projects
+    # version how they like — postgres `16.4`, redpanda `v24.2.7`, debezium
+    # `2.7.3.Final` — and demanding X.Y.Z of all of them would say nothing
+    # about reproducibility while rejecting perfectly good pins.
+    mutable = {"latest", "stable", "main", "edge", "nightly", "dev", "alpha"}
     for k, v in pins.items():
-        assert re.fullmatch(r"\d+\.\d+\.\d+", v), f"{k}={v} is not a version"
+        assert v, f"{k} is empty"
+        assert v.lower() not in mutable, f"{k}={v} is a moving tag"
+        assert any(c.isdigit() for c in v), f"{k}={v} names no version"
 
 
 def test_compose_reads_every_pin():

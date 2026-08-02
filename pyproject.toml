@@ -8,6 +8,10 @@ description = "A complete analytics platform on a released fabric-emulator"
 requires-python = ">=3.12"
 dependencies = [
     "requests>=2.32,<3",
+    # The ERP source is a real Postgres, and its change stream is real Kafka.
+    "psycopg[binary]>=3.2,<4",
+    "confluent-kafka>=2.6,<3",
+    "pyarrow>=18,<24",
 ]
 
 [dependency-groups]

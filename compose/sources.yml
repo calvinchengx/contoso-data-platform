@@ -12,6 +12,85 @@ services:
       # Read-only: mokapi serves the vendor's bytes, it never writes them.
       # `make sources` materialises them from the published generators.
       - ../sources:/sources:ro
+    # NON-DEFAULT HOST PORTS, deliberately. 8080 is the most contended port on
+    # a developer machine and 5432 is the second — a native Postgres service
+    # silently won the race against this stack's container and produced
+    # `role "contoso" does not exist`, an error that names neither port nor
+    # process. Container-side ports stay standard; only what we publish moves.
     ports:
-      - "8090:8090"   # the vendor APIs
-      - "8080:8080"   # mokapi's own dashboard — useful when a spec misbehaves
+      - "${MOKAPI_PORT:-18090}:8090"   # the vendor APIs
+      - "${MOKAPI_UI_PORT:-18081}:8080"  # mokapi's dashboard
+
+  # --- Contoso ERP: a relational source, captured ---------------------------
+  # POS and Web publish file-shaped exports, so a REST endpoint is the honest
+  # transport for them. ERP is different in kind: it is a database that changes,
+  # and its whole reason for being in this platform is that CDC and SCD2 become
+  # real rather than aspirational. A Parquet file DESCRIBING a change log is a
+  # simulation of that; a table with Debezium on it is the thing itself.
+  erp-postgres:
+    image: postgres:${POSTGRES_VERSION:?see versions.env}
+    # wal_level=logical is not tuning — without it Postgres emits no logical
+    # replication stream at all and Debezium's connector fails at creation with
+    # a message about replication slots that does not name this setting.
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=4
+      - -c
+      - max_wal_senders=4
+    environment:
+      POSTGRES_USER: contoso
+      POSTGRES_PASSWORD: contoso-erp-dev
+      POSTGRES_DB: erp
+    ports: ["${ERP_POSTGRES_PORT:-55432}:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U contoso -d erp"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:${REDPANDA_VERSION:?see versions.env}
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      # TWO LISTENERS, and both are needed. A broker tells clients where to
+      # reconnect, so a single `redpanda:9092` advertisement is correct for
+      # Debezium (on the compose network) and unusable from the host, which
+      # cannot resolve that name. The failure is `Host resolution failure` from
+      # librdkafka — a message that names the symptom, not the listener.
+      - --kafka-addr=INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:19092
+      - --advertise-kafka-addr=INTERNAL://redpanda:9092,EXTERNAL://localhost:19092
+    ports: ["${REDPANDA_PORT:-19092}:19092"]
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  debezium:
+    image: debezium/connect:${DEBEZIUM_VERSION:?see versions.env}
+    depends_on:
+      erp-postgres: {condition: service_healthy}
+      redpanda: {condition: service_healthy}
+    environment:
+      BOOTSTRAP_SERVERS: redpanda:9092
+      GROUP_ID: contoso-erp
+      CONFIG_STORAGE_TOPIC: _connect_configs
+      OFFSET_STORAGE_TOPIC: _connect_offsets
+      STATUS_STORAGE_TOPIC: _connect_status
+      # One partition each: ordering per key is what CDC guarantees, and more
+      # partitions would trade that away for throughput this does not need.
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+    ports: ["${DEBEZIUM_PORT:-18083}:8083"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8083/connectors || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30

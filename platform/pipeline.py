@@ -15,6 +15,13 @@ HERE = pathlib.Path(__file__).resolve().parent
 STEPS = [
     ("provision", "workspace and lakehouse"),
     ("ingest_pos", "pull Contoso POS over HTTP into Files/landing"),
+    # The connector goes BEFORE the replay. Start it after, and the history is
+    # captured by a snapshot rather than as a change stream — which would still
+    # produce rows, and might even match on count, while testing the wrong
+    # thing entirely.
+    ("erp_connector", "register Debezium against the ERP database"),
+    ("erp_source", "seed Contoso ERP and replay its history as real DML"),
+    ("ingest_erp_cdc", "consume the change stream into Files/landing"),
 ]
 
 

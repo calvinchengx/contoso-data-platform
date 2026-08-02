@@ -1,0 +1,24 @@
+{
+  "name": "contoso-erp",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "erp-postgres",
+    "database.port": "5432",
+    "database.user": "contoso",
+    "database.password": "contoso-erp-dev",
+    "database.dbname": "erp",
+    "topic.prefix": "contoso",
+    "table.include.list": "erp.customer",
+    "plugin.name": "pgoutput",
+    "slot.name": "contoso_erp",
+    "publication.autocreate.mode": "filtered",
+    "tombstones.on.delete": "false",
+    "snapshot.mode": "initial",
+    "decimal.handling.mode": "double",
+    "time.precision.mode": "connect",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter.schemas.enable": "false"
+  }
+}

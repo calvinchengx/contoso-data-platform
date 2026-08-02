@@ -30,7 +30,7 @@ CLIENT_SECRET = "daemon-app-secret"  # seeded dev value, published in the docs
 
 ENTRA = os.environ.get("ENTRA_URL", "https://localhost:8443")
 FABRIC = os.environ.get("FABRIC_URL", "https://localhost:9443")
-POS_API = os.environ.get("POS_API_URL", "http://localhost:8090")
+POS_API = os.environ.get("POS_API_URL", "http://localhost:18090")
 
 FABRIC_AUD = "https://api.fabric.microsoft.com"
 STORAGE_AUD = "https://storage.azure.com"
@@ -39,6 +39,12 @@ STORAGE_AUD = "https://storage.azure.com"
 # --resolve; requests does it by addressing the emulator and setting Host, which
 # is the same trick and keeps the URL honest about who is being addressed.
 ONELAKE_HOST = "onelake.dfs.fabric.microsoft.com"
+
+ERP_DSN = os.environ.get(
+    "ERP_DSN", "postgresql://contoso:contoso-erp-dev@localhost:55432/erp"
+)
+DEBEZIUM = os.environ.get("DEBEZIUM_URL", "http://localhost:18083")
+REDPANDA = os.environ.get("REDPANDA_BOOTSTRAP", "localhost:19092")
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 STATE = ROOT / "state.json"
