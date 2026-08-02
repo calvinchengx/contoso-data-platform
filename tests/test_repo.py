@@ -70,3 +70,30 @@ def test_the_emulator_client_plumbing_is_never_imported():
         if re.search(r"^\s*(from common import|import common\b)", src, re.M):
             offenders.append(p.relative_to(ROOT).as_posix())
     assert not offenders, f"must not import the emulator's own plumbing: {offenders}"
+
+
+def test_python_is_only_ever_invoked_through_uv():
+    """uv, strictly.
+
+    A bare `python` or `pip` in a recipe or workflow resolves to whatever the
+    machine happens to have — a different interpreter on Windows than on the
+    Linux runner, and a different one again on a contributor's Mac. The whole
+    point of committing uv.lock is that those are the same.
+    """
+    bad = []
+    files = [ROOT / "Makefile"] + sorted((ROOT / ".github/workflows").glob("*.yml"))
+    for f in files:
+        for i, line in enumerate(f.read_text().splitlines(), 1):
+            stripped = line.strip().lstrip("@- ")
+            if stripped.startswith("#") or "python-version" in stripped:
+                continue
+            if re.match(r"^(run:\s*)?(python3?|pip3?)\s", stripped):
+                bad.append(f"{f.name}:{i}: {stripped}")
+    assert not bad, f"invoke through uv instead: {bad}"
+
+
+def test_the_lockfile_is_committed():
+    """Without it, `--frozen` has nothing to be frozen to and three platforms
+    resolve three different dependency sets."""
+    assert (ROOT / "uv.lock").exists()
+    assert "pytest" in (ROOT / "uv.lock").read_text(), "dev group not locked"
