@@ -15,6 +15,12 @@ info:
     Nightly batch export from the point-of-sale system. Customers as delimited
     text, orders as JSON Lines, one object per line. Authenticated with a static
     API key, as the vendor's integration guide specifies.
+
+    Both exports are PAGED. A client reads `page=1`, takes the total from the
+    `X-Total-Pages` response header, and continues until it has them all. The
+    full export is ~170 MB and no sane batch API returns that in one response;
+    paging is how the vendor actually ships it, and it bounds what either side
+    has to hold at once.
 servers:
   - url: http://localhost:8090
     description: mokapi, standing in for the vendor
@@ -24,28 +30,57 @@ paths:
       operationId: exportCustomers
       summary: Full customer snapshot
       security: [{ApiKey: []}]
+      parameters: [{$ref: "#/components/parameters/Page"}]
       responses:
         "200":
-          description: Delimited text, header row included.
+          description: >-
+            Delimited text. The header row is repeated in EVERY page, so each
+            page is independently readable rather than only meaningful when
+            reassembled in order.
+          headers:
+            X-Total-Pages: {$ref: "#/components/headers/TotalPages"}
+            X-Page: {$ref: "#/components/headers/Page"}
           content:
             text/csv:
               schema: {type: string}
         "401":
           description: Missing or wrong API key.
+        "404":
+          description: No such page — page was below 1 or above X-Total-Pages.
   /api/v1/export/orders:
     get:
       operationId: exportOrders
       summary: Orders since the last export, at-least-once
       security: [{ApiKey: []}]
+      parameters: [{$ref: "#/components/parameters/Page"}]
       responses:
         "200":
           description: JSON Lines — one order per line, not a JSON array.
+          headers:
+            X-Total-Pages: {$ref: "#/components/headers/TotalPages"}
+            X-Page: {$ref: "#/components/headers/Page"}
           content:
             application/x-ndjson:
               schema: {type: string}
         "401":
           description: Missing or wrong API key.
+        "404":
+          description: No such page — page was below 1 or above X-Total-Pages.
 components:
+  parameters:
+    Page:
+      name: page
+      in: query
+      required: false
+      description: 1-based page number. Omitted means the first page.
+      schema: {type: integer, minimum: 1, default: 1}
+  headers:
+    TotalPages:
+      description: How many pages this export has, in total.
+      schema: {type: integer, minimum: 1}
+    Page:
+      description: Which page this response is — echoed so a client can check.
+      schema: {type: integer, minimum: 1}
   securitySchemes:
     ApiKey:
       type: apiKey

@@ -43,14 +43,22 @@ def main() -> int:
     # Every column stays a string. The vendor's CSV is text on the wire, and
     # inferring types here would make bronze an interpretation rather than a
     # copy — silver is where meaning gets assigned.
+    # A DIRECTORY, not a file. The vendor's export is paged, so landing holds
+    # `part-0001.csv … part-000N.csv` and the engine reads them as one dataset.
+    # This is the shape Spark wants anyway — parts are what it writes — so the
+    # paged vendor and the distributed reader agree without anything in between
+    # having to reassemble 170 MB in one process's memory.
+    #
+    # Every part repeats the header, which is why `header=True` stays correct
+    # across a directory rather than turning row one of each part into data.
     customers = (
         spark.read.option("header", True)
         .option("inferSchema", False)
-        .csv(f"{landing}/contoso_pos/{day}/customers.csv")
+        .csv(f"{landing}/contoso_pos/{day}/customers/")
     )
     n_cust = save(customers, "bronze_customers")
 
-    orders = spark.read.json(f"{landing}/contoso_pos/{day}/orders.jsonl")
+    orders = spark.read.json(f"{landing}/contoso_pos/{day}/orders/")
     n_ord = save(orders, "bronze_orders")
 
     # --- Contoso ERP -------------------------------------------------------

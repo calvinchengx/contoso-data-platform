@@ -6,10 +6,14 @@ they run on all three platforms in CI from day one.
 
 import pathlib
 import re
+import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SOURCES = ROOT / "sources"
 SPECS = sorted(SOURCES.glob("*/openapi.yaml"))
+
+sys.path.insert(0, str(ROOT / "scripts"))
+from materialise_sources import paginate  # noqa: E402
 
 
 def test_there_is_at_least_one_source():
@@ -76,6 +80,77 @@ def test_one_mokapi_instance_per_source():
     published = re.findall(r'^\s+- "\$\{(\w+):-(\d+)\}:', compose, re.M)
     ports = [p for _, p in published]
     assert len(ports) == len(set(ports)), f"two services publish one port: {ports}"
+
+
+def test_pages_reassemble_into_exactly_the_original_bytes():
+    """Paging that loses or duplicates a row is worse than not paging.
+
+    The whole export must be recoverable from its parts, byte for byte, or
+    every count downstream is measuring a different dataset than the vendor
+    sent — and would still look self-consistent while doing it.
+    """
+    body = b"".join(b'{"id":%d}\n' % i for i in range(50_000))
+    pages = paginate(body, keep_header=False, page_bytes=64_000)
+    assert len(pages) > 1, "the sample did not split, so nothing was tested"
+    assert b"".join(pages) == body
+
+
+def test_every_csv_page_repeats_the_header():
+    """Each part has to be independently readable.
+
+    Spark reads the landed directory with `header=True`. A part missing the
+    header turns its first record into column names — silently, since the
+    result is still a dataframe.
+    """
+    header = b"customer_id,name,country\n"
+    rows = [b"c%d,Name %d,US\n" % (i, i) for i in range(50_000)]
+    pages = paginate(header + b"".join(rows), keep_header=True, page_bytes=64_000)
+    assert len(pages) > 1, "the sample did not split, so nothing was tested"
+    for i, page in enumerate(pages):
+        assert page.startswith(header), f"page {i + 1} has no header row"
+    rebuilt = header + b"".join(p[len(header) :] for p in pages)
+    assert rebuilt == header + b"".join(rows)
+
+
+def test_paging_never_splits_a_record():
+    sample = b"".join(b'{"id":%d}\n' % i for i in range(50_000))
+    for page in paginate(sample, False, page_bytes=64_000):
+        assert page.endswith(b"\n"), "a page ends mid-record"
+        for line in page.splitlines():
+            assert line.startswith(b'{"id":') and line.endswith(b"}"), line[:40]
+
+
+def test_paged_operations_declare_their_paging():
+    """The spec is what OpenMetadata ingests and what a client reads.
+
+    An endpoint that pages without saying so leaves every caller to discover it
+    by getting a partial answer that looks complete.
+    """
+    for spec in SPECS:
+        text = spec.read_text()
+        if "page" not in text:
+            continue
+        for field in ("X-Total-Pages", "X-Page"):
+            assert field in text, f"{spec.parent.name}: pages but no {field} header"
+        assert re.search(r"^\s+name: page$", text, re.M), (
+            f"{spec.parent.name}: no `page` parameter declared"
+        )
+
+
+def test_serve_scripts_do_not_hardcode_a_page_count():
+    """The page count belongs to the data, not to the handler.
+
+    `make sources` decides how many pages there are. A number in the script is
+    a second source of truth that goes stale the moment the page size moves,
+    and the API would then advertise a count the directory cannot serve.
+    """
+    for spec in SPECS:
+        js = spec.parent / "serve.js"
+        if "X-Total-Pages" not in js.read_text():
+            continue
+        assert "pages.txt" in js.read_text(), (
+            f"{spec.parent.name}: page count is not read from the data"
+        )
 
 
 def test_specs_are_pinned_to_no_host_we_do_not_control():
