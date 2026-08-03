@@ -10,6 +10,12 @@ for pat in (
     "**/*.egg-info",
     ".venv",
     "capture/shots",
+    # dbt's outputs. Listed here because they are listed in .gitignore: a path
+    # the repo refuses to track and the cleaner refuses to remove is an
+    # artifact by one definition and not the other.
+    "gold/target",
+    "gold/logs",
+    "gold/.user.yml",
     "**/state.json",
     "**/*_summary.json",
 ):

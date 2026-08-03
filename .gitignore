@@ -13,4 +13,13 @@ CLAUDE.local.md
 gold/_export.json
 catalog.json
 gold/_columns.json
-capture/shots/
+
+# dbt writes these on every run: the compiled SQL it just built, the manifest
+# describing it, and its own log. They are OUTPUTS of gold/models/*.sql, so
+# committing them means every run dirties the tree with a rebuild of something
+# the repo already holds the source of — and a stale manifest reads like a
+# source of truth while describing a project that no longer exists.
+# .user.yml is dbt's anonymous-usage id, generated per machine.
+gold/target/
+gold/logs/
+gold/.user.yml
