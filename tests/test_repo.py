@@ -485,3 +485,95 @@ def test_notebook_lineage_is_observed_not_declared():
             f"silver declares {declared} again — the read/write set must be "
             f"observed by the notebook, never named by the step publishing it"
         )
+
+
+def test_the_platform_proves_it_runs_unattended():
+    """A schedule that is created but never observed to fire proves nothing.
+
+    This is the failure mode the step exists for: if scheduling breaks, the
+    data is simply yesterday's and every row count, table and dashboard still
+    looks correct. So the assertion is not "a schedule exists" but "a run
+    appeared that the SCHEDULER produced" — which only `invokeType` can say,
+    because a scheduled run and a manual one are otherwise the same job doing
+    the same work.
+    """
+    src = (ROOT / "platform" / "schedule.py").read_text()
+    assert '"Scheduled"' in src, (
+        "the step must filter job instances by invokeType — without it the "
+        "assertion cannot tell a scheduled run from the manual one that "
+        "already ran earlier in the pipeline"
+    )
+    assert "T.clock_is_controllable" in src, (
+        "moving time is emulator-only and must be gated by the target"
+    )
+    # The real branch must SAY it is not asserting the firing. A silent skip
+    # would report success for a scheduler nobody exercised.
+    assert "is not asserted here" in src, (
+        "the real target skips the firing assertion and must say so out loud"
+    )
+
+
+def test_the_schedule_step_runs_last():
+    """The clock jump must not land under another step.
+
+    Proving a schedule fires means advancing the emulator's clock, and every
+    job status and long-running operation in the stack derives from that clock.
+    An hour jumped mid-run would surface as a completed job or an expired
+    operation in whatever step came next — an unrelated-looking failure with a
+    cause nobody would find from the error.
+    """
+    steps = re.findall(
+        r'^\s*\("([a-z_]+)",', (ROOT / "platform" / "pipeline.py").read_text(), re.M
+    )
+    assert steps, "pipeline.py declares no steps"
+    assert "schedule" in steps, "the schedule step is not in the pipeline at all"
+    after = steps[steps.index("schedule") + 1 :]
+    assert not after, f"schedule must run last; these follow it: {after}"
+
+
+def test_the_clock_advance_fits_inside_one_token_lifetime():
+    """Moving Fabric's clock does not move the identity provider's.
+
+    Only the Fabric emulator's clock responds to the advance; the Entra
+    emulator that mints the tokens keeps its own. Jump further than a token
+    lives and the two disagree permanently: every call afterwards 401s with
+    `invalid token: expired`, INCLUDING freshly minted ones, because the new
+    token is already past its expiry as far as Fabric is concerned.
+
+    It cost an hour to diagnose once, because it presents as an authentication
+    fault and is really a consequence of the clock lever the schedule step
+    exists to pull. The step asserts it at import; this asserts the assertion,
+    so raising the cadence cannot quietly remove the guard.
+    """
+    src = (ROOT / "platform" / "schedule.py").read_text()
+    m_int = re.search(r"^INTERVAL_MINUTES = (\d+)", src, re.M)
+    m_life = re.search(r"^TOKEN_LIFETIME_SECONDS = (\d+)", src, re.M)
+    assert m_int and m_life, "the step no longer declares its cadence and lifetime"
+    interval, lifetime = int(m_int.group(1)), int(m_life.group(1))
+    advance = interval * 60 + 300
+    assert advance < lifetime, (
+        f"advancing {advance}s outruns the {lifetime}s token lifetime; "
+        f"every call after the jump would fail as an auth error"
+    )
+    assert "TOKEN_LIFETIME_SECONDS" in src and "assert ADVANCE_SECONDS <" in src, (
+        "the step must guard this itself, or a future cadence change fails "
+        "three calls later with an error naming neither the clock nor this rule"
+    )
+
+
+def test_the_schedule_step_puts_the_clock_back():
+    """A stack left an interval ahead hands out tokens Fabric reads as expired.
+
+    The next unrelated command — the portal, a re-run, capture — then fails
+    with an authentication error nobody would trace back to a schedule
+    assertion minutes earlier. Restoring the offset is part of the step, not
+    cleanup someone is trusted to remember.
+    """
+    src = (ROOT / "platform" / "schedule.py").read_text()
+    assert "def reset_clock()" in src, "the step never restores the clock"
+    # Before the assert, so a FAILING run also leaves time where it found it.
+    body = src[src.index("def main()") :]
+    assert body.index("reset_clock()") < body.index("assert len(after) > before"), (
+        "the clock must be restored before the assertion, or a failed run "
+        "leaves the stack broken for whatever runs next"
+    )

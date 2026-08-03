@@ -71,6 +71,18 @@ will break** — the "enforced by" column is the honest part of this document, a
 
 | | |
 |---|---|
+| **Rule** | The platform must prove it runs **unattended**: a schedule is created, and on a controllable clock its firing is asserted by `invokeType: "Scheduled"` — never merely by the schedule existing. `schedule` runs LAST, because advancing the clock moves what every job status derives from. |
+| **Why** | Everything else here runs because someone typed `make verify`, which proves the platform works and not that it operates. Broken scheduling is silent in the worst way: the data is yesterday's and every row count, table and dashboard still looks correct. A schedule that exists is not a schedule that fires, and only `invokeType` separates a scheduled run from the manual one that already happened earlier in the same pipeline. |
+| **Enforced by** | `test_the_platform_proves_it_runs_unattended`, `test_the_schedule_step_runs_last` |
+
+| | |
+|---|---|
+| **Rule** | A clock advance must fit inside one token lifetime, and the clock must be put back — before the assertion, so a failing run restores it too. |
+| **Why** | Only Fabric's clock moves; the Entra emulator that mints the tokens keeps its own. Jump further than a token lives and the two disagree permanently — every later call 401s `invalid token: expired`, including freshly minted tokens, because the new one is already past expiry as far as Fabric is concerned. It presents as an authentication fault and is really the clock lever. A stack left advanced breaks whatever runs next with an error nobody would trace back here. |
+| **Enforced by** | `test_the_clock_advance_fits_inside_one_token_lifetime`, `test_the_schedule_step_puts_the_clock_back` |
+
+| | |
+|---|---|
 | **Rule** | Playing the Spark pool is emulator-only. `engine.py` runs behind `T.runs_notebooks_itself` and never against production. |
 | **Why** | Real Fabric schedules a RunNotebook job onto its own pool and reports back; the emulator parses the notebook and waits for an engine, deliberately, so that a terminal job status means execution happened rather than that a clock advanced. Locally the platform has to supply that engine — but running it against real Fabric would execute the notebook twice. |
 | **Enforced by** | `test_the_engine_driver_never_runs_against_real_fabric` |

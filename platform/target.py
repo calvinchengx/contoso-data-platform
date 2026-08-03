@@ -106,6 +106,16 @@ class Target:
     # That is emulator scaffolding, which is why it is selected here and why
     # engine.py never runs against production.
     runs_notebooks_itself: bool
+    # WHETHER TIME CAN BE MOVED. A schedule is the one Fabric feature whose
+    # whole behaviour is "wait, then act", and waiting is not a test. The
+    # emulator's clock is controllable — advance it and every schedule due in
+    # the window fires — so the platform can prove a schedule really produced a
+    # run. Real Fabric's clock is the world's: the schedule is created and
+    # verified, and the firing is left to happen at the hour it says.
+    #
+    # So on both targets the schedule is created, read back and asserted. Only
+    # the "did it fire" half is emulator-only, and this is what gates it.
+    clock_is_controllable: bool
     # Where secrets live. The azure-keyvault-emulator locally, the customer's
     # real vault in production — never the source tree, on either target.
     vault_url: str
@@ -187,6 +197,7 @@ def resolve() -> Target:
             # A Fabric Spark notebook supplies the session; nothing to connect to.
             spark_remote=os.environ.get("SPARK_REMOTE"),
             runs_notebooks_itself=True,
+            clock_is_controllable=False,
             vault_url=vault,
             entra_admin_api=None,
         )
@@ -207,6 +218,7 @@ def resolve() -> Target:
         capacity_is_auto_assigned=True,
         spark_remote=os.environ.get("SPARK_REMOTE", "sc://localhost:50051"),
         runs_notebooks_itself=False,
+        clock_is_controllable=True,
         vault_url=ft.vault_url,
         entra_admin_api=ft.entra_url + "/admin/api/apps",
     )
