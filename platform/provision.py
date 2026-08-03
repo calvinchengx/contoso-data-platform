@@ -1,8 +1,14 @@
-"""Create the workspace and the lakehouse this platform is built in.
+"""Resolve the workspace and lakehouse by NAME, creating them if absent.
 
-The first code here that talks to the emulator, and the first real test of the
-claim this repository makes: everything below is written from the published
-quickstart, against a published image, with no access to the emulator's source.
+BY NAME, NOT BY ID, and that is the documented contract rather than a
+convenience: ids can never match across targets, so user code holds display
+names and the platform resolves them to a GUID per target
+(docs/21-real-fabric-toggle).
+
+Resolve-or-create also makes the run idempotent. Display names are unique per
+tenant in real Fabric, so a second `POST /workspaces` returns 409
+`WorkspaceNameAlreadyExists` — on both targets. A platform that can only be run
+against a fresh tenant is not one anybody can operate.
 """
 
 from __future__ import annotations
@@ -14,16 +20,40 @@ WORKSPACE = "contoso-analytics"
 LAKEHOUSE = "contoso_lake"
 
 
+def find_workspace(tok: str, name: str) -> dict | None:
+    r = fabric("GET", "/workspaces", tok)
+    assert r.status_code == 200, (r.status_code, r.text[:200])
+    for ws in r.json().get("value", []):
+        if ws.get("displayName") == name:
+            return ws
+    return None
+
+
+def find_item(tok: str, workspace: str, name: str, kind: str) -> dict | None:
+    r = fabric("GET", f"/workspaces/{workspace}/items", tok)
+    assert r.status_code == 200, (r.status_code, r.text[:200])
+    for it in r.json().get("value", []):
+        if it.get("displayName") == name and it.get("type") == kind:
+            return it
+    return None
+
+
 def main() -> int:
     tok = token(FABRIC_AUD)
 
-    r = fabric("POST", "/workspaces", tok, json={"displayName": WORKSPACE})
-    # Create is one of the synchronous paths (quickstart §3). A 202 here would
-    # mean the emulator changed its contract, which is worth failing on rather
-    # than silently polling.
-    assert r.status_code == 201, (r.status_code, r.text[:300])
-    ws = r.json()
+    ws = find_workspace(tok, WORKSPACE)
+    if ws is None:
+        r = fabric("POST", "/workspaces", tok, json={"displayName": WORKSPACE})
+        # Create is one of the synchronous paths (quickstart §3). A 202 would
+        # mean the contract changed, which is worth failing on rather than
+        # silently polling.
+        assert r.status_code == 201, (r.status_code, r.text[:300])
+        ws = r.json()
+        log(f"created workspace {WORKSPACE}")
+    else:
+        log(f"reusing workspace {WORKSPACE}")
     assert ws["id"], ws
+
     # A capacity is required for the workspace to be usable — but WHO provides
     # it differs, and asserting the emulator's convenience would fail against
     # production for a reason unrelated to this code. The emulator seeds one and
@@ -32,14 +62,19 @@ def main() -> int:
     if T.capacity_is_auto_assigned:
         assert ws.get("capacityId"), f"no capacity auto-assigned: {ws}"
 
-    r = fabric(
-        "POST",
-        f"/workspaces/{ws['id']}/items",
-        tok,
-        json={"displayName": LAKEHOUSE, "type": "Lakehouse"},
-    )
-    assert r.status_code in (201, 202), (r.status_code, r.text[:300])
-    lake = r.json()
+    lake = find_item(tok, ws["id"], LAKEHOUSE, "Lakehouse")
+    if lake is None:
+        r = fabric(
+            "POST",
+            f"/workspaces/{ws['id']}/items",
+            tok,
+            json={"displayName": LAKEHOUSE, "type": "Lakehouse"},
+        )
+        assert r.status_code in (201, 202), (r.status_code, r.text[:300])
+        lake = r.json()
+        log(f"created lakehouse {LAKEHOUSE}")
+    else:
+        log(f"reusing lakehouse {LAKEHOUSE}")
     assert lake["id"], lake
 
     state.save(
@@ -48,7 +83,7 @@ def main() -> int:
         workspace_name=WORKSPACE,
         lakehouse_name=LAKEHOUSE,
     )
-    log(f"provisioned workspace {ws['id']} and lakehouse {lake['id']}")
+    log(f"workspace {ws['id']}, lakehouse {lake['id']}")
     return 0
 
 

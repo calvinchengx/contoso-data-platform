@@ -58,6 +58,9 @@ class Target:
     # Where the Spark session comes from. In a Fabric notebook `spark` is
     # ambient and this is None; outside one, a Spark Connect endpoint.
     spark_remote: str | None
+    # Where secrets live. The azure-keyvault-emulator locally, the customer's
+    # real vault in production — never the source tree, on either target.
+    vault_url: str
 
     @property
     def is_emulator(self) -> bool:
@@ -115,6 +118,7 @@ def resolve() -> Target:
             capacity_is_auto_assigned=False,
             # A Fabric Spark notebook supplies the session; nothing to connect to.
             spark_remote=os.environ.get("SPARK_REMOTE"),
+            vault_url=_require("AZURE_KEY_VAULT_URL"),
         )
 
     fabric = os.environ.get("FABRIC_URL", "https://localhost:9443")
@@ -139,4 +143,5 @@ def resolve() -> Target:
         verify_tls=False,
         capacity_is_auto_assigned=True,
         spark_remote=os.environ.get("SPARK_REMOTE", "sc://localhost:50051"),
+        vault_url=os.environ.get("AZURE_KEY_VAULT_URL", "https://localhost:8444"),
     )

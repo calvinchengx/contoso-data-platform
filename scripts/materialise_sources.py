@@ -31,6 +31,11 @@ def main():
         mod = __import__(mod_name)
         dest = OUT / subdir
         dest.mkdir(parents=True, exist_ok=True)
+        # The vendor's own credential, written where the vendor (mokapi) can
+        # read it. NOT copied into serve.js: two literals of one credential
+        # drift the moment either moves — which is exactly what happened when
+        # this was invented in two places and only one of them was updated.
+        (dest / ".api-key").write_text(mod.API_KEY)
         for filename, blob in mod.export(mod.API_KEY).items():
             p = dest / filename
             p.write_bytes(blob)

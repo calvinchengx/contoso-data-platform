@@ -14,6 +14,9 @@ HERE = pathlib.Path(__file__).resolve().parent
 
 STEPS = [
     ("provision", "workspace and lakehouse"),
+    # Before anything that needs a credential. In production the vault is
+    # already populated and this step does not exist.
+    ("seed_secrets", "put the source credentials in Key Vault"),
     ("ingest_pos", "pull Contoso POS over HTTP into Files/landing"),
     # The connector goes BEFORE the replay. Start it after, and the history is
     # captured by a snapshot rather than as a change stream — which would still

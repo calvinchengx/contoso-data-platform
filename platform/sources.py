@@ -17,12 +17,32 @@ import os
 # Contoso POS — the vendor's export API. mokapi serves the seeded generator's
 # bytes here; in production this is the vendor's own hostname.
 POS_API = os.environ.get("POS_API_URL", "http://localhost:18090")
-POS_API_KEY = os.environ.get("POS_API_KEY", "contoso-pos-key-7731-dev")
+# The NAME of the secret, never its value. Resolved from Key Vault at use.
+POS_KEY_SECRET = os.environ.get("POS_KEY_SECRET", "contoso-pos-api-key")
 
 # Contoso ERP — a relational source, captured by CDC.
-ERP_DSN = os.environ.get(
-    "ERP_DSN", "postgresql://contoso:contoso-erp-dev@localhost:55432/erp"
-)
+ERP_HOST = os.environ.get("ERP_HOST", "localhost")
+ERP_PORT = os.environ.get("ERP_PORT", "55432")
+ERP_DB = os.environ.get("ERP_DB", "erp")
+ERP_USER = os.environ.get("ERP_USER", "contoso")
+ERP_PASSWORD_SECRET = os.environ.get("ERP_PASSWORD_SECRET", "contoso-erp-password")
+
+
+def erp_dsn() -> str:
+    """The ERP connection string, with the password read from Key Vault.
+
+    A function rather than a constant: the password is fetched when it is
+    needed, so it is never sitting in a module attribute for the lifetime of
+    the process, and never in this file at all.
+    """
+    import vault
+
+    return (
+        f"postgresql://{ERP_USER}:{vault.get(ERP_PASSWORD_SECRET)}"
+        f"@{ERP_HOST}:{ERP_PORT}/{ERP_DB}"
+    )
+
+
 DEBEZIUM = os.environ.get("DEBEZIUM_URL", "http://localhost:18083")
 REDPANDA = os.environ.get("REDPANDA_BOOTSTRAP", "localhost:19092")
 ERP_TOPIC = os.environ.get("ERP_TOPIC", "contoso.erp.customer")

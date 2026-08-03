@@ -11,7 +11,9 @@
 import { on } from 'mokapi'
 import { read } from 'mokapi/file'
 
-const KEY = 'contoso-pos-key-7731-dev'
+// The vendor's key, from the fixture that also produced the bytes.
+// `make sources` writes it; nothing here restates it.
+const KEY = read('/sources/_data/contoso-pos/.api-key').trim()
 
 const BODIES = {
   exportCustomers: '/sources/_data/contoso-pos/customers.csv',

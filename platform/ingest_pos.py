@@ -16,9 +16,10 @@ import datetime as dt
 
 import requests
 import state
+import vault
 from fabric import STORAGE_AUD, log, token, upload
 
-from sources import POS_API, POS_API_KEY
+from sources import POS_API, POS_KEY_SECRET
 
 # (operation path, landed filename). Named from the OpenAPI spec's operations,
 # so a spec change that renames a route fails here rather than landing an empty
@@ -41,6 +42,7 @@ def main() -> int:
     # The credential is enforced by the vendor, not by us. The emulator's own
     # example asserts a wrong key raises PermissionError in-process; over HTTP
     # the same guarantee is a 401, which is what a real client would meet.
+    api_key = vault.get(POS_KEY_SECRET)
     refused = fetch(FEEDS[0][0], "wrong-key")
     assert refused.status_code == 401, (
         f"the vendor accepted a bad API key: {refused.status_code}"
@@ -48,7 +50,7 @@ def main() -> int:
 
     landed = {}
     for path, filename in FEEDS:
-        r = fetch(path, POS_API_KEY)
+        r = fetch(path, api_key)
         assert r.status_code == 200, (path, r.status_code, r.text[:200])
         blob = r.content
         assert blob, f"{path} returned an empty body"

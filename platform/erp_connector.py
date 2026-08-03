@@ -19,7 +19,7 @@ import psycopg
 import requests
 from fabric import log
 
-from sources import DEBEZIUM, ERP_DSN
+from sources import DEBEZIUM, erp_dsn
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "sources" / "contoso-erp" / "debezium-connector.json"
@@ -53,7 +53,7 @@ def main() -> int:
     # The table must exist first: `table.include.list` matches nothing against
     # an absent table, and the connector then starts happily and captures
     # nothing at all.
-    with psycopg.connect(ERP_DSN, autocommit=True) as conn:
+    with psycopg.connect(erp_dsn(), autocommit=True) as conn:
         conn.execute(cast("LiteralString", SCHEMA.read_text()))
 
     cfg = json.loads(CONFIG.read_text())

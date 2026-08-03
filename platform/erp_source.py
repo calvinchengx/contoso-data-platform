@@ -19,7 +19,7 @@ import state
 from fabric import log
 from psycopg import sql
 
-from sources import ERP_DSN
+from sources import erp_dsn
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SCHEMA = ROOT / "sources" / "contoso-erp" / "schema.sql"
@@ -80,7 +80,7 @@ def main() -> int:
         erp.EXPECTED_ERP_CHANGE_EVENTS,
     )
 
-    with psycopg.connect(ERP_DSN, autocommit=False) as conn:
+    with psycopg.connect(erp_dsn(), autocommit=False) as conn:
         with conn.cursor() as cur:
             # The DDL is a repo-controlled file, not input — but psycopg's
             # types demand LiteralString precisely so that dynamic SQL has to
