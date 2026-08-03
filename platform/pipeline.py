@@ -58,6 +58,21 @@ def preflight() -> None:
             f"because they are pinned to a release rather than to uv.lock."
         ) from exc
 
+    # The vendors serve FILES. Without them mokapi does not fail — it falls
+    # back to generating bodies from the OpenAPI schema and answers everything
+    # 200, wrong API key included. That surfaced once as "the vendor accepted a
+    # bad API key", an error naming neither mokapi nor the absent files. The
+    # compose healthcheck catches it too; this catches it before the stack is
+    # even up, and says which command fixes it.
+    for feed in ("customers", "orders"):
+        pages = HERE.parent / "sources" / "_data" / "contoso-pos" / feed / "pages.txt"
+        if not pages.exists():
+            raise SystemExit(
+                f"the vendor's exports are not materialised ({feed}).\n"
+                f"  run `make sources` — sources/_data/ is gitignored, so a "
+                f"fresh clone has nothing for the source APIs to serve."
+            )
+
 
 def main() -> int:
     preflight()

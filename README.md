@@ -12,9 +12,18 @@ anything that works here works for anyone.
 git clone https://github.com/calvinchengx/contoso-data-platform
 cd contoso-data-platform
 make doctor      # what is ready, and what is not
+make fixtures    # install the generators published by the pinned release
+make sources     # materialise the bytes the vendor APIs serve
 make up          # start the stack
 make verify      # run the platform end to end
 ```
+
+`fixtures` and `sources` are not optional and not one-time. The vendors serve
+files from `sources/_data/`, which is gitignored — 170 MB of generated data
+does not belong in git — so a fresh clone has nothing to serve until these two
+run. Skipping them was how CI first went red: mokapi could not read its own
+fixture, fell back to generating bodies from the OpenAPI schema, and answered a
+deliberately wrong API key with `200`.
 
 ## Rules
 

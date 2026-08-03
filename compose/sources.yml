@@ -64,8 +64,22 @@ services:
     # next request — so the policy hid a real defect behind a green pipeline.
     # GOMEMLIMIT above is the fix; keep this for genuine crashes only.
     restart: unless-stopped
+    # HEALTHY MEANS THE VENDOR ENFORCES ITS CREDENTIAL, not merely that a port
+    # is open. If serve.js cannot read its fixture — `make sources` not run, a
+    # bad mount — mokapi does not fail: it falls back to GENERATING bodies from
+    # the OpenAPI schema and answers every request 200, wrong key included.
+    # A liveness probe passes happily against that, and the lie surfaces three
+    # steps later as "the vendor accepted a bad API key", which names neither
+    # mokapi nor the missing files.
+    #
+    # So the probe sends a key that must be refused. wget exits non-zero on
+    # 401, which is the healthy case here — hence the inverted test.
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080 || exit 1"]
+      test:
+        - CMD-SHELL
+        - >-
+          wget -q -O /dev/null --header='X-Api-Key: definitely-not-the-key'
+          http://localhost:8090/api/v1/export/customers && exit 1 || exit 0
       interval: 10s
       timeout: 5s
       retries: 5

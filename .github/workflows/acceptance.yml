@@ -39,6 +39,12 @@ jobs:
           git --no-pager diff --stat versions.env
       - run: make doctor
       - run: make fixtures
+      # NOT optional. The vendors serve files from `sources/_data/`, which is
+      # gitignored, so a fresh checkout has nothing to serve. Omitting this
+      # was the first thing a real release run caught: mokapi could not read
+      # its fixture, silently fell back to generating bodies from the schema,
+      # and answered a wrong API key with 200.
+      - run: make sources
       - run: make up
       - run: make verify
       # Report what was VERIFIED, not merely that nothing failed. "We verified
