@@ -23,3 +23,6 @@ gold/_columns.json
 gold/target/
 gold/logs/
 gold/.user.yml
+
+# Emitted by platform/pbip.py — a build output, not a source.
+artifacts/

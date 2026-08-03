@@ -21,6 +21,7 @@ import json
 import pathlib
 import time
 
+import pbip
 import state
 from fabric import FABRIC, FABRIC_AUD, S, T, ensure_audience, fabric, log, token
 from provision import find_item
@@ -280,7 +281,15 @@ def main() -> int:
     database = T.warehouse_database(st["warehouse"], gold.WAREHOUSE)
     log(f"warehouse SQL endpoint {server}, database {database}")
 
-    dataset = publish(st["workspace"], definition(rows, server, database), tok)
+    defn = definition(rows, server, database)
+    dataset = publish(st["workspace"], defn, tok)
+
+    # The same definition, on disk, as a Power BI Project. Written from `defn`
+    # rather than rebuilt so the folder describes what was actually published —
+    # a second construction could drift by a partition and nobody would see it.
+    model_bim = json.loads(base64.b64decode(defn["parts"][0]["payload"]))
+    folder = pbip.write(ROOT / "artifacts" / "pbip", model_bim)
+    log(f"PBIP written to {folder.relative_to(ROOT)}")
     state.save(dataset=dataset)
 
     # Queried exactly as a Power BI REST client would.

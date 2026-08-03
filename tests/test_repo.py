@@ -747,3 +747,51 @@ def test_the_partition_columns_match_the_gold_export():
                 f"{table}.{wc} -> model {model_col} -> {gold_column(model_col)}; "
                 f"the partition would SELECT a column that does not exist"
             )
+
+
+def test_the_pbip_folder_carries_what_a_real_one_requires():
+    """A PBIP semantic-model folder has two required files and we write both.
+
+    Microsoft marks `definition.pbism` required always, and `model.bim`
+    required when saving in TMSL format — which `definition.pbism` version 1.0
+    is what declares. Getting the pair inconsistent produces a folder that
+    looks right in a listing and that Power BI Desktop refuses to open, with an
+    error naming a file rather than the mismatch.
+    """
+    import json
+    import shutil
+    import sys
+    import tempfile
+
+    sys.path.insert(0, str(ROOT / "platform"))
+    import pbip
+
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    try:
+        model = {"name": "M", "compatibilityLevel": 1550, "model": {"tables": []}}
+        folder = pbip.write(tmp, model)
+
+        names = {p.name for p in folder.iterdir()}
+        assert {"definition.pbism", "model.bim", ".platform"} <= names, names
+        assert folder.name.endswith(".SemanticModel"), folder.name
+
+        pbism = json.loads((folder / "definition.pbism").read_text())
+        # version 1.0 means "the model is TMSL, in model.bim". Declaring 4.0+
+        # would also permit a TMDL folder this platform cannot write.
+        assert pbism["version"] == "1.0", pbism
+        assert (folder / "model.bim").exists(), "version 1.0 requires model.bim"
+
+        plat = json.loads((folder / ".platform").read_text())
+        assert plat["metadata"]["type"] == "SemanticModel", plat
+        # The logicalId is what makes a redeploy update the SAME item rather
+        # than create a second one, so it must be stable across runs.
+        again = pbip.write(tmp, model)
+        assert (
+            json.loads((again / ".platform").read_text())["config"]["logicalId"]
+            == (plat["config"]["logicalId"])
+        )
+
+        # The definition on disk is the one that was published, byte for byte.
+        assert json.loads((folder / "model.bim").read_text()) == model
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
