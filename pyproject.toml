@@ -24,7 +24,10 @@ dependencies = [
 # Locked, not resolved fresh on every run: `--with pytest` would pull whatever
 # version exists that day, which is a different test suite than the one that
 # passed yesterday.
-dev = ["pytest>=8,<9", "ruff>=0.14,<0.15", "ty>=0.0.1a1"]
+# pytest floor is 9.0.3, not 8: everything below it has GHSA-tied tmpdir
+# handling that Dependabot flags on this public repo. The upper bound stays,
+# for the reason above.
+dev = ["pytest>=9.0.3,<10", "ruff>=0.14,<0.15", "ty>=0.0.1a1"]
 
 [tool.uv]
 package = false
