@@ -22,9 +22,10 @@ import pathlib
 import time
 
 import state
-from fabric import FABRIC, FABRIC_AUD, S, ensure_audience, log, token
+from fabric import FABRIC, FABRIC_AUD, S, T, ensure_audience, fabric, log, token
 from provision import find_item
 
+import gold
 from gold import in_dbt_container
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -32,6 +33,12 @@ EXPORT = ROOT / "gold" / "_export.json"
 
 PBI_AUD = "https://analysis.windows.net/powerbi/api"
 MODEL = "ContosoRevenue"
+
+# Which gold table each model table projects from. Written here rather than
+# derived from the name: `Revenue` comes from `fct_daily_revenue`, and a
+# convention that guessed would break the first time a model table was renamed
+# for the report writer's benefit — which is the whole point of a semantic layer.
+GOLD_TABLE = {"Customer": "dim_customer", "Revenue": "fct_daily_revenue"}
 
 # One query, asked over two surfaces. xmla_probe.py runs this same DAX through
 # ADOMD.NET, so if both answer they must agree — which is a stronger statement
@@ -42,8 +49,87 @@ DAX = (
 )
 
 
-def definition(rows: dict) -> dict:
-    """TMSL plus the rows, as InlineBase64 definition parts."""
+def sql_endpoint(workspace: str, warehouse: str, tok: str) -> str:
+    """Where a SQL client dials to reach the Warehouse, asked of Fabric.
+
+    DISCOVERED, never configured. Real Fabric returns
+    `properties.connectionString` on a Warehouse item, and it is per-workspace —
+    so an endpoint written into a config file is one that cannot be right on
+    two targets at once. Asking the API is the same call on both.
+    """
+    r = fabric("GET", f"/workspaces/{workspace}/items/{warehouse}", tok)
+    assert r.status_code == 200, (r.status_code, r.text[:200])
+    cs = (r.json().get("properties") or {}).get("connectionString")
+    assert cs, (
+        "the Warehouse advertises no connectionString. On the emulator that "
+        "means no SQL endpoint is running (FABRIC_SQL_TDS_ADDR unset), and a "
+        "model whose partitions name no server loads nothing."
+    )
+    return cs
+
+
+def gold_column(model_column: str) -> str:
+    """The warehouse column a model column projects from.
+
+    Gold is snake_case because dbt wrote it; the model is PascalCase because a
+    report writer reads it. `export_gold.py` already performs this mapping when
+    it selects rows, and a SECOND hand-written copy here would drift — silently,
+    because a partition naming a column that does not exist fails only when
+    something actually refreshes, which today is nothing.
+
+    So it is derived, and `test_the_partition_columns_match_the_gold_export`
+    pins the derivation against the SELECTs export_gold.py really issues.
+    """
+    out = []
+    for i, ch in enumerate(model_column):
+        if ch.isupper() and i:
+            out.append("_")
+        out.append(ch.lower())
+    return "".join(out)
+
+
+def partition(table: str, columns: list[dict], server: str, database: str) -> dict:
+    """Where this table's rows come from, as a Fabric import partition.
+
+    WHY A PARTITION AT ALL. A table's columns say what it looks like; its
+    partition says where the rows come from. Without one the model is a shape
+    with nothing behind it — which is what this platform published until now,
+    leaning on `data.json`, an emulator-native convenience the model carried
+    instead of a source. Power BI Desktop opens such a model to empty tables,
+    and nothing about the definition says why.
+
+    `Value.NativeQuery` with explicit aliases rather than navigating to the
+    table: gold is snake_case and the model is PascalCase, so the SELECT is
+    where that mapping belongs. Leaving it implicit would make `sourceColumn`
+    a claim nobody checks.
+    """
+    cols = ", ".join(
+        f"[{gold_column(c['sourceColumn'])}] AS [{c['name']}]" for c in columns
+    )
+    query = f"SELECT {cols} FROM [dbo].[{table}]"
+    m = (
+        "let\n"
+        f'    Source = Sql.Database("{server}", "{database}"),\n'
+        f'    Data = Value.NativeQuery(Source, "{query}")\n'
+        "in\n"
+        "    Data"
+    )
+    return {
+        "name": table,
+        "mode": "import",
+        "source": {"type": "m", "expression": m},
+    }
+
+
+def definition(rows: dict, server: str = "", database: str = "") -> dict:
+    """TMSL plus the rows, as InlineBase64 definition parts.
+
+    `rows` and the partitions coexist deliberately. The partition is what a BI
+    client follows to refresh; `data.json` is what the emulator's bounded DAX
+    evaluator reads to answer a query today. Dropping either would break one of
+    the two consumers, and they do not disagree — both come from the same gold
+    export.
+    """
     model = {
         "name": MODEL,
         "compatibilityLevel": 1550,
@@ -117,6 +203,16 @@ def definition(rows: dict) -> dict:
             "payload": base64.b64encode(json.dumps(obj).encode()).decode(),
         }
 
+    # Attach a partition per table when the endpoint is known. Guarded rather
+    # than assumed so `definition(rows)` stays callable without a live
+    # warehouse — the governance step and the tests both do that.
+    if server and database:
+        tables: list[dict] = model["model"]["tables"]
+        for tbl in tables:
+            name: str = tbl["name"]
+            columns: list[dict] = tbl["columns"]
+            tbl["partitions"] = [partition(GOLD_TABLE[name], columns, server, database)]
+
     return {"parts": [part("model.bim", model), part("data.json", rows)]}
 
 
@@ -177,7 +273,14 @@ def main() -> int:
     rows = json.loads(EXPORT.read_text())
     assert rows["Revenue"] and rows["Customer"], "the export is empty"
 
-    dataset = publish(st["workspace"], definition(rows), token(FABRIC_AUD))
+    tok = token(FABRIC_AUD)
+    # The database name is the one thing the Warehouse differs about across
+    # targets, so it is resolved by target.py and not decided here.
+    server = sql_endpoint(st["workspace"], st["warehouse"], tok)
+    database = T.warehouse_database(st["warehouse"], gold.WAREHOUSE)
+    log(f"warehouse SQL endpoint {server}, database {database}")
+
+    dataset = publish(st["workspace"], definition(rows, server, database), tok)
     state.save(dataset=dataset)
 
     # Queried exactly as a Power BI REST client would.

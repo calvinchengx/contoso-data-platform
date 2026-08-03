@@ -701,3 +701,49 @@ def test_the_landing_hop_is_reported_so_sources_are_not_orphans():
         "the reported landing path must carry the date partition bronze reads"
     )
     assert "contoso_pos/{day}/" in bronze, "bronze no longer reads a dated partition"
+
+
+def test_the_partition_columns_match_the_gold_export():
+    """A partition must name columns the warehouse really has.
+
+    `export_gold.py` selects snake_case from gold and renames to PascalCase for
+    the model; `semantic_model.gold_column` reverses that so a partition's SQL
+    names real columns. Two encodings of one mapping is exactly the shape that
+    drifts — and this drift is SILENT, because a partition naming a column that
+    does not exist fails only when something refreshes the model, which nothing
+    in this platform does today. Power BI Desktop would be the first to notice,
+    on somebody else's machine.
+
+    So the derivation is checked against the SELECTs the exporter really issues,
+    parsed out of its source rather than restated here.
+    """
+    export = ROOT / "gold" / "tools" / "export_gold.py"
+    if not export.exists():
+        candidates = list(ROOT.rglob("export_gold.py"))
+        assert candidates, "export_gold.py not found — the mapping has no authority"
+        export = candidates[0]
+    src = export.read_text()
+
+    # Only the pure function is wanted; importing the module would drag in the
+    # whole platform (state, fabric, a live target). Compile just the helper.
+    text = (ROOT / "platform" / "semantic_model.py").read_text()
+    start = text.index("def gold_column")
+    end = text.index("def partition")
+    ns: dict = {}
+    exec(compile(text[start:end], "semantic_model.py", "exec"), ns)
+    gold_column = ns["gold_column"]
+
+    # Every `SELECT a, b, c FROM <table>` the exporter issues.
+    selects = re.findall(r'"SELECT ([^"]+?) "?\s*"?FROM (\w+)"', src)
+    assert selects, f"no SELECTs parsed out of {export.name}"
+
+    for cols, table in selects:
+        warehouse_cols = [c.strip() for c in cols.split(",") if c.strip()]
+        for wc in warehouse_cols:
+            # Round-trip: PascalCase the warehouse column the way the exporter
+            # does, then derive it back and require the original.
+            model_col = "".join(p.capitalize() for p in wc.split("_"))
+            assert gold_column(model_col) == wc, (
+                f"{table}.{wc} -> model {model_col} -> {gold_column(model_col)}; "
+                f"the partition would SELECT a column that does not exist"
+            )
