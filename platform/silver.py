@@ -1,138 +1,182 @@
-"""Bronze → silver: dedupe, conform, quarantine — distributed.
+"""Bronze → silver, as a Fabric NOTEBOOK.
 
-Three rules, and each exists because bronze deliberately violates it:
+The transform is `silver_notebook.py` and it is not imported here — it is
+published as the `notebook-content.py` of a Notebook item and executed by a
+Spark engine. This module is the operator: publish, submit, wait, grade.
 
-  * the vendor repeats rows, so customers are deduped on the key
-  * orders arrive at-least-once, so the LATEST event per order wins — ranked by
-    the vendor's own sequence, never "pick any", which is correct only by luck
-    and silently wrong the day a redelivery carries a different status
-  * malformed orders are QUARANTINED, not dropped: a row nobody can price is
-    still a row someone has to reconcile
+WHY THIS IS THE INTERESTING PART. Every other step in this platform reaches
+Fabric's control plane and does the work itself. A notebook inverts that: the
+platform hands Fabric some code and Fabric decides where it runs. That is how
+the overwhelming majority of Fabric data engineering is actually written, and
+until this step existed nothing here exercised it — the transform ran as a Spark
+Connect script that merely *resembled* notebook code. `spark.py` has always
+claimed "the same code is a Spark notebook or a Spark Job Definition in
+production"; this is that claim under test rather than asserted.
 
-Window functions, not a client-side pass. Every row stays in the engine, so
-this is the same code at 100,000 customers and at a hundred million — which is
-the property a single-node engine cannot offer however convenient it is.
+WHAT DIFFERS BETWEEN THE TARGETS, and it is only one thing: real Fabric runs the
+notebook on its own Spark pool, so submitting and polling is the whole job. The
+emulator parses the notebook and waits for an engine to report — so on that
+target the platform also plays the pool, in engine.py, selected by
+`T.runs_notebooks_itself`. The notebook, the item, the job and the polling are
+identical either way.
+
+Three rules the notebook implements, each because bronze deliberately violates
+it: the vendor repeats rows, so customers are deduped on the key; orders arrive
+at-least-once, so the LATEST event per order wins, ranked by the vendor's own
+sequence; malformed orders are QUARANTINED, not dropped, because a row nobody
+can price is still a row someone has to reconcile.
 """
 
 from __future__ import annotations
 
-import spark as sparkmod
-import state
-from fabric import log
-from pyspark.sql import Window
-from pyspark.sql import functions as F
+import base64
+import json
+import pathlib
+import time
 
-# Silver's own business rule, written out rather than derived from the
-# generator's COUNTRY_VARIANTS. Importing that mapping would make the
-# conformance assertion agree with itself, and a new variant appearing upstream
-# would silently conform instead of failing.
-COUNTRY = {
-    "US": "US",
-    "USA": "US",
-    "U.S.": "US",
-    "UNITED STATES": "US",
-    "GB": "GB",
-    "GBR": "GB",
-    "UK": "GB",
-    "U.K.": "GB",
-    "UNITED KINGDOM": "GB",
-    "SG": "SG",
-    "SGP": "SG",
-    "SINGAPORE": "SG",
-}
+import engine
+import provision
+import state
+from fabric import FABRIC_AUD, T, await_operation, fabric, log, token
+
+NOTEBOOK = "silver-conform"
+SOURCE = pathlib.Path(__file__).resolve().parent / "silver_notebook.py"
+
+
+def content(workspace: str, lakehouse: str) -> bytes:
+    """The notebook's bytes, with its parameters cell filled in.
+
+    Real Fabric would pass these through the job's `executionData.parameters`
+    and leave the file untouched. The emulator implements no parameter
+    override, so the ids are substituted before publishing — the one place this
+    platform edits code rather than configuring it, and the reason the
+    placeholders are shaped so that an unsubstituted notebook cannot silently
+    resolve to somewhere real.
+    """
+    src = SOURCE.read_text()
+    src = src.replace("@@WORKSPACE@@", workspace).replace("@@LAKEHOUSE@@", lakehouse)
+    assert "@@" not in src, "a placeholder survived substitution"
+    return src.encode()
+
+
+def publish(tok: str, workspace: str, body: bytes) -> str:
+    """Create the Notebook item, or update the definition of the existing one.
+
+    Resolve-or-create by NAME, like every other item in this platform: ids
+    cannot match across targets, and a step that only works on a fresh
+    workspace is not one anybody can operate.
+    """
+    definition = {
+        "parts": [
+            {
+                "path": "notebook-content.py",
+                "payload": base64.b64encode(body).decode(),
+                "payloadType": "InlineBase64",
+            }
+        ]
+    }
+
+    found = provision.find_item(tok, workspace, NOTEBOOK, "Notebook")
+    if found:
+        r = fabric(
+            "POST",
+            f"/workspaces/{workspace}/items/{found['id']}/updateDefinition",
+            tok,
+            json={"definition": definition},
+        )
+        await_operation(r, tok, "updateDefinition")
+        log(f"updated notebook {NOTEBOOK}")
+        return found["id"]
+
+    r = fabric(
+        "POST",
+        f"/workspaces/{workspace}/items",
+        tok,
+        json={"displayName": NOTEBOOK, "type": "Notebook", "definition": definition},
+    )
+    created = await_operation(r, tok, "create notebook")
+    assert created.get("id"), created
+    log(f"created notebook {NOTEBOOK}")
+    return created["id"]
+
+
+def await_job(tok: str, workspace: str, notebook: str, job: str) -> dict:
+    """Poll the RunNotebook job to a terminal state, and return the run detail.
+
+    THE STATUS IS EVIDENCE, not decoration. A RunNotebook job whose cells are
+    still outstanding has no completion time at all, so reaching a terminal
+    state here means an engine really executed and reported. It did not always:
+    the job used to complete on a clock, reading `Completed` with every cell
+    Pending and no engine having run a line.
+    """
+    base = f"/workspaces/{workspace}/items/{notebook}/jobs/instances/{job}"
+    for _ in range(180):
+        r = fabric("GET", base, tok)
+        assert r.status_code == 200, (r.status_code, r.text[:200])
+        status = r.json().get("status")
+        if status in ("Completed", "Failed", "Cancelled", "Deduped"):
+            assert status == "Completed", r.json()
+            detail = fabric("GET", f"{base}/notebookRun", tok)
+            assert detail.status_code == 200, (detail.status_code, detail.text[:200])
+            return detail.json()
+        time.sleep(1)
+    raise SystemExit("the RunNotebook job never reached a terminal state")
 
 
 def main() -> int:
     import source_system as src
 
     st = state.load()
-    spark = sparkmod.session()
-    base = sparkmod.lakehouse_uri(st["workspace"], st["lakehouse"])
-    tables = f"{base}/Tables"
+    tok = token(FABRIC_AUD)
+    ws, lake = st["workspace"], st["lakehouse"]
 
-    def read(name):
-        return spark.read.format("delta").load(f"{tables}/{name}")
+    notebook = publish(tok, ws, content(ws, lake))
 
-    def save(df, name: str) -> int:
-        df.write.format("delta").mode("overwrite").option(
-            "overwriteSchema", "true"
-        ).save(f"{tables}/{name}")
-        return df.count()
-
-    # --- customers: dedupe, conform ----------------------------------------
-    # WIDE, deliberately. Silver is the conformed customer-360 and gold's
-    # dimensions are a projection of it, not the other way round — so the
-    # transform REPLACES two columns and keeps every other one.
-    conform = F.create_map([F.lit(x) for kv in COUNTRY.items() for x in kv])
-    country_key = F.upper(F.trim(F.col("country")))
-
-    c = read("bronze_customers")
-    customers = (
-        c.withColumn(
-            "_rn",
-            F.row_number().over(
-                Window.partitionBy("customer_id").orderBy("customer_id")
-            ),
-        )
-        .filter(F.col("_rn") == 1)
-        .drop("_rn")
-        # '' rather than NULL for "the vendor sent none": the missing-email
-        # cohort has to stay identifiable, because it is the cohort that can
-        # never be matched to an email-keyed system.
-        .withColumn("email", F.lower(F.trim(F.coalesce(F.col("email"), F.lit("")))))
-        .withColumn("country", F.coalesce(conform[country_key], country_key))
+    r = fabric(
+        "POST",
+        f"/workspaces/{ws}/items/{notebook}/jobs/instances?jobType=RunNotebook",
+        tok,
     )
-    n_cust = save(customers, "silver_customers")
+    assert r.status_code in (200, 202), (r.status_code, r.text[:300])
+    job = r.headers["Location"].rstrip("/").rsplit("/", 1)[-1]
+    log(f"submitted RunNotebook job {job}")
 
-    # --- orders: latest event wins, then split -----------------------------
-    latest = Window.partitionBy("order_id").orderBy(F.col("event_seq").desc())
-    o = (
-        read("bronze_orders")
-        .withColumn("_rn", F.row_number().over(latest))
-        .filter(F.col("_rn") == 1)
-        .drop("_rn")
-    )
+    # The emulator does not execute notebooks; on that target the platform
+    # attaches an engine. Against real Fabric this branch never runs.
+    if not T.runs_notebooks_itself:
+        engine.run(ws, notebook, job, lake)
 
-    bad = (F.col("quantity") <= 0) | F.col("unit_price").isNull()
-    clean = o.filter(~bad).withColumn("amount", F.col("quantity") * F.col("unit_price"))
-    quarantine = o.filter(bad)
+    detail = await_job(tok, ws, notebook, job)
+    assert detail.get("exitValue"), f"the notebook exited with no value: {detail}"
+    got = json.loads(detail["exitValue"])
 
-    n_ord = save(clean, "silver_orders")
-    n_quar = save(quarantine, "silver_quarantine_orders")
-
-    countries = {r["country"] for r in customers.select("country").distinct().collect()}
-    missing_email = customers.filter(F.col("email") == "").count()
-
-    assert n_cust == src.EXPECTED_SILVER_CUSTOMERS, (
-        n_cust,
-        src.EXPECTED_SILVER_CUSTOMERS,
-    )
-    assert n_ord == src.EXPECTED_SILVER_ORDERS, (n_ord, src.EXPECTED_SILVER_ORDERS)
-    assert n_quar == src.EXPECTED_QUARANTINED, (n_quar, src.EXPECTED_QUARANTINED)
-    assert countries == src.EXPECTED_COUNTRIES, (
-        sorted(countries),
-        src.EXPECTED_COUNTRIES,
-    )
+    # Graded against the GENERATOR, not against the run. The notebook reported
+    # what it saw; source_system says what the vendor sent. A query grading its
+    # own output confirms nothing.
+    assert got["silver_customers"] == src.EXPECTED_SILVER_CUSTOMERS, got
+    assert got["silver_orders"] == src.EXPECTED_SILVER_ORDERS, got
+    assert got["silver_quarantine_orders"] == src.EXPECTED_QUARANTINED, got
+    assert set(got["countries"]) == set(src.EXPECTED_COUNTRIES), got
     # Width, not just row count: gold's dimensions project from here, so a
     # narrow silver is a correctness failure every row count would pass over.
-    assert len(customers.columns) == src.EXPECTED_CUSTOMER_COLUMNS, (
-        len(customers.columns),
-        src.EXPECTED_CUSTOMER_COLUMNS,
-    )
+    assert got["customer_columns"] == src.EXPECTED_CUSTOMER_COLUMNS, got
     # The unmatchable cohort survives. It is the reason a resolution step that
     # claims 100% is lying, and dropping it here would erase the evidence.
-    assert missing_email > 0, "the missing-email cohort vanished"
+    assert got["missing_email"] > 0, "the missing-email cohort vanished"
 
     state.save(
         silver={
-            "silver_customers": n_cust,
-            "silver_orders": n_ord,
-            "silver_quarantine_orders": n_quar,
-        }
+            k: got[k]
+            for k in ("silver_customers", "silver_orders", "silver_quarantine_orders")
+        },
+        silver_notebook=notebook,
+        silver_job=job,
     )
     log(
-        f"silver: {n_cust:,} customers x {len(customers.columns)} cols, "
-        f"{n_ord:,} orders, {n_quar:,} quarantined, countries {sorted(countries)}"
+        f"silver: {got['silver_customers']:,} customers x "
+        f"{got['customer_columns']} cols, {got['silver_orders']:,} orders, "
+        f"{got['silver_quarantine_orders']:,} quarantined, "
+        f"countries {got['countries']} — computed by a Fabric notebook"
     )
     return 0
 

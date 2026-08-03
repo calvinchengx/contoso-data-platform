@@ -50,6 +50,22 @@ select = [
     "RUF",
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# A Fabric notebook is not an ordinary module, and the two ways it differs are
+# both things ruff is right to flag anywhere else.
+#
+#   F821  `spark` and `notebook_exit` are injected by the HOST. Fabric's Spark
+#         pool binds them in production and engine.py binds them against the
+#         emulator; declaring them here would shadow the real session with a
+#         stub, which is worse than the warning.
+#   E402  cells are executed in order, so imports belong in the cell that first
+#         needs them — a notebook whose imports are all hoisted to the top is
+#         no longer a notebook.
+#
+# Scoped to this one file rather than relaxed globally: every other module in
+# platform/ is ordinary Python and must keep both rules.
+"platform/silver_notebook.py" = ["F821", "E402"]
+
 [tool.ty.environment]
 # The steps import each other as top-level modules because each one also runs
 # standalone (`python platform/silver.py`), which puts platform/ on sys.path.
@@ -60,3 +76,17 @@ extra-paths = ["platform"]
 # The generators arrive from a wheel installed outside the lock, so ty cannot
 # see them when it runs on a clean checkout. Their absence is not a type error.
 unresolved-import = "ignore"
+
+[[tool.ty.overrides]]
+# The notebook's `spark` and `notebook_exit` come from the HOST, not from an
+# import — Fabric's Spark pool binds them in production, engine.py does against
+# the emulator. Declaring them to satisfy the checker would shadow the real
+# session with a stub, which is a worse file than a suppressed rule.
+#
+# Scoped to the notebook. Everywhere else an undefined name is a real bug, and
+# this is the module most likely to acquire one, so the suppression is as
+# narrow as the tooling allows rather than switched off repo-wide.
+include = ["platform/silver_notebook.py"]
+
+[tool.ty.overrides.rules]
+unresolved-reference = "ignore"

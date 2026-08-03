@@ -59,9 +59,21 @@ will break** — the "enforced by" column is the honest part of this document, a
 
 | | |
 |---|---|
-| **Rule** | The session comes from `spark.session()`, never `SparkSession.builder` at a call site. |
-| **Why** | Inside a Fabric notebook a session is ambient with the workspace identity attached; building a second one is wrong and slower. This is what makes the transforms paste-able into a notebook. |
+| **Rule** | A transform's session comes from `spark.session()` in a script, and from the ambient `spark` in a notebook. Never `SparkSession.builder` at a call site. The one exception is `engine.py`, which *is* the engine and therefore has no session to inherit. |
+| **Why** | Inside a Fabric notebook a session is ambient with the workspace identity and the attached lakehouse; building a second one is wrong and slower. This is what makes the transforms paste-able into a notebook. |
 | **Enforced by** | judgement |
+
+| | |
+|---|---|
+| **Rule** | `silver` runs as a **Fabric Notebook** — published as a Notebook item, executed by a RunNotebook job — and its source is a real file, never a string assembled at publish time. |
+| **Why** | Most Fabric data engineering is written in notebooks, and until this step existed nothing here exercised one: the transform was a Spark Connect script that merely resembled notebook code, so "the transforms are paste-able into a notebook" was an assertion rather than a result. The file matters as much as the job — a notebook built from an f-string is not Python to any tool, so ruff and ty go blind and a syntax error surfaces as a failed cell on a remote engine instead of at `make lint`. |
+| **Enforced by** | `test_silver_runs_as_a_fabric_notebook` |
+
+| | |
+|---|---|
+| **Rule** | Playing the Spark pool is emulator-only. `engine.py` runs behind `T.runs_notebooks_itself` and never against production. |
+| **Why** | Real Fabric schedules a RunNotebook job onto its own pool and reports back; the emulator parses the notebook and waits for an engine, deliberately, so that a terminal job status means execution happened rather than that a clock advanced. Locally the platform has to supply that engine — but running it against real Fabric would execute the notebook twice. |
+| **Enforced by** | `test_the_engine_driver_never_runs_against_real_fabric` |
 
 ## 3. Layers do not leak
 

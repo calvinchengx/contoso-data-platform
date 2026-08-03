@@ -243,9 +243,18 @@ def test_the_transforms_are_engine_side():
     put one machine in the data path and cap the platform at its memory, which
     is exactly what a single-node engine quietly does.
     """
-    for name in ("bronze.py", "silver.py"):
+    # Named per layer, because the two get their session from different places
+    # and both are correct. bronze is a script and calls spark.session(); silver
+    # is a Fabric notebook, where `spark` is ambient and building a second
+    # session is the thing the rule exists to prevent. What must hold for both
+    # is that the rows never leave the engine.
+    transforms = {
+        "bronze.py": "import spark",
+        "silver_notebook.py": "spark.read",
+    }
+    for name, uses_engine in transforms.items():
         src = (ROOT / "platform" / name).read_text()
-        assert "import spark" in src, f"{name} does not use the engine"
+        assert uses_engine in src, f"{name} does not use the engine"
         for single_node in ("duckdb", "pandas", "deltalake", "pyarrow"):
             assert single_node not in src, (
                 f"{name} pulls data client-side with {single_node} — the "
@@ -394,3 +403,85 @@ def test_the_pin_moves_only_after_a_green_verify():
     # Writing to the repository is not the default and must be asked for
     # explicitly, or the push fails at the end of an eight-minute run.
     assert job.get("permissions", {}).get("contents") == "write"
+
+
+def test_silver_runs_as_a_fabric_notebook():
+    """The transform is notebook code, not code that resembles it.
+
+    `spark.py` claims the transforms are paste-able into a Fabric notebook. A
+    claim like that is worth nothing until something runs it as one — so silver
+    publishes a Notebook item and submits a RunNotebook job, and the notebook's
+    source is a REAL FILE rather than a string assembled at publish time.
+
+    The file matters as much as the job. A notebook built from an f-string is
+    not Python as far as any tool is concerned: ruff does not lint it, ty does
+    not check it, and a syntax error in the transform surfaces as a failed cell
+    on a remote engine instead of at `make lint`.
+    """
+    nb = ROOT / "platform" / "silver_notebook.py"
+    assert nb.exists(), "the silver transform is not a notebook file"
+    assert nb.read_text().startswith("# Fabric notebook source"), (
+        "a Fabric notebook is identified by its first line; without it the "
+        "emulator's parser sees one unmarked cell rather than the cells written"
+    )
+    assert "# CELL " in nb.read_text(), "the notebook declares no cells"
+
+    src = (ROOT / "platform" / "silver.py").read_text()
+    assert "jobType=RunNotebook" in src, "silver never submits a notebook job"
+    assert "SOURCE.read_text()" in src, (
+        "silver must publish the notebook FILE — a body built inline here is "
+        "the thing this test exists to prevent"
+    )
+
+
+def test_the_engine_driver_never_runs_against_real_fabric():
+    """Playing the Spark pool is emulator scaffolding.
+
+    Real Fabric schedules a RunNotebook job onto its own pool; the emulator
+    parses the notebook and waits for an engine to report, so locally the
+    platform supplies one. That difference is resolved by the target like every
+    other, and an engine driver that ran against production would execute the
+    notebook twice — once here and once on Fabric's pool.
+    """
+    real = real_branch()
+    assert "runs_notebooks_itself=True" in real, (
+        "real Fabric runs its own notebooks; the platform must not"
+    )
+
+    src = (ROOT / "platform" / "silver.py").read_text()
+    assert "if not T.runs_notebooks_itself:" in src, (
+        "the engine driver is not gated on the target"
+    )
+
+
+def test_notebook_lineage_is_observed_not_declared():
+    """An edge records what happened. Nothing else is allowed to invent one.
+
+    The first version of this had the publishing step declare one read set and
+    one write set for the whole notebook. The emulator paired every read with
+    every write — correctly, given what it was told — and silver, which reads
+    two tables and writes three, produced six edges for three movements. Half
+    the graph described data that never moved, and it looked exactly as
+    plausible as the half that did.
+
+    So the notebook's own IO helpers record each movement as it happens, and
+    the engine attributes the delta to the cell that produced it. A declared
+    set drifts from the code the moment either changes; this one cannot,
+    because it is the code.
+    """
+    nb = (ROOT / "platform" / "silver_notebook.py").read_text()
+    assert 'LINEAGE.append(("read"' in nb, "the notebook does not record reads"
+    assert 'LINEAGE.append(("write"' in nb, "the notebook does not record writes"
+
+    eng = (ROOT / "platform" / "engine.py").read_text()
+    assert "recorded[seen:]" in eng, (
+        "the engine must attribute the movements of EACH cell, not one set for "
+        "the whole notebook — that is what produced the phantom edges"
+    )
+
+    src = (ROOT / "platform" / "silver.py").read_text()
+    for declared in ("READS", "WRITES"):
+        assert f"{declared} = [" not in src, (
+            f"silver declares {declared} again — the read/write set must be "
+            f"observed by the notebook, never named by the step publishing it"
+        )
