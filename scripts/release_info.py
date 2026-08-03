@@ -1,8 +1,14 @@
 """The pinned release, and the URLs that follow from it.
 
-One file reads `.emulator-version`. Everything else asks this module, so the
-pin cannot be stated in two places and drift — which is the failure this whole
+`versions.env` is the ONLY place a version is written. docker compose reads it
+directly via `--env-file`, and everything in Python asks this module, so the
+pin cannot be stated twice and drift — which is the failure this whole
 repository exists to catch one level up.
+
+That single point is also what lets an acceptance run verify a release that has
+only just shipped: `set_release.py` rewrites the two versions the emulator's
+own workflow tags, and the summary then reports the version actually tested
+rather than the one the repo happened to be pinned to.
 """
 
 import pathlib

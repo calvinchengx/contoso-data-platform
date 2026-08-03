@@ -7,6 +7,8 @@ runs identically on all three platforms.
 
 import pathlib
 import re
+import subprocess
+import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 MAKEFILE = (ROOT / "Makefile").read_text()
@@ -253,3 +255,55 @@ def test_credentials_come_from_key_vault():
             if pattern.search(stripped):
                 offenders.append(f"{p.name}:{i}: {stripped}")
     assert not offenders, f"read these from the vault instead: {offenders}"
+
+
+def test_set_release_moves_every_version_the_emulator_tags():
+    """The emulator's release tags fabric-emulator AND sail together.
+
+    Sail is the Spark engine — bronze and silver run inside it — so moving the
+    emulator while leaving sail pinned would verify a new release against an
+    old engine and call the result a release test.
+    """
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from set_release import TRACKS_THE_RELEASE, set_version
+
+    text = (ROOT / "versions.env").read_text()
+    new, moved = set_version(text, "9.9.9")
+    assert set(moved) == set(TRACKS_THE_RELEASE), moved
+    for key in TRACKS_THE_RELEASE:
+        assert re.search(rf"^{key}=9\.9\.9$", new, re.M), key
+    # Versions on independent cadences must NOT be dragged along.
+    independent = (
+        "ENTRA_EMULATOR_VERSION",
+        "KEYVAULT_EMULATOR_VERSION",
+        "MOKAPI_VERSION",
+    )
+    for key in independent:
+        b = re.search(rf"^{key}=(.+)$", text, re.M)
+        a = re.search(rf"^{key}=(.+)$", new, re.M)
+        assert b and a, f"{key} is missing from versions.env"
+        assert b.group(1) == a.group(1), f"{key} moved: {b.group(1)} -> {a.group(1)}"
+
+
+def test_set_release_refuses_a_payload_that_is_not_a_version():
+    """An empty client_payload would otherwise write `VERSION=` and surface
+    four steps later as an image-pull error naming neither the payload nor this
+    script."""
+    for bad in ("", "latest", "v", "0.13", "; rm -rf /"):
+        r = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "set_release.py"), bad],
+            capture_output=True,
+            text=True,
+        )
+        assert r.returncode != 0, f"accepted {bad!r}"
+
+
+def test_the_acceptance_run_uses_the_dispatched_version():
+    """A dispatch that triggers a run against the OLD pin is worse than no
+    dispatch: it reports success for a release nobody tested."""
+    wf = (ROOT / ".github" / "workflows" / "acceptance.yml").read_text()
+    assert "repository_dispatch" in wf
+    assert "client_payload.version" in wf, (
+        "acceptance is triggered by a release but never reads which one"
+    )
+    assert "set_release.py" in wf

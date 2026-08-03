@@ -23,6 +23,20 @@ jobs:
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: "0.11.32"
+      # VERIFY THE RELEASE THAT FIRED, not the pin in the checkout. A dispatch
+      # for 0.13.1 that ran against the 0.13.0 in versions.env would report
+      # success — in the emulator's own release history — for a release nobody
+      # tested. The payload is what makes this run about the new version.
+      #
+      # Only on dispatch: the schedule and manual runs verify the pin, which is
+      # the other thing worth knowing (does the version we claim to support
+      # still work today?).
+      - if: github.event_name == 'repository_dispatch'
+        name: Point at the released version
+        run: |
+          uv run --no-project python scripts/set_release.py \
+            "${{ github.event.client_payload.version }}"
+          git --no-pager diff --stat versions.env
       - run: make doctor
       - run: make fixtures
       - run: make up
