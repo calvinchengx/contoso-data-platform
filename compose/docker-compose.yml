@@ -5,7 +5,7 @@
 # something worked, but not which release.
 #
 # THREE VARIABLES, NOT ONE. The family ships on independent cadences —
-# fabric-emulator is at 0.13.x while entra and keyvault are at 0.3.x — so a
+# fabric-emulator is at 0.14.x while entra and keyvault are at 0.3.x — so a
 # single pin cannot describe the stack. versions.env holds all of them and
 # compose reads it directly with --env-file.
 #

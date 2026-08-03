@@ -27,7 +27,7 @@ def _pins():
 def test_every_image_is_pinned_to_a_version():
     """All THREE emulator images plus mokapi.
 
-    The family ships on independent cadences — fabric-emulator at 0.13.x while
+    The family ships on independent cadences — fabric-emulator at 0.14.x while
     entra and keyvault are at 0.3.x — so one pin cannot describe the stack.
     Assuming it could is how this repo first failed to start: `manifest
     unknown`, because 0.13.0 exists for one image and not the others.
