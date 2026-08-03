@@ -55,13 +55,28 @@ const STOP = process.env.STOP_FILE || '/capture/shots/.stop'
   }
 
   await page.screenshot({ path: path.join(OUT, '99-data-flow-final.png') })
-  await ctx.close() // flushes the video
+
+  // Claim THIS run's video by name before the context closes, rather than
+  // looking for a .webm afterwards. Playwright names videos randomly, so a
+  // scan of the directory returns whichever file sorts first — which, on the
+  // second run, is the PREVIOUS run's video. That made the check below pass on
+  // a recording that had not happened: an absence reported as a presence.
+  // saveAs writes the file this page produced, at a name that is overwritten
+  // each run rather than accumulating.
+  const dest = path.join(OUT, '99-data-flow.webm')
+  const video = page.video()
+  await ctx.close() // flushes the video; must precede saveAs
+  let saved = false
+  if (video) {
+    await video.saveAs(dest)
+    await video.delete() // drop the randomly-named original
+    saved = fs.existsSync(dest)
+  }
   await browser.close()
 
-  const video = fs.readdirSync(OUT).find((f) => f.endsWith('.webm'))
-  console.log(`VIDEO ${video || 'none'}`)
+  console.log(`VIDEO ${saved ? '99-data-flow.webm' : 'none'}`)
   console.log(`WATCHED ${ticks}s`)
-  process.exit(rendered && video ? 0 : 1)
+  process.exit(rendered && saved ? 0 : 1)
 })().catch((e) => {
   console.error(e)
   process.exit(2)

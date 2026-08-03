@@ -93,8 +93,12 @@ function check(name, ok, detail) {
   await browser.close()
 
   const failed = checks.filter((c) => !c.ok)
+  // .png only. Counting every file counted the videos and the .stop marker too,
+  // so the number drifted upward run over run and reported 10 screenshots for
+  // 7 images — a count that grows on its own is not a count of anything.
+  const shots = fs.readdirSync(OUT).filter((f) => f.endsWith('.png'))
   console.log(`\n${checks.length - failed.length}/${checks.length} checks passed, ` +
-              `${fs.readdirSync(OUT).length} screenshots in ${OUT}`)
+              `${shots.length} screenshots in ${OUT}`)
   process.exit(failed.length ? 1 : 0)
 })().catch((e) => {
   console.error(e)
