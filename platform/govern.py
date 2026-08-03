@@ -218,6 +218,60 @@ FABRIC_SERVICE = "contoso-fabric"
 # The medallion, in order. Each entry is (schema, table, upstreams) and the
 # upstreams are what actually built it — derived from the pipeline, not from a
 # diagram someone drew once.
+# --- the semantic layer -----------------------------------------------------
+#
+# Entities and lineage say a number EXISTS and where it came from. They cannot
+# say what it means, who it is for, or what it promises — which is the half a
+# consumer actually needs. These four blocks add that half, and every one of
+# them is derived from something the platform already has.
+#
+# WHAT IS DELIBERATELY ABSENT: prose. A business glossary describing what
+# "revenue" means to Contoso would have to be typed here, and this file's own
+# rule forbids that — it would drift from the pipeline by the end of the first
+# sprint and nothing would notice. The terms below are defined by their SQL,
+# which is derived and exact. Real prose belongs in a data contract next to the
+# transform, and there is not one in this repository yet.
+DOMAIN = "contoso-sales"
+GLOSSARY = "Contoso Sales"
+
+# The measures gold publishes, taken from gold/models/fct_daily_revenue.sql.
+# A metric is a column PLUS how it aggregates, which is exactly what a column
+# entity cannot express and what a report writer needs.
+METRICS = [
+    (
+        "revenue",
+        "SUM",
+        "DOLLARS",
+        "sum(o.amount)",
+        "Money taken, summed over the order-line grain and grouped by trading day "
+        "and country. The measure the semantic model serves to Power BI.",
+    ),
+    (
+        "orders",
+        "COUNT",
+        "TRANSACTIONS",
+        "count(*)",
+        "Orders on a trading day, counted at order grain.",
+    ),
+    (
+        "units",
+        "SUM",
+        "COUNT",
+        "sum(o.quantity)",
+        "Items sold, which moves independently of revenue when the mix changes.",
+    ),
+]
+
+# dbt's generic tests, in OpenMetadata's ODCS vocabulary. The mapping is exact
+# — `unique` IS duplicateValues == 0 — so this is a rename, not an
+# interpretation. The tests that gate the build become the contract in the
+# catalog, which is the same fact stated once.
+DBT_TO_ODCS = {
+    "unique": {"metric": "duplicateValues", "dimension": "uniqueness"},
+    "not_null": {"metric": "nullValues", "dimension": "completeness"},
+    "accepted_values": {"metric": "invalidValues", "dimension": "conformity"},
+}
+
 MEDALLION = [
     ("lakehouse", "bronze_customers", []),
     ("lakehouse", "bronze_orders", []),
@@ -279,16 +333,110 @@ def register_fabric(st: dict, lake_cols: dict, wh_cols: dict) -> dict[str, str]:
     return fqns
 
 
-def add_lineage(from_fqn: str, from_type: str, to_fqn: str, to_type: str) -> None:
-    put(
-        "lineage",
-        {
-            "edge": {
-                "fromEntity": {"id": entity_id(from_type, from_fqn), "type": from_type},
-                "toEntity": {"id": entity_id(to_type, to_fqn), "type": to_type},
-            }
-        },
-    )
+def add_lineage(
+    from_fqn: str, from_type: str, to_fqn: str, to_type: str, how: str = ""
+) -> None:
+    """`how` records HOW the movement is known, not merely that it happened.
+
+    The emulator distinguishes an edge it WATCHED (its TDS front saw the engine
+    accept the statement) from one a step REPORTED, and a catalog that flattens
+    the two has discarded the only thing telling a consumer how far to trust the
+    graph. Where the emulator recorded a producer, it is carried through
+    verbatim; where this platform knows the mechanism itself — Debezium's change
+    stream, an HTTP pull — it says so in its own words rather than borrowing a
+    label that would imply the emulator observed it.
+    """
+    edge: dict = {
+        "fromEntity": {"id": entity_id(from_type, from_fqn), "type": from_type},
+        "toEntity": {"id": entity_id(to_type, to_fqn), "type": to_type},
+    }
+    if how:
+        edge["lineageDetails"] = {"description": how}
+    put("lineage", {"edge": edge})
+
+
+def emulator_producers(st: dict) -> dict[tuple[str, str], str]:
+    """What the emulator recorded, keyed by (source table, target table).
+
+    The MEDALLION constant below declares the shape this platform intends. This
+    reads the shape the emulator actually OBSERVED while the run happened — so a
+    producer here is evidence, and a declared edge with no match is a hop
+    nothing witnessed. Absent or unreachable, the catalog is still built; it
+    just carries no provenance claim, which is the honest degradation.
+    """
+    from fabric import FABRIC_AUD, fabric, token
+
+    try:
+        path = f"/v1/workspaces/{st['workspace']}/lineage"
+        r = fabric("GET", path, token(FABRIC_AUD))
+        edges = r.json().get("value", [])
+    except Exception as e:  # provenance is a bonus, not a gate
+        log(f"  ! emulator lineage unavailable ({type(e).__name__}) — unlabelled")
+        return {}
+    out = {}
+    for e in edges:
+        src, dst = e.get("sourcePath", ""), e.get("targetPath", "")
+        if src.startswith("Tables/") and dst.startswith("Tables/"):
+            key = (src.split("/", 1)[1], dst.split("/", 1)[1])
+            out[key] = e.get("producer") or "Copy"
+    return out
+
+
+def dbt_quality_rules() -> dict[str, list[dict]]:
+    """gold/models/schema.yml → ODCS quality rules, per model.
+
+    These tests already gate the build: `dbt build` fails when one breaks.
+    Publishing them as a contract states the same guarantee where a consumer
+    can read it, without a second place to keep in step.
+    """
+    path = ROOT / "gold" / "models" / "schema.yml"
+    if not path.is_file():
+        return {}
+    spec = yaml.safe_load(path.read_text()) or {}
+    out: dict[str, list[dict]] = {}
+    for model in spec.get("models", []) or []:
+        rules = []
+        for col in model.get("columns", []) or []:
+            for test in col.get("tests", []) or []:
+                name = test if isinstance(test, str) else next(iter(test))
+                mapped = DBT_TO_ODCS.get(name)
+                if not mapped:
+                    # `relationships` is referential integrity, which ODCS has
+                    # no library metric for — it becomes a sql rule naming the
+                    # join, rather than being dropped or forced onto a metric
+                    # that means something else.
+                    if name == "relationships":
+                        arg = test[name]
+                        rules.append(
+                            {
+                                "type": "sql",
+                                "name": f"{col['name']}_resolves",
+                                "column": col["name"],
+                                "dimension": "consistency",
+                                "description": f"dbt `relationships` — every "
+                                f"{col['name']} matches "
+                                f"{arg.get('to')}.{arg.get('field')}.",
+                                "query": f"select count(*) from {{object}} where "
+                                f"{col['name']} is null",
+                                "mustBe": 0,
+                            }
+                        )
+                    continue
+                desc = f"dbt `{name}` on {model['name']}.{col['name']}."
+                rule = {
+                    "type": "library",
+                    "column": col["name"],
+                    "mustBe": 0,
+                    "unit": "rows",
+                    "description": desc,
+                    **mapped,
+                }
+                if name == "accepted_values":
+                    rule["validValues"] = test[name].get("values", [])
+                rules.append(rule)
+        if rules:
+            out[model["name"]] = rules
+    return out
 
 
 # OpenMetadata's routes are not uniformly `{type}s`. Guessing works for most
@@ -399,23 +547,137 @@ def main() -> int:
     lake_cols, wh_cols = discover_columns(st)
     tables = register_fabric(st, lake_cols, wh_cols)
 
+    # --- the semantic layer, before the lineage that will reference it -------
+    put(
+        "domains",
+        {
+            "name": DOMAIN,
+            "displayName": "Contoso Sales",
+            "domainType": "Consumer-aligned",
+            "description": "Sales across Contoso's point-of-sale and ERP systems, "
+            "conformed to one customer and one order grain.",
+        },
+    )
+    put(
+        "dataProducts",
+        {
+            "name": "contoso-sales-star",
+            "displayName": "Contoso Sales star",
+            "domains": [DOMAIN],
+            "description": "The star served from the Warehouse and the semantic model "
+            "over it — the layer downstream consumers may depend on.",
+        },
+    )
+    put(
+        "glossaries",
+        {
+            "name": GLOSSARY,
+            "description": "Measures gold publishes, defined by the SQL that computes "
+            "them. Prose definitions belong in a data contract beside "
+            "the transform; this repository does not have one yet, and "
+            "inventing the meaning here would put it in a second place.",
+        },
+    )
+    for name, mtype, unit, expr, desc in METRICS:
+        put(
+            "glossaryTerms",
+            {
+                "name": name,
+                "glossary": GLOSSARY,
+                "description": f"{desc}\n\nComputed as `{expr}` in "
+                f"gold/models/fct_daily_revenue.sql.",
+            },
+        )
+        put(
+            "metrics",
+            {
+                "name": name,
+                "description": desc,
+                "metricType": mtype,
+                "unitOfMeasurement": unit,
+                "domains": [DOMAIN],
+                "granularity": "DAY",
+                "metricExpression": {"language": "SQL", "code": expr},
+            },
+        )
+    log(
+        f"semantics: domain {DOMAIN!r}, 1 data product, {len(METRICS)} measures "
+        f"as both glossary terms and metrics"
+    )
+
+    # --- contracts: the dbt tests, where a consumer can read them ------------
+    contracts = dbt_quality_rules()
+    n_rules = 0
+    for model, rules in sorted(contracts.items()):
+        fqn = tables.get(f"warehouse.{model}")
+        if not fqn:
+            continue
+        put(
+            "dataContracts",
+            {
+                "name": f"{model}-contract",
+                "domains": [DOMAIN],
+                "entity": {"id": entity_id("table", fqn), "type": "table"},
+                "description": f"The guarantees `dbt build` enforces on {model}. "
+                f"Derived from gold/models/schema.yml — the tests that "
+                f"gate the build ARE the contract.",
+                "odcsQualityRules": rules,
+            },
+        )
+        n_rules += len(rules)
+    log(
+        f"contracts: {len(contracts)} DataContract(s) carrying {n_rules} rule(s) "
+        f"from dbt's own tests"
+    )
+
+    observed = emulator_producers(st)
+
     # The hop that did not exist before: the vendor's change stream feeds the
     # ERP table's changes into the platform. Upstream of bronze, and therefore
     # upstream of every number the platform reports.
-    add_lineage(erp_table, "table", topic, "topic")
+    add_lineage(
+        erp_table,
+        "table",
+        topic,
+        "topic",
+        how="Debezium change stream — the platform's own connector, not "
+        "an emulator observation",
+    )
 
     # And the rest of the chain, so a number in the semantic model traces all
     # the way back to a vendor rather than to a file that appeared in landing.
     edges = 1
-    add_lineage(topic, "topic", tables["lakehouse.bronze_erp_changes"], "table")
+    add_lineage(
+        topic,
+        "topic",
+        tables["lakehouse.bronze_erp_changes"],
+        "table",
+        how="Consumed from the change stream by ingest_erp_cdc",
+    )
     edges += 1
     for ep in endpoints:
         for bronze in ("lakehouse.bronze_customers", "lakehouse.bronze_orders"):
-            add_lineage(ep, "apiEndpoint", tables[bronze], "table")
+            add_lineage(
+                ep,
+                "apiEndpoint",
+                tables[bronze],
+                "table",
+                how="Pulled over HTTP by ingest_pos and landed verbatim",
+            )
             edges += 1
+    labelled = 0
     for schema, table, upstreams in MEDALLION:
         for up in upstreams:
-            add_lineage(tables[up], "table", tables[f"{schema}.{table}"], "table")
+            producer = observed.get((up.split(".", 1)[1], table))
+            how = (
+                f"Fabric {producer} — observed by the emulator"
+                if producer
+                else "Declared by the platform; the emulator recorded no edge"
+            )
+            labelled += 1 if producer else 0
+            add_lineage(
+                tables[up], "table", tables[f"{schema}.{table}"], "table", how=how
+            )
             edges += 1
     dataset = st.get("dataset")
     if dataset:
@@ -455,7 +717,10 @@ def main() -> int:
         f"catalogued source systems: {pos_svc} ({len(endpoints)} endpoints), "
         f"{erp_table}, {topic}"
     )
-    log(f"catalogued the medallion: {len(tables)} tables, {edges} lineage edges")
+    log(
+        f"catalogued the medallion: {len(tables)} tables, {edges} lineage edges "
+        f"({labelled} carrying a producer the emulator observed)"
+    )
     # Direction matters and is easy to state backwards: Debezium READS the ERP
     # table and PUBLISHES to the topic, so data flows table -> topic. An edge
     # drawn the other way would claim the platform writes to the vendor — and
