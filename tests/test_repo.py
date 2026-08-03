@@ -624,3 +624,80 @@ def test_the_trigger_watches_a_marker_not_the_landing_zone():
     assert not watched.group(1).rstrip("/").endswith("contoso_pos"), (
         "watching the vendor directory itself fires once per landed part"
     )
+
+
+def test_the_source_systems_are_named_in_lineage():
+    """A medallion does not begin in Fabric. It begins at a vendor.
+
+    Every edge used to need a (workspace, item, path) triple at both ends, so
+    the first hop could only be drawn from a file already sitting in
+    `Files/landing/` and the system that PUT it there could not be said at all.
+    `ingest_pos.py` claimed in its own docstring that the vendor was "a node in
+    the lineage graph rather than a filename in Files/landing" long before
+    anything made that true.
+
+    A CONNECTION and not a URI: it holds the credential, carries a display
+    name, and is what the ingesting client actually authenticated through — so
+    naming it records what happened instead of a string this platform invented.
+    """
+    for step, vendor in (
+        ("ingest_pos.py", "Contoso POS"),
+        ("ingest_erp_cdc.py", "Contoso ERP"),
+    ):
+        src = (ROOT / "platform" / step).read_text()
+        assert "connections.ensure(" in src, f"{step} names no source system"
+        assert vendor in src, f"{step} does not identify {vendor}"
+        assert "connections.announce(" in src, f"{step} never reports its lineage"
+
+    helper = (ROOT / "platform" / "connections.py").read_text()
+    assert '"connectionId"' in helper, (
+        "the read side of a source edge must carry connectionId — a source "
+        "system has no workspace and no path inside it"
+    )
+
+
+def test_lineage_reports_use_the_precise_move_form():
+    """Flat read/write lists cross-product, and the cross product overstates.
+
+    A step reading two feeds and writing two paths would claim four movements
+    where two happened. That is not hypothetical: it put three phantom edges
+    into this repository's own graph once, each as plausible-looking as the
+    real ones. `moves` pairs each derivation explicitly.
+    """
+    helper = (ROOT / "platform" / "connections.py").read_text()
+    assert '"moves": moves' in helper, (
+        "reports must use the precise `moves` form, never flat reads/writes"
+    )
+    # One move PER path, not one move listing them all: the comprehension is
+    # what keeps the customers feed from being credited with the orders file.
+    body = helper[helper.index("def from_source") : helper.index("def announce")]
+    assert "for p in paths" in body, (
+        "from_source must produce one move per landed path — the customers "
+        "feed did not produce the orders file"
+    )
+
+
+def test_the_landing_hop_is_reported_so_sources_are_not_orphans():
+    """Naming the vendor is not enough on its own.
+
+    bronze reads `abfs://` with Spark, so the emulator sees bytes leave OneLake
+    and bytes arrive with nothing tying one to the other — it records no
+    landing->bronze edge. Without bronze reporting that hop, the vendor nodes
+    hang off landing paths no later edge mentions, and the source systems float
+    beside the medallion instead of feeding it.
+
+    The paths must also AGREE. The ingest steps write under a date partition
+    and bronze reads the same partition; a reported target that merely looks
+    right joins the vendor to a node nothing else references.
+    """
+    bronze = (ROOT / "platform" / "bronze.py").read_text()
+    assert "connections.announce(" in bronze, (
+        "bronze must report landing->bronze, or the source nodes are orphans"
+    )
+    ingest = (ROOT / "platform" / "ingest_pos.py").read_text()
+    # Both sides key the path on the landing day, which is what makes the
+    # vendor edge and the bronze edge meet at the same node.
+    assert "contoso_pos/{day}/" in ingest, (
+        "the reported landing path must carry the date partition bronze reads"
+    )
+    assert "contoso_pos/{day}/" in bronze, "bronze no longer reads a dated partition"

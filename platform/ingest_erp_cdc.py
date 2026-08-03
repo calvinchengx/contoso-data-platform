@@ -20,11 +20,19 @@ import datetime as dt
 import io
 import json
 
+import connections
 import state
 from confluent_kafka import Consumer, TopicPartition
-from fabric import STORAGE_AUD, log, token, upload
+from fabric import FABRIC_AUD, STORAGE_AUD, log, token, upload
 
-from sources import ERP_TOPIC, REDPANDA
+from sources import (
+    ERP_DB,
+    ERP_HOST,
+    ERP_PASSWORD_SECRET,
+    ERP_PORT,
+    ERP_TOPIC,
+    REDPANDA,
+)
 
 TOPIC = ERP_TOPIC
 
@@ -132,7 +140,33 @@ def main() -> int:
     written = upload(st["workspace"], st["lakehouse"], dest, blob, token(STORAGE_AUD))
     assert written == len(blob), (written, len(blob))
 
-    state.save(erp_landed=written, erp_change_events=len(rows))
+    # NAME THE SOURCE. The bytes came from a Postgres change stream carried by
+    # Kafka, not from a file — and a graph that starts at `changes.parquet`
+    # cannot say that the ERP database is upstream of gold. The connection
+    # records the system; `erp_dsn()` builds its address from the same values
+    # this step connected with, password excluded.
+    ftok = token(FABRIC_AUD)
+    erp_conn = connections.ensure(
+        ftok,
+        "Contoso ERP",
+        "OnPremisesGateway",
+        connections.details(
+            kind="PostgreSqlCdc",
+            server=f"{ERP_HOST}:{ERP_PORT}",
+            database=ERP_DB,
+            topic=ERP_TOPIC,
+            secretName=ERP_PASSWORD_SECRET,
+        ),
+    )
+    connections.announce(
+        ftok,
+        st["workspace"],
+        "ingest_erp_cdc",
+        "Contoso ERP",
+        connections.from_source(erp_conn, st["lakehouse"], [dest]),
+    )
+
+    state.save(erp_landed=written, erp_change_events=len(rows), erp_connection=erp_conn)
     log(
         f"Contoso ERP: {len(rows):,} change events consumed from Kafka "
         f"({by_op['I']:,} I / {by_op['U']:,} U / {by_op['D']:,} D) "

@@ -19,10 +19,11 @@ from __future__ import annotations
 
 import datetime as dt
 
+import connections
 import requests
 import state
 import vault
-from fabric import STORAGE_AUD, log, token, upload
+from fabric import FABRIC_AUD, STORAGE_AUD, log, token, upload
 
 from sources import POS_API, POS_KEY_SECRET
 
@@ -95,7 +96,38 @@ def main() -> int:
         landed[subdir] = {"bytes": written_total, "parts": parts}
         log(f"landed {subdir}/ — {parts} part(s), {written_total:,} bytes")
 
-    state.save(landing_day=day, pos_landed=landed)
+    # NAME THE VENDOR. Everything above landed bytes into OneLake; without this
+    # the graph would start at those files and Contoso POS — the system that
+    # actually produced them, over HTTP, against a key from Key Vault — would
+    # appear nowhere. The connection is what the fetches above authenticated
+    # through, so it is the honest identity for the source end of the edge.
+    ftok = token(FABRIC_AUD)
+    pos = connections.ensure(
+        ftok,
+        "Contoso POS",
+        "ShareableCloud",
+        connections.details(
+            kind="RestApi", endpoint=POS_API, secretName=POS_KEY_SECRET
+        ),
+    )
+    # One move per feed: the customers export did not produce the orders file.
+    connections.announce(
+        ftok,
+        st["workspace"],
+        "ingest_pos",
+        "Contoso POS",
+        connections.from_source(
+            pos,
+            st["lakehouse"],
+            # The paths bronze actually reads, date partition included. A
+            # target that merely looks right joins the vendor to a node no
+            # other edge mentions, and the graph gains a source system floating
+            # beside the medallion instead of feeding it.
+            [f"Files/landing/contoso_pos/{day}/{subdir}" for subdir in landed],
+        ),
+    )
+
+    state.save(landing_day=day, pos_landed=landed, pos_connection=pos)
     total = sum(v["bytes"] for v in landed.values())
     n_parts = sum(v["parts"] for v in landed.values())
     log(f"Contoso POS: {n_parts} part(s) across {len(landed)} feed(s), {total:,} bytes")

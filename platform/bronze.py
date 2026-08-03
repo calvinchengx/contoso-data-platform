@@ -17,9 +17,10 @@ outside one.
 
 from __future__ import annotations
 
+import connections
 import spark as sparkmod
 import state
-from fabric import log
+from fabric import FABRIC_AUD, log, token
 
 
 def main() -> int:
@@ -92,6 +93,33 @@ def main() -> int:
     assert n_erp == erp.EXPECTED_ERP_CHANGE_EVENTS, (
         n_erp,
         erp.EXPECTED_ERP_CHANGE_EVENTS,
+    )
+
+    # The landing→bronze hop, reported because nothing else can see it. Spark
+    # read `abfs://…` directly, so the emulator watched bytes leave OneLake and
+    # bytes arrive, with nothing tying one to the other — and without this the
+    # vendor nodes the ingest steps name would hang off landing paths that no
+    # later edge mentions, leaving the source systems floating beside the
+    # medallion rather than feeding it. One move per table: the ERP change
+    # stream did not produce the customers table.
+    ftok = token(FABRIC_AUD)
+    lake = st["lakehouse"]
+    connections.announce(
+        ftok,
+        st["workspace"],
+        "bronze",
+        "landing",
+        [
+            {
+                "reads": [{"itemId": lake, "path": f"Files/landing/{src_path}"}],
+                "writes": [{"itemId": lake, "path": f"Tables/{table}"}],
+            }
+            for src_path, table in (
+                (f"contoso_pos/{day}/customers", "bronze_customers"),
+                (f"contoso_pos/{day}/orders", "bronze_orders"),
+                (f"contoso_erp/{day}/changes.parquet", "bronze_erp_changes"),
+            )
+        ],
     )
 
     state.save(

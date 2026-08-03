@@ -131,6 +131,16 @@ class Target:
     # step says so rather than pretending. Naming the difference here keeps it
     # visible instead of buried in a step nobody re-reads.
     event_triggers_have_rest_api: bool
+    # WHETHER AN ENGINE MAY REPORT ITS OWN LINEAGE. Real Fabric derives lineage
+    # from the artifacts it manages and accepts no claim from a client, so
+    # `POST …/lineage` is an emulator-native extension and the emulator's own
+    # parity table records it as one.
+    #
+    # It exists because plenty of real movement is invisible to the service: an
+    # interactive Spark session, a local script, a step that pulls from a
+    # vendor API. Without a report the graph begins at a landed file and the
+    # system that PUT it there cannot be named at all.
+    lineage_can_be_reported: bool
     # Where secrets live. The azure-keyvault-emulator locally, the customer's
     # real vault in production — never the source tree, on either target.
     vault_url: str
@@ -214,6 +224,7 @@ def resolve() -> Target:
             runs_notebooks_itself=True,
             clock_is_controllable=False,
             event_triggers_have_rest_api=False,
+            lineage_can_be_reported=False,
             vault_url=vault,
             entra_admin_api=None,
         )
@@ -236,6 +247,7 @@ def resolve() -> Target:
         runs_notebooks_itself=False,
         clock_is_controllable=True,
         event_triggers_have_rest_api=True,
+        lineage_can_be_reported=True,
         vault_url=ft.vault_url,
         entra_admin_api=ft.entra_url + "/admin/api/apps",
     )

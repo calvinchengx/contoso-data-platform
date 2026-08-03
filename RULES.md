@@ -77,6 +77,18 @@ will break** — the "enforced by" column is the honest part of this document, a
 
 | | |
 |---|---|
+| **Rule** | The **source system is a node**, not a filename. Each ingest step names the vendor as a Connection and reports the movement from it; `bronze` reports its landing→bronze hop so those nodes are not orphans. |
+| **Why** | A medallion does not begin in Fabric — it begins at a vendor's API or a production database — but an edge used to need a (workspace, item, path) triple at both ends, so the graph could only start at a file already in `Files/landing/` and the system that put it there could not be named. A connection rather than a URI because it holds the credential, carries a display name, and is what the client actually authenticated through. bronze must report too: Spark reads `abfs://` directly, so the emulator sees bytes leave and bytes arrive with nothing tying them together, and without that hop the vendors float beside the medallion instead of feeding it. |
+| **Enforced by** | `test_the_source_systems_are_named_in_lineage`, `test_the_landing_hop_is_reported_so_sources_are_not_orphans` |
+
+| | |
+|---|---|
+| **Rule** | A lineage report uses the precise `moves` form — one `{reads, writes}` per derivation — never flat read/write lists. |
+| **Why** | Flat lists cross-product. A step reading two feeds and writing two paths claims four movements where two happened, and the phantoms look exactly as plausible as the real edges. This repository shipped three such edges once already, from a declared read/write set on the silver notebook. |
+| **Enforced by** | `test_lineage_reports_use_the_precise_move_form` |
+
+| | |
+|---|---|
 | **Rule** | The platform must prove it **reacts to a delivery**: a file dropped at a marker path starts a run, evidenced by `invokeType: "EventTriggered"`. The trigger watches a dedicated marker, never the vendor's own landing prefix. |
 | **Why** | A schedule answers "run at 02:00" and cannot answer "run when it lands" — for an external feed the export finishes when it finishes, and a fixed hour either reprocesses yesterday or processes nothing. The marker matters as much as the trigger: the POS export lands as 21 parts, so a prefix over them would start 21 refreshes of one delivery, each correct alone and the set of them nonsense. |
 | **Enforced by** | `test_the_platform_proves_it_reacts_to_a_delivery`, `test_the_trigger_watches_a_marker_not_the_landing_zone` |
