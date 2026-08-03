@@ -16,9 +16,9 @@ import datetime as dt
 
 import requests
 import state
-from fabric import POS_API, STORAGE_AUD, log, token, upload
+from fabric import STORAGE_AUD, log, token, upload
 
-API_KEY = "contoso-pos-key-7731-dev"
+from sources import POS_API, POS_API_KEY
 
 # (operation path, landed filename). Named from the OpenAPI spec's operations,
 # so a spec change that renames a route fails here rather than landing an empty
@@ -48,7 +48,7 @@ def main() -> int:
 
     landed = {}
     for path, filename in FEEDS:
-        r = fetch(path, API_KEY)
+        r = fetch(path, POS_API_KEY)
         assert r.status_code == 200, (path, r.status_code, r.text[:200])
         blob = r.content
         assert blob, f"{path} returned an empty body"

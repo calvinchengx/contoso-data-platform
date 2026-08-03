@@ -56,3 +56,28 @@ services:
 # in later phases. They are the world OUTSIDE the emulator and will live in
 # their own compose files, composed in by the Makefile — so that what is
 # emulator and what is source stays legible from the file layout alone.
+
+  # --- Spark, because the platform must scale -------------------------------
+  # bronze and silver are distributed transforms. In real Fabric they run in a
+  # Spark notebook or a Spark Job Definition on a Spark pool; here they run
+  # against Sail, the same engine the emulator's own advanced examples use.
+  #
+  # The PUBLISHED image, not a build: this repository is a consumer and may only
+  # use what a consumer can pull.
+  sail:
+    image: ghcr.io/calvinchengx/fabric-emulator-sail:${SAIL_VERSION:?see versions.env}
+    depends_on:
+      fabric-emulator: {condition: service_healthy}
+    ports:
+      - "${SAIL_PORT:-50051}:50051"   # Spark Connect, plain h2c gRPC
+    environment:
+      # Sail mints its own storage token before starting: Rust object_store
+      # reads credentials from the process environment at startup only, so a
+      # Connect client cannot hand it one later.
+      ENTRA_TOKEN_URL: "https://entra-emulator:8443/11111111-1111-1111-1111-111111111111/oauth2/v2.0/token"
+      ENTRA_CLIENT_ID: "cccccccc-0000-0000-0000-000000000002"
+      ENTRA_CLIENT_SECRET: "daemon-app-secret"
+      AZURE_STORAGE_ACCOUNT_NAME: "onelake"
+      AZURE_STORAGE_ENDPOINT: "https://fabric-emulator:9443/onelake"
+      AZURE_ALLOW_INVALID_CERTIFICATES: "true"
+      SAIL_SPARK__SESSION_TIMEOUT_SECS: "3600"

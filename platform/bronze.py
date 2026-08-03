@@ -1,28 +1,25 @@
-"""Landing → bronze: the bytes as they arrived, as Delta tables.
+"""Landing → bronze, read by the ENGINE, not by this process.
 
 Bronze parses and nothing more. No dedupe, no conforming, no quarantine —
 those are silver's job, and doing them here would destroy the only copy of what
-the vendor actually sent. The redeliveries POS emits and the change events ERP
-produced are all still here, which is what makes a question about the source
-answerable without going back to the vendor.
+the vendor actually sent.
+
+THE ENGINE READS LANDING DIRECTLY. An earlier version pulled 170 MB out of
+OneLake through this process to parse it client-side. That works and it is the
+wrong shape: it puts one machine in the data path, and it does not scale past
+what that machine can hold. Spark reads `abfs://…/Files/landing/…` itself,
+which is what a Fabric notebook or Spark Job Definition does.
+
+Nothing here is emulator-aware. The paths are real Fabric OneLake URIs and the
+session comes from spark.py — ambient inside a Fabric notebook, Spark Connect
+outside one.
 """
 
 from __future__ import annotations
 
-import io
-
-import onelake_delta as delta
-import pyarrow.csv as pacsv
-import pyarrow.json as pajson
-import pyarrow.parquet as pq
+import spark as sparkmod
 import state
-from fabric import STORAGE_AUD, log, onelake, token
-
-
-def fetch(st: dict, rel: str, tok: str) -> bytes:
-    r = onelake("GET", f"/{st['workspace']}/{st['lakehouse']}/{rel}", tok)
-    assert r.status_code == 200, (rel, r.status_code, r.text[:200])
-    return r.content
+from fabric import log
 
 
 def main() -> int:
@@ -30,44 +27,42 @@ def main() -> int:
     import source_system as src
 
     st = state.load()
-    tok = token(STORAGE_AUD)
     day = st["landing_day"]
+    spark = sparkmod.session()
+    base = sparkmod.lakehouse_uri(st["workspace"], st["lakehouse"])
+    landing = f"{base}/Files/landing"
+    tables = f"{base}/Tables"
+
+    def save(df, name: str) -> int:
+        df.write.format("delta").mode("overwrite").option(
+            "overwriteSchema", "true"
+        ).save(f"{tables}/{name}")
+        return df.count()
 
     # --- Contoso POS -------------------------------------------------------
-    csv_bytes = fetch(st, f"Files/landing/contoso_pos/{day}/customers.csv", tok)
-    # Every column as string: the vendor's CSV is text on the wire, and letting
-    # a parser guess types here would silently make bronze an interpretation
-    # rather than a copy.
-    customers = pacsv.read_csv(
-        io.BytesIO(csv_bytes),
-        convert_options=pacsv.ConvertOptions(strings_can_be_null=False),
-        parse_options=pacsv.ParseOptions(newlines_in_values=True),
+    # Every column stays a string. The vendor's CSV is text on the wire, and
+    # inferring types here would make bronze an interpretation rather than a
+    # copy — silver is where meaning gets assigned.
+    customers = (
+        spark.read.option("header", True)
+        .option("inferSchema", False)
+        .csv(f"{landing}/contoso_pos/{day}/customers.csv")
     )
-    n_cust = delta.write(
-        st["workspace"], st["lakehouse"], "bronze_customers", customers, tok
-    )
+    n_cust = save(customers, "bronze_customers")
 
-    jsonl = fetch(st, f"Files/landing/contoso_pos/{day}/orders.jsonl", tok)
-    orders = pajson.read_json(io.BytesIO(jsonl))
-    n_ord = delta.write(st["workspace"], st["lakehouse"], "bronze_orders", orders, tok)
+    orders = spark.read.json(f"{landing}/contoso_pos/{day}/orders.jsonl")
+    n_ord = save(orders, "bronze_orders")
 
     # --- Contoso ERP -------------------------------------------------------
-    erp_bytes = fetch(st, f"Files/landing/contoso_erp/{day}/changes.parquet", tok)
-    changes = pq.read_table(io.BytesIO(erp_bytes))
-    n_erp = delta.write(
-        st["workspace"], st["lakehouse"], "bronze_erp_changes", changes, tok
-    )
+    changes = spark.read.parquet(f"{landing}/contoso_erp/{day}/changes.parquet")
+    n_erp = save(changes, "bronze_erp_changes")
 
     # --- what bronze must have preserved -----------------------------------
     # The vendor repeats a share of its rows. Bronze holding MORE rows than
     # distinct customers is the property silver's dedupe exists to fix — and if
     # bronze had already deduped, silver would pass its own assertions while
     # testing nothing.
-    # `.unique()` rather than pyarrow.compute.count_distinct: compute
-    # generates its functions at import time, so a type checker cannot see
-    # them, and a suppression here would be hiding a real blind spot rather
-    # than a false positive.
-    distinct_cust = len(customers["customer_id"].unique())
+    distinct_cust = customers.select("customer_id").distinct().count()
     assert distinct_cust == src.EXPECTED_SILVER_CUSTOMERS, (
         distinct_cust,
         src.EXPECTED_SILVER_CUSTOMERS,
@@ -76,14 +71,14 @@ def main() -> int:
         f"bronze holds {n_cust:,} rows for {distinct_cust:,} customers — the "
         f"vendor's redeliveries are missing, so silver's dedupe has nothing to do"
     )
-    assert customers.num_columns == src.EXPECTED_CUSTOMER_COLUMNS, (
-        customers.num_columns,
+    assert len(customers.columns) == src.EXPECTED_CUSTOMER_COLUMNS, (
+        len(customers.columns),
         src.EXPECTED_CUSTOMER_COLUMNS,
     )
 
     # Orders arrive at-least-once, so bronze must exceed the distinct order
     # count that silver settles on.
-    distinct_ord = len(orders["order_id"].unique())
+    distinct_ord = orders.select("order_id").distinct().count()
     assert n_ord > distinct_ord, (n_ord, distinct_ord)
 
     assert n_erp == erp.EXPECTED_ERP_CHANGE_EVENTS, (
@@ -100,7 +95,7 @@ def main() -> int:
     )
     log(
         f"bronze: {n_cust:,} customer rows ({distinct_cust:,} distinct, "
-        f"{customers.num_columns} cols), {n_ord:,} order events "
+        f"{len(customers.columns)} cols), {n_ord:,} order events "
         f"({distinct_ord:,} distinct), {n_erp:,} ERP change events"
     )
     return 0

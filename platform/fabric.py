@@ -15,7 +15,6 @@ tests/test_repo.py enforces the absence.
 
 from __future__ import annotations
 
-import os
 import pathlib
 import ssl
 import urllib.parse
@@ -31,13 +30,6 @@ FABRIC_AUD = "https://api.fabric.microsoft.com"
 STORAGE_AUD = "https://storage.azure.com"
 
 FABRIC = T.api_root
-POS_API = os.environ.get("POS_API_URL", "http://localhost:18090")
-
-ERP_DSN = os.environ.get(
-    "ERP_DSN", "postgresql://contoso:contoso-erp-dev@localhost:55432/erp"
-)
-DEBEZIUM = os.environ.get("DEBEZIUM_URL", "http://localhost:18083")
-REDPANDA = os.environ.get("REDPANDA_BOOTSTRAP", "localhost:19092")
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 STATE = ROOT / "state.json"

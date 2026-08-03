@@ -22,9 +22,11 @@ import json
 
 import state
 from confluent_kafka import Consumer, TopicPartition
-from fabric import REDPANDA, STORAGE_AUD, log, token, upload
+from fabric import STORAGE_AUD, log, token, upload
 
-TOPIC = "contoso.erp.customer"
+from sources import ERP_TOPIC, REDPANDA
+
+TOPIC = ERP_TOPIC
 
 # Debezium's op codes, in the vocabulary the change log uses. `r` is a snapshot
 # read: it should not appear here, because the connector is started before any

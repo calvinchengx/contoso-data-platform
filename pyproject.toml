@@ -12,13 +12,9 @@ dependencies = [
     "psycopg[binary]>=3.2,<4",
     "confluent-kafka>=2.6,<3",
     "pyarrow>=18,<24",
-    # Delta without a JVM or a Spark container — the emulator serves the Blob
-    # dialect that Rust object_store speaks (docs/08-onelake).
-    "deltalake>=0.24,<2",
-    # SQL over Arrow, in-process. Silver is set logic — dedupe, latest-event-wins,
-    # quarantine — and expressing that as SQL is clearer than chained Arrow
-    # compute calls, without adding an engine to the stack.
-    "duckdb>=1.1,<2",
+    # The THIN Spark Connect client — about a megabyte, and no JVM. The full
+    # pyspark distribution is not needed to drive a Connect server.
+    "pyspark-client==4.1.1",
 ]
 
 [dependency-groups]

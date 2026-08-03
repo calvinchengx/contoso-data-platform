@@ -55,6 +55,9 @@ class Target:
     # fail against production for a reason that has nothing to do with the code
     # under test.
     capacity_is_auto_assigned: bool
+    # Where the Spark session comes from. In a Fabric notebook `spark` is
+    # ambient and this is None; outside one, a Spark Connect endpoint.
+    spark_remote: str | None
 
     @property
     def is_emulator(self) -> bool:
@@ -110,6 +113,8 @@ def resolve() -> Target:
             onelake_host_header=None,
             verify_tls=True,
             capacity_is_auto_assigned=False,
+            # A Fabric Spark notebook supplies the session; nothing to connect to.
+            spark_remote=os.environ.get("SPARK_REMOTE"),
         )
 
     fabric = os.environ.get("FABRIC_URL", "https://localhost:9443")
@@ -133,4 +138,5 @@ def resolve() -> Target:
         # which is deliberate.
         verify_tls=False,
         capacity_is_auto_assigned=True,
+        spark_remote=os.environ.get("SPARK_REMOTE", "sc://localhost:50051"),
     )

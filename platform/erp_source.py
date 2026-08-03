@@ -16,8 +16,10 @@ from typing import LiteralString, cast
 
 import psycopg
 import state
-from fabric import ERP_DSN, log
+from fabric import log
 from psycopg import sql
+
+from sources import ERP_DSN
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SCHEMA = ROOT / "sources" / "contoso-erp" / "schema.sql"

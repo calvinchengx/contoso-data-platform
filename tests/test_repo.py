@@ -174,3 +174,33 @@ def test_tls_verification_is_never_hardcoded_off():
     real = src[src.index("if target() == REAL:") : src.index("fabric = os.environ")]
     assert "verify_tls=True" in real, "the real target must verify TLS"
     assert "allow_invalid" not in real
+
+
+def test_the_fabric_client_knows_nothing_about_the_source_systems():
+    """Segregation, in the other direction.
+
+    Contoso POS, Web and ERP are vendors a Fabric pipeline pulls from — not
+    Fabric. A Fabric client that knows what a vendor's DSN looks like has mixed
+    two things that change for different reasons and at different times.
+    """
+    src = (ROOT / "platform" / "fabric.py").read_text()
+    for leak in ("POS_", "ERP_", "DEBEZIUM", "REDPANDA", "postgresql://"):
+        assert leak not in src, f"fabric.py should not mention {leak}"
+
+
+def test_the_transforms_are_engine_side():
+    """bronze and silver must scale.
+
+    They run in the engine — Spark reading OneLake directly — so the same code
+    holds at a hundred million rows. A client-side dataframe library here would
+    put one machine in the data path and cap the platform at its memory, which
+    is exactly what a single-node engine quietly does.
+    """
+    for name in ("bronze.py", "silver.py"):
+        src = (ROOT / "platform" / name).read_text()
+        assert "import spark" in src, f"{name} does not use the engine"
+        for single_node in ("duckdb", "pandas", "deltalake", "pyarrow"):
+            assert single_node not in src, (
+                f"{name} pulls data client-side with {single_node} — the "
+                f"transforms must stay in the engine to scale"
+            )
