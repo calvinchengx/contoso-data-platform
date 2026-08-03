@@ -577,3 +577,50 @@ def test_the_schedule_step_puts_the_clock_back():
         "the clock must be restored before the assertion, or a failed run "
         "leaves the stack broken for whatever runs next"
     )
+
+
+def test_the_platform_proves_it_reacts_to_a_delivery():
+    """A schedule answers "run at 02:00"; it cannot answer "run when it lands".
+
+    For an external feed that is the question that matters — the vendor's
+    export finishes when it finishes, and a fixed hour either reprocesses
+    yesterday or processes nothing. So the assertion is that a DROPPED FILE
+    started a run, evidenced by `invokeType: "EventTriggered"`, not that a
+    trigger record exists.
+    """
+    src = (ROOT / "platform" / "trigger.py").read_text()
+    assert '"EventTriggered"' in src, (
+        "the step must filter job instances by invokeType — nothing else can "
+        "say the trigger is what started the run"
+    )
+    assert "T.event_triggers_have_rest_api" in src, (
+        "binding a trigger is emulator-only and must be gated by the target"
+    )
+    # The real branch must SAY it asserts nothing, for the same reason the
+    # schedule step must: a silent skip reports success for an unwired feature.
+    assert "asserts nothing" in src, (
+        "the real target cannot bind a trigger and must say so out loud"
+    )
+
+
+def test_the_trigger_watches_a_marker_not_the_landing_zone():
+    """A prefix over the vendor's parts would fire once per part.
+
+    The POS export lands as 21 files. A trigger watching that prefix would
+    start 21 refreshes of the same delivery — each one correct in isolation and
+    the set of them nonsense. File-arrived and delivery-finished are different
+    events, and only the second is worth acting on, which is why the watched
+    prefix is a dedicated marker path.
+    """
+    src = (ROOT / "platform" / "trigger.py").read_text()
+    watched = re.search(r'^WATCHED_PREFIX = "([^"]+)"', src, re.M)
+    marker = re.search(r'^MARKER = "([^"]+)"', src, re.M)
+    assert watched and marker, "the step no longer declares what it watches"
+    assert marker.group(1).startswith(watched.group(1)), (
+        "the marker must land under the watched prefix, or the trigger cannot fire"
+    )
+    # The guard that matters: the watched prefix must not be an ancestor of the
+    # feed's own parts, which land directly under the vendor directory.
+    assert not watched.group(1).rstrip("/").endswith("contoso_pos"), (
+        "watching the vendor directory itself fires once per landed part"
+    )

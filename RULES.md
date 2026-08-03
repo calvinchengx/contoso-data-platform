@@ -77,6 +77,18 @@ will break** — the "enforced by" column is the honest part of this document, a
 
 | | |
 |---|---|
+| **Rule** | The platform must prove it **reacts to a delivery**: a file dropped at a marker path starts a run, evidenced by `invokeType: "EventTriggered"`. The trigger watches a dedicated marker, never the vendor's own landing prefix. |
+| **Why** | A schedule answers "run at 02:00" and cannot answer "run when it lands" — for an external feed the export finishes when it finishes, and a fixed hour either reprocesses yesterday or processes nothing. The marker matters as much as the trigger: the POS export lands as 21 parts, so a prefix over them would start 21 refreshes of one delivery, each correct alone and the set of them nonsense. |
+| **Enforced by** | `test_the_platform_proves_it_reacts_to_a_delivery`, `test_the_trigger_watches_a_marker_not_the_landing_zone` |
+
+| | |
+|---|---|
+| **Rule** | Binding an event trigger is **emulator-only**, behind `T.event_triggers_have_rest_api`. Against real Fabric the step creates nothing and says so. |
+| **Why** | This is the one asymmetry this platform cannot close. Real Fabric has no public REST for the binding — the Eventstream/Reflex rule is assembled in the portal by hand — so a deployment cannot declare it the way it declares a lakehouse or a schedule. Inventing a REST call that does not exist would be worse than the gap; everything downstream of the binding is ordinary Fabric and is exercised by the job it starts. |
+| **Enforced by** | `test_the_platform_proves_it_reacts_to_a_delivery` |
+
+| | |
+|---|---|
 | **Rule** | A clock advance must fit inside one token lifetime, and the clock must be put back — before the assertion, so a failing run restores it too. |
 | **Why** | Only Fabric's clock moves; the Entra emulator that mints the tokens keeps its own. Jump further than a token lives and the two disagree permanently — every later call 401s `invalid token: expired`, including freshly minted tokens, because the new one is already past expiry as far as Fabric is concerned. It presents as an authentication fault and is really the clock lever. A stack left advanced breaks whatever runs next with an error nobody would trace back here. |
 | **Enforced by** | `test_the_clock_advance_fits_inside_one_token_lifetime`, `test_the_schedule_step_puts_the_clock_back` |

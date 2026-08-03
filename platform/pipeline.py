@@ -37,6 +37,7 @@ STEPS = [
     # is a catalog nobody finds out about when it breaks — and this one carries
     # the platform's headline claim, that lineage reaches the vendor.
     ("govern", "catalog the platform in OpenMetadata, sources included"),
+    ("trigger", "drop a delivery marker; prove it starts a run by itself"),
     # LAST, and the position is load-bearing. Proving a schedule fires means
     # moving the emulator's clock, and that clock is what every job status and
     # long-running operation in the stack derives from — so an hour jumped in

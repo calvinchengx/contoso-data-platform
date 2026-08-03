@@ -116,6 +116,21 @@ class Target:
     # So on both targets the schedule is created, read back and asserted. Only
     # the "did it fire" half is emulator-only, and this is what gates it.
     clock_is_controllable: bool
+    # WHETHER AN EVENT TRIGGER CAN BE BOUND AS CODE, and this one is a genuine
+    # asymmetry rather than a convenience.
+    #
+    # Real Fabric has no public REST for the binding: a Reflex rule fed by an
+    # Eventstream is assembled in the PORTAL, by hand. Everything downstream of
+    # it is ordinary Fabric — the filter, the job it starts, the TriggerEvent
+    # fields the job reads — but the wiring itself is not something a
+    # deployment can declare. The emulator exposes an emulator-native surface
+    # (`…/reflexes/{id}/triggers`) and says so in its own parity table.
+    #
+    # So the trigger step is the one place this platform cannot be
+    # target-neutral: against production the binding is a portal task and the
+    # step says so rather than pretending. Naming the difference here keeps it
+    # visible instead of buried in a step nobody re-reads.
+    event_triggers_have_rest_api: bool
     # Where secrets live. The azure-keyvault-emulator locally, the customer's
     # real vault in production — never the source tree, on either target.
     vault_url: str
@@ -198,6 +213,7 @@ def resolve() -> Target:
             spark_remote=os.environ.get("SPARK_REMOTE"),
             runs_notebooks_itself=True,
             clock_is_controllable=False,
+            event_triggers_have_rest_api=False,
             vault_url=vault,
             entra_admin_api=None,
         )
@@ -219,6 +235,7 @@ def resolve() -> Target:
         spark_remote=os.environ.get("SPARK_REMOTE", "sc://localhost:50051"),
         runs_notebooks_itself=False,
         clock_is_controllable=True,
+        event_triggers_have_rest_api=True,
         vault_url=ft.vault_url,
         entra_admin_api=ft.entra_url + "/admin/api/apps",
     )
