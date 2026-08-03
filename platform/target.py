@@ -141,6 +141,25 @@ class Target:
     # vendor API. Without a report the graph begins at a landed file and the
     # system that PUT it there cannot be named at all.
     lineage_can_be_reported: bool
+    # WHAT THE WAREHOUSE IS CALLED ON ITS SQL ENDPOINT — the `database` half of
+    # a connection, and the one thing about the Warehouse that differs.
+    #
+    # Real Fabric's SQL endpoint exposes a Warehouse under its DISPLAY NAME:
+    # `Sql.Database("<endpoint>", "contoso_warehouse")`. The emulator resolves a
+    # TDS database by ITEM ID instead — it calls `EnsureDatabase(ctx, it.ID)`
+    # and keys its backing databases the same way — which is why compose sets
+    # `DBT_DATABASE: "${WAREHOUSE_ID}"`, a GUID.
+    #
+    # It matters beyond dbt now that the semantic model carries partitions: the
+    # M expression in a partition names this database, and a partition naming
+    # the wrong one is a model that opens and loads nothing. dbt got away with
+    # it because the value was handed to it through the environment and nobody
+    # had to write it down.
+    #
+    # True here means "address it by id". A Fabric-shaped emitted artifact
+    # therefore differs by this one string between targets, which is the honest
+    # position until the emulator accepts the display name as an alias.
+    warehouse_database_is_item_id: bool
     # Where secrets live. The azure-keyvault-emulator locally, the customer's
     # real vault in production — never the source tree, on either target.
     vault_url: str
@@ -163,6 +182,15 @@ class Target:
         credential here.
         """
         return self.credential.get_token(f"{audience}/.default").token
+
+    def warehouse_database(self, item_id: str, display_name: str) -> str:
+        """The `database` a SQL client names to reach this Warehouse.
+
+        A method rather than a bare flag at the call site, because the caller
+        should not have to remember WHICH of the two it is holding — it has
+        both, and this file is where the choice belongs.
+        """
+        return item_id if self.warehouse_database_is_item_id else display_name
 
     def delta_storage_options(self, tok: str) -> dict[str, str]:
         """What delta-rs needs to reach OneLake on this target.
@@ -225,6 +253,8 @@ def resolve() -> Target:
             clock_is_controllable=False,
             event_triggers_have_rest_api=False,
             lineage_can_be_reported=False,
+            # Fabric's SQL endpoint exposes a Warehouse by display name.
+            warehouse_database_is_item_id=False,
             vault_url=vault,
             entra_admin_api=None,
         )
@@ -248,6 +278,7 @@ def resolve() -> Target:
         clock_is_controllable=True,
         event_triggers_have_rest_api=True,
         lineage_can_be_reported=True,
+        warehouse_database_is_item_id=True,
         vault_url=ft.vault_url,
         entra_admin_api=ft.entra_url + "/admin/api/apps",
     )
