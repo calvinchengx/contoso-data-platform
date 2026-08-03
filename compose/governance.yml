@@ -1,0 +1,71 @@
+# OpenMetadata: the catalog, profile-gated.
+#
+# Heavy enough to be opt-in — the search backend alone wants a 1 GB heap — so
+# `make up` never starts it and `make govern` does. Its own Postgres is separate
+# from the ERP source's on purpose: a catalog's metadata store and a source
+# system have different lifecycles, and sharing one would make a `down -v` on
+# either destroy the other.
+services:
+  om-postgresql:
+    profiles: [governance]
+    image: docker.getcollate.io/openmetadata/postgresql:${OPENMETADATA_VERSION:?see versions.env}
+    command: "--work_mem=10MB"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - om-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: psql -U postgres -tAc 'select 1' -d openmetadata_db
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  om-opensearch:
+    profiles: [governance]
+    image: opensearchproject/opensearch:${OPENSEARCH_VERSION:?see versions.env}
+    environment:
+      - discovery.type=single-node
+      - OPENSEARCH_JAVA_OPTS=-Xms1024m -Xmx1024m
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+    volumes:
+      - om-search-data:/usr/share/opensearch/data
+    healthcheck:
+      test: "curl -s http://localhost:9200/_cluster/health?pretty | grep status | grep -qE 'green|yellow' || exit 1"
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  om-migrate:
+    profiles: [governance]
+    image: docker.getcollate.io/openmetadata/server:${OPENMETADATA_VERSION:?see versions.env}
+    command: "./bootstrap/openmetadata-ops.sh migrate"
+    environment: &om_env
+      DB_HOST: om-postgresql
+      DB_PORT: "5432"
+      DB_SCHEME: postgresql
+      DB_DRIVER_CLASS: org.postgresql.Driver
+      DB_PARAMS: "allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC"
+      SEARCH_TYPE: opensearch
+      ELASTICSEARCH_HOST: om-opensearch
+    depends_on:
+      om-postgresql: {condition: service_healthy}
+      om-opensearch: {condition: service_healthy}
+
+  openmetadata:
+    profiles: [governance]
+    image: docker.getcollate.io/openmetadata/server:${OPENMETADATA_VERSION:?see versions.env}
+    ports: ["${OM_PORT:-8585}:8585"]
+    environment: *om_env
+    depends_on:
+      om-migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8586/healthcheck"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+
+volumes:
+  om-db-data:
+  om-search-data:

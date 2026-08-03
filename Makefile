@@ -36,7 +36,7 @@
 # keeps a step from reconciling the environment out from under them.
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor fixtures sources up down config lint fmt verify test clean
+.PHONY: help doctor fixtures sources up down config lint fmt govern verify test clean
 
 help:  ## Show the targets
 	@uv run --no-project python scripts/help.py
@@ -58,6 +58,10 @@ down:  ## Stop everything and remove volumes
 
 config:  ## Show the resolved compose config (proves the pin)
 	@uv run --no-project python scripts/compose.py config
+
+govern:  ## Start OpenMetadata and catalog the platform (heavy; opt-in)
+	@uv run --no-project python scripts/compose.py --profile governance up -d
+	@uv run --frozen --no-sync python platform/govern.py
 
 verify:  ## Run the platform end to end against the pinned release
 	@uv run --frozen --no-sync python platform/pipeline.py

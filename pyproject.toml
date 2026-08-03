@@ -10,6 +10,9 @@ dependencies = [
     "requests>=2.32,<3",
     # The ERP source is a real Postgres, and its change stream is real Kafka.
     "psycopg[binary]>=3.2,<4",
+    # The source specs are YAML; the catalog derives its entities from them
+    # rather than restating what the vendor already published.
+    "pyyaml>=6,<7",
     "confluent-kafka>=2.6,<3",
     "pyarrow>=18,<24",
     # The THIN Spark Connect client — about a megabyte, and no JVM. The full

@@ -121,6 +121,7 @@ dependencies = [
     { name = "psycopg", extra = ["binary"] },
     { name = "pyarrow" },
     { name = "pyspark-client" },
+    { name = "pyyaml" },
     { name = "requests" },
 ]
 
@@ -137,6 +138,7 @@ requires-dist = [
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
     { name = "pyarrow", specifier = ">=18,<24" },
     { name = "pyspark-client", specifier = "==4.1.1" },
+    { name = "pyyaml", specifier = ">=6,<7" },
     { name = "requests", specifier = ">=2.32,<3" },
 ]
 

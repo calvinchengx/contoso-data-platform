@@ -126,5 +126,5 @@ services:
       # addresses the emulator by service name on the standard TDS port.
       DBT_HOST: "fabric-emulator"
       DBT_PORT: "1433"
-      DBT_DATABASE: "${WAREHOUSE_ID:?set by platform/gold.py}"
-      DBT_ACCESS_TOKEN: "${WAREHOUSE_TOKEN:?set by platform/gold.py}"
+      DBT_DATABASE: "${WAREHOUSE_ID:-unset-run-make-verify}"
+      DBT_ACCESS_TOKEN: "${WAREHOUSE_TOKEN:-unset-run-make-verify}"

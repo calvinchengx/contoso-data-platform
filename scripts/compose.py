@@ -14,7 +14,11 @@ import sys
 import release_info as rel
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-FILES = ["compose/docker-compose.yml", "compose/sources.yml"]
+FILES = [
+    "compose/docker-compose.yml",
+    "compose/sources.yml",
+    "compose/governance.yml",
+]
 
 
 def main():
