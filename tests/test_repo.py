@@ -139,3 +139,38 @@ def test_the_lockfile_is_committed():
     resolve three different dependency sets."""
     assert (ROOT / "uv.lock").exists()
     assert "pytest" in (ROOT / "uv.lock").read_text(), "dev group not locked"
+
+
+def test_the_emulator_appears_only_in_the_target_resolver():
+    """This platform must run unmodified against real Fabric.
+
+    Every difference between the local family and production lives in
+    platform/target.py, selected by FABRIC_TARGET. A seeded credential, a
+    localhost URL or a TLS bypass anywhere else is a workaround that would ship
+    to production — and would be invisible, because the emulator would go on
+    passing.
+    """
+    emulator_only = re.compile(
+        r"localhost:9443|localhost:8443|daemon-app-secret|cccccccc-0000|"
+        r"11111111-1111|allow_invalid_certificates|verify\s*=\s*False"
+    )
+    offenders = []
+    for p in sorted((ROOT / "platform").glob("*.py")):
+        if p.name == "target.py":
+            continue
+        for i, line in enumerate(p.read_text().splitlines(), 1):
+            if line.lstrip().startswith("#"):
+                continue
+            if emulator_only.search(line):
+                offenders.append(f"{p.name}:{i}: {line.strip()}")
+    assert not offenders, "these belong in target.py, behind FABRIC_TARGET: " + str(
+        offenders
+    )
+
+
+def test_tls_verification_is_never_hardcoded_off():
+    """The real target must not be able to run with verification disabled."""
+    src = (ROOT / "platform" / "target.py").read_text()
+    real = src[src.index("if target() == REAL:") : src.index("fabric = os.environ")]
+    assert "verify_tls=True" in real, "the real target must verify TLS"
+    assert "allow_invalid" not in real

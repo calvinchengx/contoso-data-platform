@@ -19,7 +19,7 @@ from __future__ import annotations
 import duckdb
 import onelake_delta as delta
 import state
-from emulator import STORAGE_AUD, log, token
+from fabric import STORAGE_AUD, log, token
 
 # Silver's own business rule, written out rather than derived from the
 # generator's COUNTRY_VARIANTS. Importing that mapping would make the

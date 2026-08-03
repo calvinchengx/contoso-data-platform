@@ -10,28 +10,21 @@ Windows, macOS and Linux from `git clone` and `make`, and adding a Spark
 container to reach a Delta table would put a JVM, a matching Python, and a
 Spark Connect handshake between a reader and their first table.
 
-TLS: `allow_invalid_certificates` because the stack serves a self-signed
-certificate a consumer has no CA for. object_store verifies by default and
-fails with `invalid peer certificate: UnknownIssuer`, which names neither the
-emulator nor the fix.
+TLS follows the TARGET. Against real Fabric object_store verifies normally;
+against the local family it would fail with `invalid peer certificate:
+UnknownIssuer` — a message naming neither the emulator nor the fix — so the
+relaxation is applied there and only there.
 """
 
 from __future__ import annotations
 
 import pyarrow as pa
 from deltalake import DeltaTable, write_deltalake
-from emulator import FABRIC, STORAGE_AUD, token
+from fabric import STORAGE_AUD, T, token
 
 
 def storage_options(tok: str | None = None) -> dict[str, str]:
-    return {
-        # The account name is always the literal `onelake`; the endpoint
-        # override addresses it azurite-style at /onelake/{workspace}/…
-        "azure_storage_account_name": "onelake",
-        "azure_storage_token": tok or token(STORAGE_AUD),
-        "azure_endpoint": f"{FABRIC}/onelake",
-        "allow_invalid_certificates": "true",
-    }
+    return T.delta_storage_options(tok or token(STORAGE_AUD))
 
 
 def table_uri(workspace: str, item: str, name: str) -> str:

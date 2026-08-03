@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-from emulator import STATE
+from fabric import STATE
 
 
 def load() -> dict:

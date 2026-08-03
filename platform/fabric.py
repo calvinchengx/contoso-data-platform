@@ -1,15 +1,16 @@
-"""A thin fabric-emulator client, written from the published quickstart.
+"""A Fabric client. Not an emulator client that happens to reach Fabric.
+
+Every call below is the real Fabric contract — the Entra client-credentials
+flow, the `/v1` control plane, OneLake's ADLS Gen2 create/append/flush. What
+differs between the local family and production is resolved in target.py and
+appears here only as configuration: an endpoint, a credential, a TLS flag, one
+Host header. Nothing in this module is shaped around the emulator.
 
 DELIBERATELY NOT `common.py`. That module ships inside the contoso-fixtures
 wheel and would give this repository the emulator's own client plumbing — which
 would quietly void the single claim this repository exists to make: that a
 consumer can build against a PUBLISHED image without the source. A test in
 tests/test_repo.py enforces the absence.
-
-Everything here comes from docs/01-quickstart: the seeded daemon principal, the
-two audiences, the control-plane routes, and OneLake's ADLS Gen2 create/append/
-flush. If a call here needs something the docs do not state, that is a finding
-about the docs and should be reported as one rather than worked around.
 """
 
 from __future__ import annotations
@@ -20,25 +21,17 @@ import ssl
 import urllib.parse
 
 import requests
+import target
 import urllib3
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+T = target.resolve()
 
-TENANT = "11111111-1111-1111-1111-111111111111"
-CLIENT_ID = "cccccccc-0000-0000-0000-000000000002"
-CLIENT_SECRET = "daemon-app-secret"  # seeded dev value, published in the docs
-
-ENTRA = os.environ.get("ENTRA_URL", "https://localhost:8443")
-FABRIC = os.environ.get("FABRIC_URL", "https://localhost:9443")
-POS_API = os.environ.get("POS_API_URL", "http://localhost:18090")
-
+# Real Fabric audiences, on both targets — the emulator validates the same ones.
 FABRIC_AUD = "https://api.fabric.microsoft.com"
 STORAGE_AUD = "https://storage.azure.com"
 
-# OneLake is Host-routed at onelake.dfs.fabric.microsoft.com. curl does that with
-# --resolve; requests does it by addressing the emulator and setting Host, which
-# is the same trick and keeps the URL honest about who is being addressed.
-ONELAKE_HOST = "onelake.dfs.fabric.microsoft.com"
+FABRIC = T.api_root
+POS_API = os.environ.get("POS_API_URL", "http://localhost:18090")
 
 ERP_DSN = os.environ.get(
     "ERP_DSN", "postgresql://contoso:contoso-erp-dev@localhost:55432/erp"
@@ -49,11 +42,13 @@ REDPANDA = os.environ.get("REDPANDA_BOOTSTRAP", "localhost:19092")
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 STATE = ROOT / "state.json"
 
-# The emulator serves a self-signed certificate. Verification is off rather than
-# pinned because a consumer following the quickstart has no CA to pin to; the
-# TLS path itself is still exercised.
 S = requests.Session()
-S.verify = False
+# TLS verification follows the TARGET, never a constant. Against real Fabric it
+# is on and cannot be turned off from configuration; the local family serves
+# self-signed certificates a consumer has no CA for.
+S.verify = T.verify_tls
+if not T.verify_tls:
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 def log(msg: str) -> None:
@@ -61,13 +56,14 @@ def log(msg: str) -> None:
 
 
 def token(audience: str) -> str:
-    """Client credentials against the seeded daemon app (quickstart §2)."""
+    """Entra client credentials. The same flow and the same audiences against
+    both targets — only the authority and the principal differ."""
     r = S.post(
-        f"{ENTRA}/{TENANT}/oauth2/v2.0/token",
+        f"{T.authority}/{T.tenant}/oauth2/v2.0/token",
         data={
             "grant_type": "client_credentials",
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
+            "client_id": T.client_id,
+            "client_secret": T.client_secret,
             "scope": f"{audience}/.default",
         },
         timeout=30,
@@ -90,15 +86,20 @@ def fabric(method: str, path: str, tok: str, **kw):
 
 
 def onelake(method: str, path: str, tok: str, **kw):
-    """ADLS Gen2 against OneLake, Host-routed (quickstart §5)."""
+    """ADLS Gen2 against OneLake.
+
+    Real Fabric has its own hostname and is addressed directly. The emulator
+    serves OneLake on the Fabric port and routes by Host header — the same
+    thing `curl --resolve` does — so that override is applied only when the
+    target asks for it.
+    """
+    headers = {"Authorization": f"Bearer {tok}", **kw.pop("headers", {})}
+    if T.onelake_host_header:
+        headers["Host"] = T.onelake_host_header
     return S.request(
         method,
-        f"{FABRIC}/{path.lstrip('/')}",
-        headers={
-            "Authorization": f"Bearer {tok}",
-            "Host": ONELAKE_HOST,
-            **kw.pop("headers", {}),
-        },
+        f"{T.onelake_url}/{path.lstrip('/')}",
+        headers=headers,
         timeout=300,
         **kw,
     )

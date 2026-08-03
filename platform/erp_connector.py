@@ -17,7 +17,7 @@ from typing import LiteralString, cast
 
 import psycopg
 import requests
-from emulator import DEBEZIUM, ERP_DSN, log
+from fabric import DEBEZIUM, ERP_DSN, log
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "sources" / "contoso-erp" / "debezium-connector.json"

@@ -16,7 +16,7 @@ import pyarrow.csv as pacsv
 import pyarrow.json as pajson
 import pyarrow.parquet as pq
 import state
-from emulator import STORAGE_AUD, log, onelake, token
+from fabric import STORAGE_AUD, log, onelake, token
 
 
 def fetch(st: dict, rel: str, tok: str) -> bytes:

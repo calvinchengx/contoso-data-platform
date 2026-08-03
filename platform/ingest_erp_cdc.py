@@ -22,7 +22,7 @@ import json
 
 import state
 from confluent_kafka import Consumer, TopicPartition
-from emulator import REDPANDA, STORAGE_AUD, log, token, upload
+from fabric import REDPANDA, STORAGE_AUD, log, token, upload
 
 TOPIC = "contoso.erp.customer"
 

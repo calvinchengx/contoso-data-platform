@@ -16,7 +16,7 @@ import datetime as dt
 
 import requests
 import state
-from emulator import POS_API, STORAGE_AUD, log, token, upload
+from fabric import POS_API, STORAGE_AUD, log, token, upload
 
 API_KEY = "contoso-pos-key-7731-dev"
 

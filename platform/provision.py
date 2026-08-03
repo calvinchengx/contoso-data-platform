@@ -8,7 +8,7 @@ quickstart, against a published image, with no access to the emulator's source.
 from __future__ import annotations
 
 import state
-from emulator import FABRIC_AUD, fabric, log, token
+from fabric import FABRIC_AUD, T, fabric, log, token
 
 WORKSPACE = "contoso-analytics"
 LAKEHOUSE = "contoso_lake"
@@ -24,10 +24,13 @@ def main() -> int:
     assert r.status_code == 201, (r.status_code, r.text[:300])
     ws = r.json()
     assert ws["id"], ws
-    # The docs promise a capacity is seeded and auto-assigned, so tools that
-    # refuse capacity-less workspaces work out of the box. Asserted, because it
-    # is a promise a consumer depends on and cannot see until it breaks.
-    assert ws.get("capacityId"), f"no capacity auto-assigned: {ws}"
+    # A capacity is required for the workspace to be usable — but WHO provides
+    # it differs, and asserting the emulator's convenience would fail against
+    # production for a reason unrelated to this code. The emulator seeds one and
+    # auto-assigns it; real Fabric expects an existing capacity, assigned by an
+    # admin or named in configuration.
+    if T.capacity_is_auto_assigned:
+        assert ws.get("capacityId"), f"no capacity auto-assigned: {ws}"
 
     r = fabric(
         "POST",

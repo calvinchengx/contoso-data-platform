@@ -16,7 +16,7 @@ from typing import LiteralString, cast
 
 import psycopg
 import state
-from emulator import ERP_DSN, log
+from fabric import ERP_DSN, log
 from psycopg import sql
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
