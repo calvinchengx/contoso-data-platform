@@ -18,8 +18,16 @@ jobs:
   verify:
     name: Verify the released emulator end to end
     runs-on: ubuntu-latest
+    # To push the adopted pin back. The repository default is read-only, and a
+    # job that only ever reads should stay that way — this one does not.
+    permissions:
+      contents: write
     steps:
+      # Full history, and a token the later push can use. The default checkout
+      # is a depth-1 detached HEAD, which cannot rebase onto a moved main.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: "0.11.32"
@@ -47,6 +55,45 @@ jobs:
       - run: make sources
       - run: make up
       - run: make verify
+      # ADOPT WHAT THIS RUN JUST PROVED. Everything above already ran against
+      # the dispatched version — `set_release.py` rewrote versions.env in the
+      # runner before `make up` — so by here the pin has been verified end to
+      # end and is still sitting uncommitted in the working tree. Throwing it
+      # away and asking a human to retype it is the only thing separating a
+      # verified release from an adopted one.
+      #
+      # No `if: always()`. A step with no condition runs only when every step
+      # before it succeeded, which is exactly the gate wanted: a red run must
+      # leave the pin where it is.
+      #
+      # Only on dispatch. The schedule and manual runs verify the EXISTING pin
+      # and have nothing to adopt — `set_release.py` never ran, so versions.env
+      # is unchanged and the guard below would exit anyway. Saying so here
+      # keeps the intent readable rather than incidental.
+      - if: github.event_name == 'repository_dispatch'
+        name: Adopt the version this run just verified
+        env:
+          VERSION: ${{ github.event.client_payload.version }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Attributed to the bot, not to a person. `git log` should show at a
+          # glance which pins a human chose and which a passing run adopted.
+
+          # A re-dispatch of a version already pinned — a re-run of an old
+          # release workflow — has nothing to say.
+          if git diff --quiet versions.env; then
+            echo "already pinned at $VERSION; nothing to adopt"
+            exit 0
+          fi
+
+          git commit -qm "pin $VERSION — adopted by the acceptance run that verified it" versions.env
+          # main can move during the ~8 minutes this run takes. Without the
+          # rebase the push races and fails, and the release looks broken for a
+          # reason that has nothing to do with the release.
+          git pull --rebase --quiet origin main
+          git push origin HEAD:main
+          echo "adopted $VERSION" >> "$GITHUB_STEP_SUMMARY"
       # Report what was VERIFIED, not merely that nothing failed. "We verified
       # 0.13.1" is a positive statement; "nothing went red" is not, and the
       # difference is precisely what a stale trigger hides.

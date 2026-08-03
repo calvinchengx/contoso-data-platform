@@ -107,6 +107,14 @@ will break** — the "enforced by" column is the honest part of this document, a
 
 | | |
 |---|---|
+| | |
+|---|---|
+| **Rule** | The release pins move only in a run that verified them. The acceptance run adopts the dispatched version itself, after `make verify` passes; nobody hand-edits `FABRIC_EMULATOR_VERSION`. |
+| **Why** | The pin is this repository's claim about which release carries a working platform. Typed by hand it is an intention; written by the run that exercised it, it is a result. The gate is the whole argument — an `if: always()` on the adopt step would move the pin exactly when the evidence says not to. |
+| **Enforced by** | `test_the_pin_moves_only_after_a_green_verify`, `test_the_acceptance_run_uses_the_dispatched_version` |
+
+| | |
+|---|---|
 | **Rule** | uv, strictly. `pyproject.toml` + committed `uv.lock`. No bare `python`, no `pip`, no `--with`. |
 | **Why** | `--with pytest` resolves fresh every run, so the same commit can test against two different suites. |
 | **Enforced by** | `test_python_is_only_ever_invoked_through_uv`, `test_the_lockfile_is_committed` |

@@ -27,10 +27,10 @@ def _pins():
 def test_every_image_is_pinned_to_a_version():
     """All THREE emulator images plus mokapi.
 
-    The family ships on independent cadences — fabric-emulator at 0.14.x while
-    entra and keyvault are at 0.3.x — so one pin cannot describe the stack.
-    Assuming it could is how this repo first failed to start: `manifest
-    unknown`, because 0.13.0 exists for one image and not the others.
+    The family ships on independent cadences, so fabric-emulator, entra and
+    keyvault sit on different version lines and one pin cannot describe the
+    stack. Assuming it could is how this repo first failed to start: `manifest
+    unknown`, because 0.13.0 existed for one image and not the others.
     """
     pins = _pins()
     expected = {
@@ -307,3 +307,45 @@ def test_the_acceptance_run_uses_the_dispatched_version():
         "acceptance is triggered by a release but never reads which one"
     )
     assert "set_release.py" in wf
+
+
+def test_the_pin_moves_only_after_a_green_verify():
+    """Adoption is automatic, so the GATE is the whole safety argument.
+
+    The acceptance run commits the dispatched version back to versions.env,
+    which means a released emulator becomes the one this platform claims to
+    support without a human in the loop. That is only sound while the commit
+    is unreachable from a failed run: an `if: always()` here, or the step
+    drifting above `make verify`, would adopt a version precisely when the
+    evidence says not to — and it would do it silently, in the emulator's own
+    release history.
+    """
+    import yaml
+
+    wf = yaml.safe_load((ROOT / ".github" / "workflows" / "acceptance.yml").read_text())
+    job = wf["jobs"]["verify"]
+    steps = job["steps"]
+
+    def index_of(pred) -> int:
+        hits = [i for i, s in enumerate(steps) if pred(s)]
+        assert len(hits) == 1, f"expected exactly one matching step, got {hits}"
+        return hits[0]
+
+    verify = index_of(lambda s: s.get("run", "").strip() == "make verify")
+    adopt = index_of(lambda s: "push origin" in s.get("run", ""))
+
+    assert adopt > verify, "the pin is adopted before the run that verifies it"
+
+    cond = str(steps[adopt].get("if", ""))
+    assert "always()" not in cond, (
+        "the adopt step runs even when verification failed; "
+        "a red run must leave the pin where it is"
+    )
+    assert "repository_dispatch" in cond, (
+        "adoption must be scoped to a release dispatch — the schedule verifies "
+        "the EXISTING pin and has nothing to adopt"
+    )
+
+    # Writing to the repository is not the default and must be asked for
+    # explicitly, or the push fails at the end of an eight-minute run.
+    assert job.get("permissions", {}).get("contents") == "write"
