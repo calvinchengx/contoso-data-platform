@@ -10,3 +10,4 @@ sources/_data/
 # which is committed so CI and every contributor see them.
 CLAUDE.md
 CLAUDE.local.md
+gold/_export.json

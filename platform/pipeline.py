@@ -28,6 +28,7 @@ STEPS = [
     ("bronze", "landing -> bronze Delta tables, verbatim"),
     ("silver", "bronze -> silver: dedupe, conform, quarantine"),
     ("gold", "silver -> gold: the star, in the Warehouse via dbt-fabric"),
+    ("semantic_model", "publish the model; query it with DAX over executeQueries"),
 ]
 
 

@@ -34,6 +34,47 @@ WAREHOUSE = "contoso_warehouse"
 SQL_AUD = "https://database.windows.net"
 
 
+def in_dbt_container(*args: str) -> int:
+    """Run something in the dbt image, which has the ODBC driver.
+
+    Shared with the semantic model, which also has to read the Warehouse over
+    TDS. One image with the driver, used by everything that needs it, rather
+    than a driver on the contributor's machine.
+
+    The connection reaches dbt through the ENVIRONMENT, so nothing about the
+    target is written into the project — the same profiles.yml points at a real
+    Fabric Warehouse when these values do.
+    """
+    st = state.load()
+    env = {
+        **os.environ,
+        "WAREHOUSE_ID": st["warehouse"],
+        "WAREHOUSE_TOKEN": token(SQL_AUD),
+        "LAKEHOUSE_ID": st["lakehouse"],
+    }
+    return subprocess.run(
+        [
+            "docker",
+            "compose",
+            "--env-file",
+            "versions.env",
+            "-f",
+            "compose/docker-compose.yml",
+            "-f",
+            "compose/sources.yml",
+            "--profile",
+            "gold",
+            "run",
+            "--rm",
+            "-e",
+            f"LAKEHOUSE_ID={st['lakehouse']}",
+            *args,
+        ],
+        cwd=ROOT,
+        env=env,
+    ).returncode
+
+
 def main() -> int:
     st = state.load()
     tok = token(FABRIC_AUD)
@@ -56,39 +97,6 @@ def main() -> int:
 
     state.save(warehouse=wh["id"], warehouse_name=WAREHOUSE)
 
-    # dbt gets the connection through the environment, so nothing about the
-    # target is written into the project. The same profiles.yml points at a real
-    # Fabric Warehouse when these values do.
-    env = {
-        **os.environ,
-        "WAREHOUSE_ID": wh["id"],
-        "WAREHOUSE_TOKEN": token(SQL_AUD),
-        "LAKEHOUSE_ID": st["lakehouse"],
-    }
-
-    def in_dbt_container(*args: str) -> int:
-        return subprocess.run(
-            [
-                "docker",
-                "compose",
-                "--env-file",
-                "versions.env",
-                "-f",
-                "compose/docker-compose.yml",
-                "-f",
-                "compose/sources.yml",
-                "--profile",
-                "gold",
-                "run",
-                "--rm",
-                "-e",
-                f"LAKEHOUSE_ID={st['lakehouse']}",
-                *args,
-            ],
-            cwd=ROOT,
-            env=env,
-        ).returncode
-
     # Silver has to be visible through the lakehouse SQL analytics endpoint
     # before gold can read it by three-part name. On real Fabric it already is;
     # here the connect is what makes the emulator reflect it.
@@ -96,28 +104,8 @@ def main() -> int:
     rc = in_dbt_container("--entrypoint", "python", "dbt", "/tools/reflect.py")
     assert rc == 0, f"silver is not queryable from the warehouse: exit {rc}"
 
-    cmd = [
-        "docker",
-        "compose",
-        "--env-file",
-        "versions.env",
-        "-f",
-        "compose/docker-compose.yml",
-        "-f",
-        "compose/sources.yml",
-        "--profile",
-        "gold",
-        "run",
-        "--rm",
-        "-e",
-        f"LAKEHOUSE_ID={st['lakehouse']}",
-        "dbt",
-        "build",
-        "--profiles-dir",
-        "/gold",
-    ]
     log("dbt build (containerised dbt-fabric over TDS)")
-    rc = subprocess.run(cmd, cwd=ROOT, env=env).returncode
+    rc = in_dbt_container("dbt", "build", "--profiles-dir", "/gold")
     assert rc == 0, f"dbt build failed: exit {rc}"
 
     log(f"gold: star built in warehouse {wh['id']}")
