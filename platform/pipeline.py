@@ -30,6 +30,10 @@ STEPS = [
     ("gold", "silver -> gold: the star, in the Warehouse via dbt-fabric"),
     ("semantic_model", "publish the model; query it with DAX over executeQueries"),
     ("xmla_probe", "run the same DAX through a real BI client over XMLA"),
+    # In the run, not beside it. A catalog exercised only by a separate command
+    # is a catalog nobody finds out about when it breaks — and this one carries
+    # the platform's headline claim, that lineage reaches the vendor.
+    ("govern", "catalog the platform in OpenMetadata, sources included"),
 ]
 
 

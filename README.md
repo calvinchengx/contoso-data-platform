@@ -23,6 +23,21 @@ engine-side transforms, secrets in Key Vault, one file for the emulator/real
 difference. Each rule names the test that enforces it, and says `judgement`
 where nothing does.
 
+## What it needs to run
+
+The full stack is **13 services** — the emulator family, Sail, a SQL Server
+sidecar, the source systems (mokapi, Postgres, Redpanda, Debezium) and
+OpenMetadata with its own Postgres and OpenSearch. Budget **~8 GB** to Docker;
+OpenSearch alone asks for a 1 GB heap.
+
+Two limits worth knowing before you start:
+
+- **SQL Server is amd64-only.** On Apple silicon it runs translated; on an
+  arm64 Linux host gold cannot run at all. That is SQL Server's distribution,
+  not this platform.
+- **The catalog is part of `make verify`**, not a separate command — a catalog
+  exercised only on request is one nobody hears about when it breaks.
+
 ## Requirements
 
 Three tools, on any of the three platforms:

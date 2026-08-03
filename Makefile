@@ -59,8 +59,7 @@ down:  ## Stop everything and remove volumes
 config:  ## Show the resolved compose config (proves the pin)
 	@uv run --no-project python scripts/compose.py config
 
-govern:  ## Start OpenMetadata and catalog the platform (heavy; opt-in)
-	@uv run --no-project python scripts/compose.py --profile governance up -d
+govern:  ## Catalog the platform in OpenMetadata (also runs inside `make verify`)
 	@uv run --frozen --no-sync python platform/govern.py
 
 verify:  ## Run the platform end to end against the pinned release

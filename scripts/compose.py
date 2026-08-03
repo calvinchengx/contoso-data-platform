@@ -26,7 +26,17 @@ def main():
         sys.exit("usage: compose.py <up|down|config|ps> [args...]")
     args = sys.argv[1:]
     env = dict(os.environ)
-    cmd = ["docker", "compose", "--env-file", rel.VERSIONS.name]
+    # The governance profile is on by default. It is the heaviest part of the
+    # stack — OpenSearch alone wants a 1 GB heap — but a catalog that only a
+    # separate command exercises is one nobody hears about when it breaks.
+    cmd = [
+        "docker",
+        "compose",
+        "--env-file",
+        rel.VERSIONS.name,
+        "--profile",
+        "governance",
+    ]
     for f in FILES:
         cmd += ["-f", f]
     cmd += args

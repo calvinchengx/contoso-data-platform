@@ -209,6 +209,76 @@ def register_topic() -> str:
     return topic["fullyQualifiedName"]
 
 
+# --- the platform's own tables ------------------------------------------------
+# A Fabric workspace maps to an OM database; the lakehouse and the warehouse are
+# its schemas — which is what they are on the SQL surface too, so a catalog user
+# and a SQL user see the same names.
+FABRIC_SERVICE = "contoso-fabric"
+
+# The medallion, in order. Each entry is (schema, table, upstreams) and the
+# upstreams are what actually built it — derived from the pipeline, not from a
+# diagram someone drew once.
+MEDALLION = [
+    ("lakehouse", "bronze_customers", []),
+    ("lakehouse", "bronze_orders", []),
+    ("lakehouse", "bronze_erp_changes", []),
+    ("lakehouse", "silver_customers", ["lakehouse.bronze_customers"]),
+    ("lakehouse", "silver_orders", ["lakehouse.bronze_orders"]),
+    ("lakehouse", "silver_quarantine_orders", ["lakehouse.bronze_orders"]),
+    ("warehouse", "dim_customer", ["lakehouse.silver_customers"]),
+    ("warehouse", "fct_orders", ["lakehouse.silver_orders"]),
+    (
+        "warehouse",
+        "fct_daily_revenue",
+        ["warehouse.dim_customer", "warehouse.fct_orders"],
+    ),
+]
+
+
+def register_fabric(st: dict, lake_cols: dict, wh_cols: dict) -> dict[str, str]:
+    """The lakehouse and warehouse tables, with columns read from what was built."""
+    put(
+        "services/databaseServices",
+        {
+            "name": FABRIC_SERVICE,
+            "serviceType": "Mssql",
+            "description": "The Fabric workspace: a Lakehouse reached through its "
+            "SQL analytics endpoint, and a Warehouse. Both are T-SQL surfaces.",
+            "connection": {
+                "config": {
+                    "type": "Mssql",
+                    "scheme": "mssql+pyodbc",
+                    "username": "entra",
+                    "hostPort": "fabric-emulator:1433",
+                    "database": st["workspace_name"],
+                }
+            },
+        },
+    )
+    db = put("databases", {"name": st["workspace_name"], "service": FABRIC_SERVICE})
+    fqns = {}
+    for schema in ("lakehouse", "warehouse"):
+        sch = put(
+            "databaseSchemas",
+            {"name": schema, "database": db["fullyQualifiedName"]},
+        )
+        for s_name, table, _ in MEDALLION:
+            if s_name != schema:
+                continue
+            cols = (lake_cols if schema == "lakehouse" else wh_cols).get(table)
+            assert cols, f"no columns discovered for {schema}.{table}"
+            t = put(
+                "tables",
+                {
+                    "name": table,
+                    "databaseSchema": sch["fullyQualifiedName"],
+                    "columns": cols,
+                },
+            )
+            fqns[f"{schema}.{table}"] = t["fullyQualifiedName"]
+    return fqns
+
+
 def add_lineage(from_fqn: str, from_type: str, to_fqn: str, to_type: str) -> None:
     put(
         "lineage",
@@ -221,10 +291,97 @@ def add_lineage(from_fqn: str, from_type: str, to_fqn: str, to_type: str) -> Non
     )
 
 
+# OpenMetadata's routes are not uniformly `{type}s`. Guessing works for most
+# and silently 404s for the rest, so the exceptions are written down.
+ROUTES = {
+    "table": "tables",
+    "topic": "topics",
+    "apiEndpoint": "apiEndpoints",
+    "dashboardDataModel": "dashboard/datamodels",
+}
+
+
 def entity_id(kind: str, fqn: str) -> str:
-    r = S.get(f"{OM}/{kind}s/name/{fqn}", timeout=60)
+    route = ROUTES.get(kind)
+    assert route, f"no OpenMetadata route known for {kind!r} — add it to ROUTES"
+    r = S.get(f"{OM}/{route}/name/{fqn}", timeout=60)
     assert r.status_code == 200, (kind, fqn, r.status_code, r.text[:200])
     return r.json()["id"]
+
+
+def discover_columns(st: dict) -> tuple[dict, dict]:
+    """Column lists read from what was actually built, on both sides.
+
+    Lakehouse: the Delta schema, through the same engine that wrote it.
+    Warehouse: INFORMATION_SCHEMA, through the container that has the driver.
+    Neither is typed out here — a catalog that restates a schema is a second
+    definition, and the two drift.
+    """
+    import spark as sparkmod
+
+    from gold import in_dbt_container
+
+    spark = sparkmod.session()
+    base = sparkmod.lakehouse_uri(st["workspace"], st["lakehouse"])
+    lake = {}
+    for schema, table, _ in MEDALLION:
+        if schema != "lakehouse":
+            continue
+        df = spark.read.format("delta").load(f"{base}/Tables/{table}")
+        lake[table] = [
+            {"name": f.name, "dataType": _om_type(f.dataType.simpleString())}
+            for f in df.schema.fields
+        ]
+
+    rc = in_dbt_container("--entrypoint", "python", "dbt", "/tools/columns.py")
+    assert rc == 0, f"warehouse column discovery failed: exit {rc}"
+    raw = json.loads((ROOT / "gold" / "_columns.json").read_text())
+    wh = {
+        t: [{"name": c["name"], "dataType": _om_type(c["type"])} for c in cols]
+        for t, cols in raw.items()
+    }
+    return lake, wh
+
+
+def _om_type(native: str) -> str:
+    """Map an engine type name onto OpenMetadata's vocabulary."""
+    n = native.lower()
+    if n.startswith(("int", "bigint", "smallint", "long")):
+        return "INT"
+    if n.startswith(("double", "float", "decimal", "numeric", "real")):
+        return "DOUBLE"
+    if n.startswith(("date",)):
+        return "DATE"
+    if n.startswith(("timestamp", "datetime")):
+        return "TIMESTAMP"
+    if n.startswith(("bool",)):
+        return "BOOLEAN"
+    return "STRING"
+
+
+def _pbi_service() -> str:
+    """A dashboard service to hang the semantic model on.
+
+    The model is a Power BI artifact, so it belongs to a dashboard service
+    rather than a database one — which is also how a real Fabric workspace
+    presents it.
+    """
+    put(
+        "services/dashboardServices",
+        {
+            "name": "contoso-powerbi",
+            "serviceType": "PowerBI",
+            "connection": {
+                "config": {
+                    "type": "PowerBI",
+                    "clientId": "contoso",
+                    "clientSecret": "***",
+                    "tenantId": "contoso",
+                }
+            },
+        },
+    )
+    return "contoso-powerbi"
 
 
 def main() -> int:
@@ -234,16 +391,58 @@ def main() -> int:
         f"OpenMetadata is not reachable — `make govern` starts it ({r.status_code})"
     )
 
+    st = state.load()
     pos_svc, endpoints = register_pos()
     erp_table = register_erp()
     topic = register_topic()
+
+    lake_cols, wh_cols = discover_columns(st)
+    tables = register_fabric(st, lake_cols, wh_cols)
 
     # The hop that did not exist before: the vendor's change stream feeds the
     # ERP table's changes into the platform. Upstream of bronze, and therefore
     # upstream of every number the platform reports.
     add_lineage(erp_table, "table", topic, "topic")
 
+    # And the rest of the chain, so a number in the semantic model traces all
+    # the way back to a vendor rather than to a file that appeared in landing.
+    edges = 1
+    add_lineage(topic, "topic", tables["lakehouse.bronze_erp_changes"], "table")
+    edges += 1
+    for ep in endpoints:
+        for bronze in ("lakehouse.bronze_customers", "lakehouse.bronze_orders"):
+            add_lineage(ep, "apiEndpoint", tables[bronze], "table")
+            edges += 1
+    for schema, table, upstreams in MEDALLION:
+        for up in upstreams:
+            add_lineage(tables[up], "table", tables[f"{schema}.{table}"], "table")
+            edges += 1
+    dataset = st.get("dataset")
+    if dataset:
+        model = put(
+            "dashboard/datamodels",
+            {
+                "name": "ContosoRevenue",
+                "service": _pbi_service(),
+                "dataModelType": "PowerBIDataModel",
+                "columns": [
+                    {"name": c, "dataType": "STRING"}
+                    for c in ("OrderDate", "Country", "Orders", "Units", "Revenue")
+                ],
+            },
+        )
+        if model.get("fullyQualifiedName"):
+            add_lineage(
+                tables["warehouse.fct_daily_revenue"],
+                "table",
+                model["fullyQualifiedName"],
+                "dashboardDataModel",
+            )
+            edges += 1
+
     catalogued = {
+        "lineage_edges": edges,
+        "fabric_tables": sorted(tables),
         "api_service": pos_svc,
         "api_endpoints": endpoints,
         "erp_table": erp_table,
@@ -256,6 +455,7 @@ def main() -> int:
         f"catalogued source systems: {pos_svc} ({len(endpoints)} endpoints), "
         f"{erp_table}, {topic}"
     )
+    log(f"catalogued the medallion: {len(tables)} tables, {edges} lineage edges")
     # Direction matters and is easy to state backwards: Debezium READS the ERP
     # table and PUBLISHES to the topic, so data flows table -> topic. An edge
     # drawn the other way would claim the platform writes to the vendor — and
