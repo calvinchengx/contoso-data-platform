@@ -6,9 +6,12 @@ inserting one does not renumber a directory.
 
 from __future__ import annotations
 
+import os
 import pathlib
 import subprocess
 import sys
+
+import capture
 
 HERE = pathlib.Path(__file__).resolve().parent
 
@@ -58,11 +61,30 @@ def preflight() -> None:
 
 def main() -> int:
     preflight()
+
+    # Record the flow view for the WHOLE run. Started here because this is the
+    # only place that knows when the run begins; a capture script invoked as a
+    # step could only ever film what came after it.
+    watcher = None
+    if os.environ.get("CAPTURE", "1") != "0":
+        try:
+            watcher = capture.start_watch()
+        except Exception as exc:
+            print(f"==> capture unavailable, continuing without it: {exc}", flush=True)
+
     for i, (step, title) in enumerate(STEPS, 1):
         print(f"==> [{i}/{len(STEPS)}] {title}", flush=True)
         rc = subprocess.run([sys.executable, f"{step}.py"], cwd=HERE).returncode
         if rc != 0:
+            if watcher:
+                capture.stop_watch(watcher)
             return rc or 1
+    if watcher:
+        capture.stop_watch(watcher)
+        # Verified and photographed only after everything is built — the
+        # catalog is a result, so there is nothing true to shoot before now.
+        capture.main()
+
     print(f"==> platform complete: {len(STEPS)}/{len(STEPS)} steps passed", flush=True)
     return 0
 

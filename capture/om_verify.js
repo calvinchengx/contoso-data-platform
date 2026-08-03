@@ -51,9 +51,22 @@ function check(name, ok, detail) {
   //    starts at bronze never has.
   let t = await visit('/service/apiServices/contoso-pos')
   check('POS is an API service', /contoso-pos/i.test(t))
-  check('its endpoints are listed',
-        /exportCustomers/i.test(t) || /export/i.test(t), 'exportCustomers/exportOrders')
   await shot('contoso-pos-api-service')
+
+  // The endpoints hang off the COLLECTION, not the service page — asserting on
+  // the service and finding nothing says the endpoints are missing when they
+  // are simply one level down.
+  // The UI lists endpoints by DISPLAY NAME — the OpenAPI `summary` — not by
+  // operationId. Asserting on the operationId failed while the catalog was
+  // perfectly correct, which is why this checks what a user actually sees:
+  // the count, the summaries, and the HTTP method.
+  t = await visit('/apiCollection/' + encodeURIComponent('contoso-pos.export'))
+  check('the collection reports both endpoints', /Endpoints\s*2/i.test(t))
+  check('its endpoints are listed',
+        /Full customer snapshot/i.test(t) && /Orders since the last export/i.test(t),
+        'by their OpenAPI summaries')
+  check('their HTTP method is shown', /GET/.test(t))
+  await shot('contoso-pos-endpoints')
 
   // 2. The relational source.
   t = await visit('/service/databaseServices/contoso-erp')

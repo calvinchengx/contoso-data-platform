@@ -23,6 +23,7 @@ import time
 
 import state
 from fabric import FABRIC, FABRIC_AUD, S, ensure_audience, log, token
+from provision import find_item
 
 from gold import in_dbt_container
 
@@ -121,6 +122,24 @@ def definition(rows: dict) -> dict:
 
 def publish(workspace: str, defn: dict, tok: str) -> str:
     h = {"Authorization": f"Bearer {tok}"}
+
+    # Resolve-or-update, not create. Display names are unique per workspace on
+    # both targets, so a second create returns 409 ItemDisplayNameAlreadyInUse —
+    # and a platform that only runs against a fresh workspace is not one anybody
+    # can operate. Updating also refreshes the embedded rows, which is what a
+    # rebuild of gold should do to the model that carries it.
+    existing = find_item(tok, workspace, MODEL, "SemanticModel")
+    if existing:
+        r = S.post(
+            f"{FABRIC}/v1/workspaces/{workspace}/items/{existing['id']}"
+            f"/updateDefinition",
+            headers=h,
+            json={"definition": defn},
+            timeout=120,
+        )
+        assert r.status_code in (200, 202), (r.status_code, r.text[:300])
+        return existing["id"]
+
     r = S.post(
         f"{FABRIC}/v1/workspaces/{workspace}/items",
         headers=h,

@@ -47,6 +47,12 @@ select = [
     "RUF",
 ]
 
+[tool.ty.environment]
+# The steps import each other as top-level modules because each one also runs
+# standalone (`python platform/silver.py`), which puts platform/ on sys.path.
+# ty needs telling, or a sibling import resolves to nothing.
+extra-paths = ["platform"]
+
 [tool.ty.rules]
 # The generators arrive from a wheel installed outside the lock, so ty cannot
 # see them when it runs on a clean checkout. Their absence is not a type error.
