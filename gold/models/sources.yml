@@ -1,0 +1,13 @@
+version: 2
+
+# Silver lives in the LAKEHOUSE database, exposed as T-SQL by its SQL analytics
+# endpoint; gold builds in the WAREHOUSE database. Both are databases on the
+# same engine, so dbt reads across them with three-part names — which is how
+# real Fabric works too.
+sources:
+  - name: silver
+    database: "{{ env_var('LAKEHOUSE_ID') }}"
+    schema: dbo
+    tables:
+      - name: silver_customers
+      - name: silver_orders

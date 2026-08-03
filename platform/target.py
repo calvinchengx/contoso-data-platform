@@ -61,6 +61,11 @@ class Target:
     # Where secrets live. The azure-keyvault-emulator locally, the customer's
     # real vault in production — never the source tree, on either target.
     vault_url: str
+    # Real Entra knows Azure SQL and Power BI as first-party resources, so a
+    # token for those audiences needs no setup. The emulator's entra mints only
+    # for audiences it has been told about, and exposes an admin API to do it.
+    # None on the real target means "nothing to register".
+    entra_admin_api: str | None
 
     @property
     def is_emulator(self) -> bool:
@@ -119,6 +124,7 @@ def resolve() -> Target:
             # A Fabric Spark notebook supplies the session; nothing to connect to.
             spark_remote=os.environ.get("SPARK_REMOTE"),
             vault_url=_require("AZURE_KEY_VAULT_URL"),
+            entra_admin_api=None,
         )
 
     fabric = os.environ.get("FABRIC_URL", "https://localhost:9443")
@@ -144,4 +150,6 @@ def resolve() -> Target:
         capacity_is_auto_assigned=True,
         spark_remote=os.environ.get("SPARK_REMOTE", "sc://localhost:50051"),
         vault_url=os.environ.get("AZURE_KEY_VAULT_URL", "https://localhost:8444"),
+        entra_admin_api=os.environ.get("ENTRA_URL", "https://localhost:8443")
+        + "/admin/api/apps",
     )

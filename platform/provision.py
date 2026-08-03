@@ -31,6 +31,14 @@ def find_workspace(tok: str, name: str) -> dict | None:
 
 def find_item(tok: str, workspace: str, name: str, kind: str) -> dict | None:
     r = fabric("GET", f"/workspaces/{workspace}/items", tok)
+    # A stale state.json is the common cause, not a broken workspace: the
+    # emulator keeps state in memory, so any restart invalidates the ids a
+    # previous run recorded. Say that, rather than leaving `WorkspaceNotFound`
+    # to be interpreted.
+    assert r.status_code != 404, (
+        f"workspace {workspace} is gone — state.json is from an earlier stack. "
+        f"Run `make verify` from the start; provision resolves by name."
+    )
     assert r.status_code == 200, (r.status_code, r.text[:200])
     for it in r.json().get("value", []):
         if it.get("displayName") == name and it.get("type") == kind:

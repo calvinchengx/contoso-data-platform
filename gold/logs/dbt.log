@@ -1,0 +1,1671 @@
+[0m00:43:39.092749 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff7f1b7aa0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff7f1b7b30>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff7eb1b260>]}
+
+
+============================== 00:43:39.097959 | fbf3173d-5e57-46e2-8dee-b70532fccc2c ==============================
+[0m00:43:39.097959 [info ] [MainThread]: Running with dbt=1.9.10
+[0m00:43:39.098229 [debug] [MainThread]: running dbt with arguments {'no_print': 'None', 'target_path': 'None', 'indirect_selection': 'eager', 'quiet': 'False', 'introspect': 'True', 'partial_parse': 'True', 'log_path': '/gold/logs', 'debug': 'False', 'log_cache_events': 'False', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'static_parser': 'True', 'warn_error': 'None', 'fail_fast': 'False', 'cache_selected_only': 'False', 'profiles_dir': '/gold', 'version_check': 'True', 'log_format': 'default', 'printer_width': '80', 'empty': 'False', 'use_colors': 'True', 'send_anonymous_usage_stats': 'True', 'invocation_command': 'dbt build --profiles-dir /gold', 'use_experimental_parser': 'False', 'write_json': 'True'}
+[0m00:43:39.265636 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'project_id', 'label': 'fbf3173d-5e57-46e2-8dee-b70532fccc2c', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff7d3b4f20>]}
+[0m00:43:39.289520 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'adapter_info', 'label': 'fbf3173d-5e57-46e2-8dee-b70532fccc2c', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff7d2da0c0>]}
+[0m00:43:39.289909 [info ] [MainThread]: Registered adapter: fabric=1.9.10
+[0m00:43:39.321682 [debug] [MainThread]: checksum: c40cca0353c9a9b4dbd2a57cdc3e2440f5c9a71a795694b25a51e704baaf554e, vars: {}, profile: , target: , version: 1.9.10
+[0m00:43:39.322105 [info ] [MainThread]: Unable to do partial parsing because saved manifest not found. Starting full parse.
+[0m00:43:39.322385 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'partial_parser', 'label': 'fbf3173d-5e57-46e2-8dee-b70532fccc2c', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff7d061760>]}
+[0m00:43:39.878320 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'load_project', 'label': 'fbf3173d-5e57-46e2-8dee-b70532fccc2c', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff7ccb1c10>]}
+[0m00:43:39.911856 [debug] [MainThread]: Wrote artifact WritableManifest to /gold/target/manifest.json
+[0m00:43:39.913944 [debug] [MainThread]: Wrote artifact SemanticManifest to /gold/target/semantic_manifest.json
+[0m00:43:39.931018 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'resource_counts', 'label': 'fbf3173d-5e57-46e2-8dee-b70532fccc2c', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff7c0ca1e0>]}
+[0m00:43:39.931228 [info ] [MainThread]: Found 3 models, 10 data tests, 2 sources, 526 macros
+[0m00:43:39.932226 [info ] [MainThread]: 
+[0m00:43:39.932353 [info ] [MainThread]: Concurrency: 1 threads (target='dev')
+[0m00:43:39.932455 [info ] [MainThread]: 
+[0m00:43:39.932649 [debug] [MainThread]: Acquiring new fabric connection 'master'
+[0m00:43:39.934668 [debug] [ThreadPool]: Acquiring new fabric connection 'list_aee86aac-de4c-435a-b206-1b1e54f4eb07'
+[0m00:43:39.941246 [debug] [ThreadPool]: dbt-fabric
+[0m00:43:39.941451 [debug] [ThreadPool]: Using fabric connection "list_aee86aac-de4c-435a-b206-1b1e54f4eb07"
+[0m00:43:39.941565 [debug] [ThreadPool]: On list_aee86aac-de4c-435a-b206-1b1e54f4eb07: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "connection_name": "list_aee86aac-de4c-435a-b206-1b1e54f4eb07"} */
+USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    select  name as [schema]
+    from sys.schemas  
+    OPTION (LABEL = 'dbt-fabric-dw');
+
+  
+[0m00:43:39.941673 [debug] [ThreadPool]: Opening a new connection, currently in state init
+[0m00:43:39.941792 [debug] [ThreadPool]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:43:39.947939 [debug] [ThreadPool]: fabric adapter: Error running SQL: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "connection_name": "list_aee86aac-de4c-435a-b206-1b1e54f4eb07"} */
+USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    select  name as [schema]
+    from sys.schemas  
+    OPTION (LABEL = 'dbt-fabric-dw');
+
+  
+[0m00:43:39.948030 [debug] [ThreadPool]: fabric adapter: Rolling back transaction.
+[0m00:43:39.948113 [debug] [ThreadPool]: On list_aee86aac-de4c-435a-b206-1b1e54f4eb07: No close available on handle
+[0m00:43:39.948205 [debug] [ThreadPool]: fabric adapter: Error running SQL: macro list_schemas
+[0m00:43:39.948275 [debug] [ThreadPool]: fabric adapter: Rolling back transaction.
+[0m00:43:39.948507 [debug] [MainThread]: Connection 'master' was properly closed.
+[0m00:43:39.948610 [debug] [MainThread]: Connection 'list_aee86aac-de4c-435a-b206-1b1e54f4eb07' was properly closed.
+[0m00:43:39.948695 [info ] [MainThread]: 
+[0m00:43:39.948815 [info ] [MainThread]: Finished running  in 0 hours 0 minutes and 0.02 seconds (0.02s).
+[0m00:43:39.948976 [error] [MainThread]: Encountered an error:
+Database Error
+  ('01000', "[01000] [unixODBC][Driver Manager]Can't open lib '/opt/microsoft/msodbcsql18/lib64/libmsodbcsql-18.6.so.2.1' : file not found (0) (SQLDriverConnect)")
+[0m00:43:39.949631 [debug] [MainThread]: Resource report: {"command_name": "build", "command_success": false, "command_wall_clock_time": 0.87707686, "process_in_blocks": "172576", "process_kernel_time": 0.383796, "process_mem_max_rss": "128720", "process_out_blocks": "4734", "process_user_time": 1.306734}
+[0m00:43:39.949825 [debug] [MainThread]: Command `dbt build` failed at 00:43:39.949786 after 0.88 seconds
+[0m00:43:39.949952 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff7e8f4d40>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff6ebbffb0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff7ec07e90>]}
+[0m00:43:39.950079 [debug] [MainThread]: Flushing usage events
+[0m00:43:41.024831 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m00:44:48.874511 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff92be9be0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff924f7500>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff92519820>]}
+
+
+============================== 00:44:48.878425 | 8c658a9d-e93a-4232-afbd-0abfa2331620 ==============================
+[0m00:44:48.878425 [info ] [MainThread]: Running with dbt=1.9.10
+[0m00:44:48.878628 [debug] [MainThread]: running dbt with arguments {'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'indirect_selection': 'eager', 'use_experimental_parser': 'False', 'debug': 'False', 'use_colors': 'True', 'quiet': 'False', 'log_cache_events': 'False', 'printer_width': '80', 'empty': 'False', 'profiles_dir': '/gold', 'send_anonymous_usage_stats': 'True', 'partial_parse': 'True', 'log_format': 'default', 'target_path': 'None', 'log_path': '/gold/logs', 'write_json': 'True', 'no_print': 'None', 'invocation_command': 'dbt build --profiles-dir /gold', 'introspect': 'True', 'cache_selected_only': 'False', 'version_check': 'True', 'warn_error': 'None', 'fail_fast': 'False', 'static_parser': 'True'}
+[0m00:44:48.990785 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'project_id', 'label': '8c658a9d-e93a-4232-afbd-0abfa2331620', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff92695e80>]}
+[0m00:44:49.012274 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'adapter_info', 'label': '8c658a9d-e93a-4232-afbd-0abfa2331620', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff927a55e0>]}
+[0m00:44:49.012536 [info ] [MainThread]: Registered adapter: fabric=1.9.10
+[0m00:44:49.038189 [debug] [MainThread]: checksum: c40cca0353c9a9b4dbd2a57cdc3e2440f5c9a71a795694b25a51e704baaf554e, vars: {}, profile: , target: , version: 1.9.10
+[0m00:44:49.081006 [debug] [MainThread]: Partial parsing enabled: 0 files deleted, 0 files added, 0 files changed.
+[0m00:44:49.081191 [debug] [MainThread]: Partial parsing enabled, no changes found, skipping parsing
+[0m00:44:49.098721 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'load_project', 'label': '8c658a9d-e93a-4232-afbd-0abfa2331620', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff90b179b0>]}
+[0m00:44:49.132378 [debug] [MainThread]: Wrote artifact WritableManifest to /gold/target/manifest.json
+[0m00:44:49.134273 [debug] [MainThread]: Wrote artifact SemanticManifest to /gold/target/semantic_manifest.json
+[0m00:44:49.147745 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'resource_counts', 'label': '8c658a9d-e93a-4232-afbd-0abfa2331620', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff908758b0>]}
+[0m00:44:49.147955 [info ] [MainThread]: Found 3 models, 10 data tests, 2 sources, 526 macros
+[0m00:44:49.148945 [info ] [MainThread]: 
+[0m00:44:49.149087 [info ] [MainThread]: Concurrency: 1 threads (target='dev')
+[0m00:44:49.149205 [info ] [MainThread]: 
+[0m00:44:49.149398 [debug] [MainThread]: Acquiring new fabric connection 'master'
+[0m00:44:49.151489 [debug] [ThreadPool]: Acquiring new fabric connection 'list_aee86aac-de4c-435a-b206-1b1e54f4eb07'
+[0m00:44:49.158373 [debug] [ThreadPool]: dbt-fabric
+[0m00:44:49.158543 [debug] [ThreadPool]: Using fabric connection "list_aee86aac-de4c-435a-b206-1b1e54f4eb07"
+[0m00:44:49.158645 [debug] [ThreadPool]: On list_aee86aac-de4c-435a-b206-1b1e54f4eb07: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "connection_name": "list_aee86aac-de4c-435a-b206-1b1e54f4eb07"} */
+USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    select  name as [schema]
+    from sys.schemas  
+    OPTION (LABEL = 'dbt-fabric-dw');
+
+  
+[0m00:44:49.158731 [debug] [ThreadPool]: Opening a new connection, currently in state init
+[0m00:44:49.158829 [debug] [ThreadPool]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:44:49.484583 [debug] [ThreadPool]: fabric adapter: Connected to db: aee86aac-de4c-435a-b206-1b1e54f4eb07
+[0m00:44:49.485013 [warn ] [ThreadPool]: fabric adapter: No workspace_id provided; skipping snapshot management.
+[0m00:44:49.505110 [debug] [ThreadPool]: SQL status: OK in 0.000 seconds
+[0m00:44:49.506343 [debug] [ThreadPool]: On list_aee86aac-de4c-435a-b206-1b1e54f4eb07: Close
+[0m00:44:49.507467 [debug] [ThreadPool]: Acquiring new fabric connection 'list_aee86aac-de4c-435a-b206-1b1e54f4eb07_dbo'
+[0m00:44:49.512481 [debug] [ThreadPool]: dbt-fabric
+[0m00:44:49.512699 [debug] [ThreadPool]: Using fabric connection "list_aee86aac-de4c-435a-b206-1b1e54f4eb07_dbo"
+[0m00:44:49.512814 [debug] [ThreadPool]: On list_aee86aac-de4c-435a-b206-1b1e54f4eb07_dbo: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "connection_name": "list_aee86aac-de4c-435a-b206-1b1e54f4eb07_dbo"} */
+USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    with base as (
+      select
+        DB_NAME() as [database],
+        t.name as [name],
+        SCHEMA_NAME(t.schema_id) as [schema],
+        'table' as table_type
+      from sys.tables as t 
+      where SCHEMA_NAME(t.schema_id) like 'dbo'
+      union all
+      select
+        DB_NAME() as [database],
+        v.name as [name],
+        SCHEMA_NAME(v.schema_id) as [schema],
+        'view' as table_type
+      from sys.views as v 
+      where SCHEMA_NAME(v.schema_id) like 'dbo'
+    )
+    select * from base
+    
+    OPTION (LABEL = 'dbt-fabric-dw');
+
+  
+[0m00:44:49.512951 [debug] [ThreadPool]: Opening a new connection, currently in state init
+[0m00:44:49.513067 [debug] [ThreadPool]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:44:49.513245 [debug] [ThreadPool]: fabric adapter: Connected to db: aee86aac-de4c-435a-b206-1b1e54f4eb07
+[0m00:44:49.676283 [debug] [ThreadPool]: SQL status: OK in 0.000 seconds
+[0m00:44:49.677279 [debug] [ThreadPool]: On list_aee86aac-de4c-435a-b206-1b1e54f4eb07_dbo: Close
+[0m00:44:49.677838 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': '8c658a9d-e93a-4232-afbd-0abfa2331620', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff90c1e0c0>]}
+[0m00:44:49.678129 [debug] [MainThread]: On master: COMMIT
+[0m00:44:49.682987 [debug] [Thread-1 (]: Began running node model.contoso_gold.dim_customer
+[0m00:44:49.683477 [info ] [Thread-1 (]: 1 of 13 START sql table model dbo.dim_customer ................................. [RUN]
+[0m00:44:49.683837 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly list_aee86aac-de4c-435a-b206-1b1e54f4eb07_dbo, now model.contoso_gold.dim_customer)
+[0m00:44:49.684105 [debug] [Thread-1 (]: Began compiling node model.contoso_gold.dim_customer
+[0m00:44:49.688904 [debug] [Thread-1 (]: Writing injected SQL for node "model.contoso_gold.dim_customer"
+[0m00:44:49.689723 [debug] [Thread-1 (]: Began executing node model.contoso_gold.dim_customer
+[0m00:44:49.707865 [debug] [Thread-1 (]: Applying DROP to: [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[dim_customer__dbt_temp]
+[0m00:44:49.712914 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.dim_customer"
+[0m00:44:49.713126 [debug] [Thread-1 (]: On model.contoso_gold.dim_customer: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.dim_customer"} */
+
+      
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    EXEC('DROP table IF EXISTS [dbo].[dim_customer__dbt_temp];');
+
+[0m00:44:49.713323 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m00:44:49.713542 [debug] [Thread-1 (]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:44:49.713792 [debug] [Thread-1 (]: fabric adapter: Connected to db: aee86aac-de4c-435a-b206-1b1e54f4eb07
+[0m00:44:49.717154 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:44:49.720547 [debug] [Thread-1 (]: Applying DROP to: [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[dim_customer__dbt_temp__dbt_tmp_vw]
+[0m00:44:49.721123 [debug] [Thread-1 (]: dbt-fabric
+[0m00:44:49.721359 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.dim_customer"
+[0m00:44:49.721562 [debug] [Thread-1 (]: On model.contoso_gold.dim_customer: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.dim_customer"} */
+
+        USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+        select
+            sch.name as schema_name,
+            obj.name as view_name
+        from sys.sql_expression_dependencies refs
+        inner join sys.objects obj
+        on refs.referencing_id = obj.object_id
+        inner join sys.schemas sch
+        on obj.schema_id = sch.schema_id
+        where refs.referenced_database_name = 'aee86aac-de4c-435a-b206-1b1e54f4eb07'
+        and refs.referenced_schema_name = 'dbo'
+        and refs.referenced_entity_name = 'dim_customer__dbt_temp__dbt_tmp_vw'
+        and refs.referencing_class = 1
+        and obj.type = 'V'
+        
+    OPTION (LABEL = 'dbt-fabric-dw');
+
+      
+[0m00:44:49.758803 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:44:49.759685 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.dim_customer"
+[0m00:44:49.759836 [debug] [Thread-1 (]: On model.contoso_gold.dim_customer: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.dim_customer"} */
+
+      
+      
+    
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    EXEC('DROP view IF EXISTS [dbo].[dim_customer__dbt_temp__dbt_tmp_vw];');
+
+[0m00:44:49.761213 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:44:49.766612 [debug] [Thread-1 (]: dbt-fabric
+[0m00:44:49.767677 [debug] [Thread-1 (]: Applying DROP to: [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[dim_customer__dbt_temp__dbt_tmp_vw]
+[0m00:44:49.768000 [debug] [Thread-1 (]: dbt-fabric
+[0m00:44:49.768149 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.dim_customer"
+[0m00:44:49.768257 [debug] [Thread-1 (]: On model.contoso_gold.dim_customer: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.dim_customer"} */
+
+        USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+        select
+            sch.name as schema_name,
+            obj.name as view_name
+        from sys.sql_expression_dependencies refs
+        inner join sys.objects obj
+        on refs.referencing_id = obj.object_id
+        inner join sys.schemas sch
+        on obj.schema_id = sch.schema_id
+        where refs.referenced_database_name = 'aee86aac-de4c-435a-b206-1b1e54f4eb07'
+        and refs.referenced_schema_name = 'dbo'
+        and refs.referenced_entity_name = 'dim_customer__dbt_temp__dbt_tmp_vw'
+        and refs.referencing_class = 1
+        and obj.type = 'V'
+        
+    OPTION (LABEL = 'dbt-fabric-dw');
+
+      
+[0m00:44:49.769474 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:44:49.770219 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.dim_customer"
+[0m00:44:49.770366 [debug] [Thread-1 (]: On model.contoso_gold.dim_customer: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.dim_customer"} */
+
+      
+      
+    
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    EXEC('DROP view IF EXISTS [dbo].[dim_customer__dbt_temp__dbt_tmp_vw];');
+
+[0m00:44:49.771507 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:44:49.776965 [debug] [Thread-1 (]: Writing runtime sql for node "model.contoso_gold.dim_customer"
+[0m00:44:49.777636 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.dim_customer"
+[0m00:44:49.777795 [debug] [Thread-1 (]: On model.contoso_gold.dim_customer: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.dim_customer"} */
+
+  
+    
+    
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    
+    
+
+    EXEC('create view [dbo].[dim_customer__dbt_temp__dbt_tmp_vw] as -- The customer dimension: a projection of silver, not a second source of truth.
+select
+    customer_id,
+    name,
+    email,
+    country
+from [a254f50a-6ef9-4312-82f4-1e31e2aae7d9].[dbo].[silver_customers];');
+
+
+
+
+    
+    
+
+    
+    
+            EXEC('CREATE TABLE [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[dim_customer__dbt_temp]  AS SELECT * FROM [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[dim_customer__dbt_temp__dbt_tmp_vw] 
+    OPTION (LABEL = ''dbt-fabric-dw'');
+');
+        
+    
+
+
+  
+  
+[0m00:44:49.784192 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:44:49.784839 [debug] [Thread-1 (]: On model.contoso_gold.dim_customer: Close
+[0m00:44:49.785093 [error] [Thread-1 (]: [31mUnhandled error while executing target/run/contoso_gold/models/dim_customer.sql[0m
+('42S02', "[42S02] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid object name 'a254f50a-6ef9-4312-82f4-1e31e2aae7d9.dbo.silver_customers'. (208) (SQLMoreResults)")
+[0m00:44:49.786484 [debug] [Thread-1 (]: Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/dbt/task/base.py", line 361, in safe_run
+    result = self.compile_and_execute(manifest, ctx)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt/task/base.py", line 308, in compile_and_execute
+    result = self.run(ctx.node, manifest)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt/task/base.py", line 408, in run
+    return self.execute(compiled_node, manifest)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt/task/run.py", line 334, in execute
+    return self._execute_model(hook_ctx, context_config, model, context, materialization_macro)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt/task/run.py", line 294, in _execute_model
+    result = MacroGenerator(
+             ^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt/clients/jinja.py", line 82, in __call__
+    return self.call_macro(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt_common/clients/jinja.py", line 395, in call_macro
+    return macro(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/jinja2/runtime.py", line 770, in __call__
+    return self._invoke(arguments, autoescape)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/jinja2/runtime.py", line 784, in _invoke
+    rv = self._func(*arguments)
+         ^^^^^^^^^^^^^^^^^^^^^^
+  File "<template>", line 92, in macro
+  File "/usr/local/lib/python3.12/site-packages/jinja2/sandbox.py", line 401, in call
+    return __context.call(__obj, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/jinja2/runtime.py", line 303, in call
+    return __obj(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt/clients/jinja.py", line 82, in __call__
+    return self.call_macro(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt_common/clients/jinja.py", line 395, in call_macro
+    return macro(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/jinja2/runtime.py", line 770, in __call__
+    return self._invoke(arguments, autoescape)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/jinja2/runtime.py", line 784, in _invoke
+    rv = self._func(*arguments)
+         ^^^^^^^^^^^^^^^^^^^^^^
+  File "<template>", line 52, in macro
+  File "/usr/local/lib/python3.12/site-packages/jinja2/sandbox.py", line 401, in call
+    return __context.call(__obj, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/jinja2/runtime.py", line 303, in call
+    return __obj(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt_common/record.py", line 538, in record_replay_wrapper
+    return func_to_record(*call_args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt/adapters/base/impl.py", line 523, in execute
+    return self.connections.execute(sql=sql, auto_begin=auto_begin, fetch=fetch, limit=limit)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt/adapters/fabric/fabric_connection_manager.py", line 782, in execute
+    while cursor.nextset():
+          ^^^^^^^^^^^^^^^^
+pyodbc.ProgrammingError: ('42S02', "[42S02] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid object name 'a254f50a-6ef9-4312-82f4-1e31e2aae7d9.dbo.silver_customers'. (208) (SQLMoreResults)")
+
+[0m00:44:49.787333 [debug] [Thread-1 (]: Sending event: {'category': 'dbt', 'action': 'run_model', 'label': '8c658a9d-e93a-4232-afbd-0abfa2331620', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff90672030>]}
+[0m00:44:49.787616 [error] [Thread-1 (]: 1 of 13 ERROR creating sql table model dbo.dim_customer ........................ [[31mERROR[0m in 0.10s]
+[0m00:44:49.787831 [debug] [Thread-1 (]: Finished running node model.contoso_gold.dim_customer
+[0m00:44:49.787974 [debug] [Thread-1 (]: Began running node model.contoso_gold.fct_orders
+[0m00:44:49.788289 [debug] [Thread-4 (]: Marking all children of 'model.contoso_gold.dim_customer' to be skipped because of status 'error'.  Reason: ('42S02', "[42S02] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid object name 'a254f50a-6ef9-4312-82f4-1e31e2aae7d9.dbo.silver_customers'. (208) (SQLMoreResults)").
+[0m00:44:49.788567 [info ] [Thread-1 (]: 2 of 13 START sql table model dbo.fct_orders ................................... [RUN]
+[0m00:44:49.789225 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly model.contoso_gold.dim_customer, now model.contoso_gold.fct_orders)
+[0m00:44:49.789392 [debug] [Thread-1 (]: Began compiling node model.contoso_gold.fct_orders
+[0m00:44:49.790809 [debug] [Thread-1 (]: Writing injected SQL for node "model.contoso_gold.fct_orders"
+[0m00:44:49.791220 [debug] [Thread-1 (]: Began executing node model.contoso_gold.fct_orders
+[0m00:44:49.792961 [debug] [Thread-1 (]: Applying DROP to: [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_orders__dbt_temp]
+[0m00:44:49.793213 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_orders"
+[0m00:44:49.793333 [debug] [Thread-1 (]: On model.contoso_gold.fct_orders: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_orders"} */
+
+      
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    EXEC('DROP table IF EXISTS [dbo].[fct_orders__dbt_temp];');
+
+[0m00:44:49.793435 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m00:44:49.793562 [debug] [Thread-1 (]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:44:49.793743 [debug] [Thread-1 (]: fabric adapter: Connected to db: aee86aac-de4c-435a-b206-1b1e54f4eb07
+[0m00:44:49.794853 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:44:49.796185 [debug] [Thread-1 (]: Applying DROP to: [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_orders__dbt_temp__dbt_tmp_vw]
+[0m00:44:49.796524 [debug] [Thread-1 (]: dbt-fabric
+[0m00:44:49.796676 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_orders"
+[0m00:44:49.796795 [debug] [Thread-1 (]: On model.contoso_gold.fct_orders: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_orders"} */
+
+        USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+        select
+            sch.name as schema_name,
+            obj.name as view_name
+        from sys.sql_expression_dependencies refs
+        inner join sys.objects obj
+        on refs.referencing_id = obj.object_id
+        inner join sys.schemas sch
+        on obj.schema_id = sch.schema_id
+        where refs.referenced_database_name = 'aee86aac-de4c-435a-b206-1b1e54f4eb07'
+        and refs.referenced_schema_name = 'dbo'
+        and refs.referenced_entity_name = 'fct_orders__dbt_temp__dbt_tmp_vw'
+        and refs.referencing_class = 1
+        and obj.type = 'V'
+        
+    OPTION (LABEL = 'dbt-fabric-dw');
+
+      
+[0m00:44:49.807863 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:44:49.808602 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_orders"
+[0m00:44:49.808726 [debug] [Thread-1 (]: On model.contoso_gold.fct_orders: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_orders"} */
+
+      
+      
+    
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    EXEC('DROP view IF EXISTS [dbo].[fct_orders__dbt_temp__dbt_tmp_vw];');
+
+[0m00:44:49.809642 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:44:49.810151 [debug] [Thread-1 (]: dbt-fabric
+[0m00:44:49.811392 [debug] [Thread-1 (]: Applying DROP to: [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_orders__dbt_temp__dbt_tmp_vw]
+[0m00:44:49.811695 [debug] [Thread-1 (]: dbt-fabric
+[0m00:44:49.811822 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_orders"
+[0m00:44:49.811927 [debug] [Thread-1 (]: On model.contoso_gold.fct_orders: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_orders"} */
+
+        USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+        select
+            sch.name as schema_name,
+            obj.name as view_name
+        from sys.sql_expression_dependencies refs
+        inner join sys.objects obj
+        on refs.referencing_id = obj.object_id
+        inner join sys.schemas sch
+        on obj.schema_id = sch.schema_id
+        where refs.referenced_database_name = 'aee86aac-de4c-435a-b206-1b1e54f4eb07'
+        and refs.referenced_schema_name = 'dbo'
+        and refs.referenced_entity_name = 'fct_orders__dbt_temp__dbt_tmp_vw'
+        and refs.referencing_class = 1
+        and obj.type = 'V'
+        
+    OPTION (LABEL = 'dbt-fabric-dw');
+
+      
+[0m00:44:49.812816 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:44:49.813518 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_orders"
+[0m00:44:49.813663 [debug] [Thread-1 (]: On model.contoso_gold.fct_orders: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_orders"} */
+
+      
+      
+    
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    EXEC('DROP view IF EXISTS [dbo].[fct_orders__dbt_temp__dbt_tmp_vw];');
+
+[0m00:44:49.814458 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:44:49.815059 [debug] [Thread-1 (]: Writing runtime sql for node "model.contoso_gold.fct_orders"
+[0m00:44:49.815476 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_orders"
+[0m00:44:49.815611 [debug] [Thread-1 (]: On model.contoso_gold.fct_orders: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_orders"} */
+
+  
+    
+    
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    
+    
+
+    EXEC('create view [dbo].[fct_orders__dbt_temp__dbt_tmp_vw] as -- Order grain, after silver''s dedupe and quarantine.
+--
+-- INNER JOIN deliberately: an order whose customer is unknown has no place in
+-- a star keyed by customer. Dropping it silently would be the problem, so the
+-- schema test asserts the row count survives.
+select
+    o.order_id,
+    o.customer_id,
+    o.product_id,
+    o.order_date,
+    o.channel,
+    o.quantity,
+    o.unit_price,
+    o.amount
+from [a254f50a-6ef9-4312-82f4-1e31e2aae7d9].[dbo].[silver_orders] o;');
+
+
+
+
+    
+    
+
+    
+    
+            EXEC('CREATE TABLE [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_orders__dbt_temp]  AS SELECT * FROM [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_orders__dbt_temp__dbt_tmp_vw] 
+    OPTION (LABEL = ''dbt-fabric-dw'');
+');
+        
+    
+
+
+  
+  
+[0m00:44:49.816758 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:44:49.817114 [debug] [Thread-1 (]: On model.contoso_gold.fct_orders: Close
+[0m00:44:49.817305 [error] [Thread-1 (]: [31mUnhandled error while executing target/run/contoso_gold/models/fct_orders.sql[0m
+('42S02', "[42S02] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid object name 'a254f50a-6ef9-4312-82f4-1e31e2aae7d9.dbo.silver_orders'. (208) (SQLMoreResults)")
+[0m00:44:49.818145 [debug] [Thread-1 (]: Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/dbt/task/base.py", line 361, in safe_run
+    result = self.compile_and_execute(manifest, ctx)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt/task/base.py", line 308, in compile_and_execute
+    result = self.run(ctx.node, manifest)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt/task/base.py", line 408, in run
+    return self.execute(compiled_node, manifest)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt/task/run.py", line 334, in execute
+    return self._execute_model(hook_ctx, context_config, model, context, materialization_macro)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt/task/run.py", line 294, in _execute_model
+    result = MacroGenerator(
+             ^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt/clients/jinja.py", line 82, in __call__
+    return self.call_macro(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt_common/clients/jinja.py", line 395, in call_macro
+    return macro(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/jinja2/runtime.py", line 770, in __call__
+    return self._invoke(arguments, autoescape)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/jinja2/runtime.py", line 784, in _invoke
+    rv = self._func(*arguments)
+         ^^^^^^^^^^^^^^^^^^^^^^
+  File "<template>", line 92, in macro
+  File "/usr/local/lib/python3.12/site-packages/jinja2/sandbox.py", line 401, in call
+    return __context.call(__obj, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/jinja2/runtime.py", line 303, in call
+    return __obj(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt/clients/jinja.py", line 82, in __call__
+    return self.call_macro(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt_common/clients/jinja.py", line 395, in call_macro
+    return macro(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/jinja2/runtime.py", line 770, in __call__
+    return self._invoke(arguments, autoescape)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/jinja2/runtime.py", line 784, in _invoke
+    rv = self._func(*arguments)
+         ^^^^^^^^^^^^^^^^^^^^^^
+  File "<template>", line 52, in macro
+  File "/usr/local/lib/python3.12/site-packages/jinja2/sandbox.py", line 401, in call
+    return __context.call(__obj, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/jinja2/runtime.py", line 303, in call
+    return __obj(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt_common/record.py", line 538, in record_replay_wrapper
+    return func_to_record(*call_args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt/adapters/base/impl.py", line 523, in execute
+    return self.connections.execute(sql=sql, auto_begin=auto_begin, fetch=fetch, limit=limit)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/dbt/adapters/fabric/fabric_connection_manager.py", line 782, in execute
+    while cursor.nextset():
+          ^^^^^^^^^^^^^^^^
+pyodbc.ProgrammingError: ('42S02', "[42S02] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid object name 'a254f50a-6ef9-4312-82f4-1e31e2aae7d9.dbo.silver_orders'. (208) (SQLMoreResults)")
+
+[0m00:44:49.818443 [debug] [Thread-1 (]: Sending event: {'category': 'dbt', 'action': 'run_model', 'label': '8c658a9d-e93a-4232-afbd-0abfa2331620', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff8dffc1a0>]}
+[0m00:44:49.818690 [error] [Thread-1 (]: 2 of 13 ERROR creating sql table model dbo.fct_orders .......................... [[31mERROR[0m in 0.03s]
+[0m00:44:49.818897 [debug] [Thread-1 (]: Finished running node model.contoso_gold.fct_orders
+[0m00:44:49.819037 [debug] [Thread-1 (]: Began running node test.contoso_gold.accepted_values_dim_customer_country__True__US__GB__SG.b7c4aeb11e
+[0m00:44:49.819252 [debug] [Thread-4 (]: Marking all children of 'model.contoso_gold.fct_orders' to be skipped because of status 'error'.  Reason: ('42S02', "[42S02] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid object name 'a254f50a-6ef9-4312-82f4-1e31e2aae7d9.dbo.silver_orders'. (208) (SQLMoreResults)").
+[0m00:44:49.819430 [info ] [Thread-1 (]: 3 of 13 SKIP test accepted_values_dim_customer_country__True__US__GB__SG ....... [[33mSKIP[0m]
+[0m00:44:49.819773 [debug] [Thread-1 (]: Finished running node test.contoso_gold.accepted_values_dim_customer_country__True__US__GB__SG.b7c4aeb11e
+[0m00:44:49.819907 [debug] [Thread-1 (]: Began running node test.contoso_gold.not_null_dim_customer_country.01a349dff4
+[0m00:44:49.820024 [info ] [Thread-1 (]: 4 of 13 SKIP test not_null_dim_customer_country ................................ [[33mSKIP[0m]
+[0m00:44:49.820159 [debug] [Thread-1 (]: Finished running node test.contoso_gold.not_null_dim_customer_country.01a349dff4
+[0m00:44:49.820278 [debug] [Thread-4 (]: Marking all children of 'test.contoso_gold.accepted_values_dim_customer_country__True__US__GB__SG.b7c4aeb11e' to be skipped because of status 'skipped'. 
+[0m00:44:49.820441 [debug] [Thread-1 (]: Began running node test.contoso_gold.not_null_dim_customer_customer_id.9775012dfc
+[0m00:44:49.820608 [debug] [Thread-4 (]: Marking all children of 'test.contoso_gold.not_null_dim_customer_country.01a349dff4' to be skipped because of status 'skipped'. 
+[0m00:44:49.820773 [info ] [Thread-1 (]: 5 of 13 SKIP test not_null_dim_customer_customer_id ............................ [[33mSKIP[0m]
+[0m00:44:49.821011 [debug] [Thread-1 (]: Finished running node test.contoso_gold.not_null_dim_customer_customer_id.9775012dfc
+[0m00:44:49.821155 [debug] [Thread-1 (]: Began running node test.contoso_gold.unique_dim_customer_customer_id.b42affccd1
+[0m00:44:49.821262 [debug] [Thread-4 (]: Marking all children of 'test.contoso_gold.not_null_dim_customer_customer_id.9775012dfc' to be skipped because of status 'skipped'. 
+[0m00:44:49.821414 [info ] [Thread-1 (]: 6 of 13 SKIP test unique_dim_customer_customer_id .............................. [[33mSKIP[0m]
+[0m00:44:49.821712 [debug] [Thread-1 (]: Finished running node test.contoso_gold.unique_dim_customer_customer_id.b42affccd1
+[0m00:44:49.821884 [debug] [Thread-1 (]: Began running node test.contoso_gold.not_null_fct_orders_amount.66810a8d08
+[0m00:44:49.822007 [debug] [Thread-4 (]: Marking all children of 'test.contoso_gold.unique_dim_customer_customer_id.b42affccd1' to be skipped because of status 'skipped'. 
+[0m00:44:49.822156 [info ] [Thread-1 (]: 7 of 13 SKIP test not_null_fct_orders_amount ................................... [[33mSKIP[0m]
+[0m00:44:49.822439 [debug] [Thread-1 (]: Finished running node test.contoso_gold.not_null_fct_orders_amount.66810a8d08
+[0m00:44:49.822618 [debug] [Thread-1 (]: Began running node test.contoso_gold.not_null_fct_orders_customer_id.16fe324f7b
+[0m00:44:49.822751 [debug] [Thread-4 (]: Marking all children of 'test.contoso_gold.not_null_fct_orders_amount.66810a8d08' to be skipped because of status 'skipped'. 
+[0m00:44:49.822890 [info ] [Thread-1 (]: 8 of 13 SKIP test not_null_fct_orders_customer_id .............................. [[33mSKIP[0m]
+[0m00:44:49.823133 [debug] [Thread-1 (]: Finished running node test.contoso_gold.not_null_fct_orders_customer_id.16fe324f7b
+[0m00:44:49.823270 [debug] [Thread-1 (]: Began running node test.contoso_gold.not_null_fct_orders_order_id.4e687af8d0
+[0m00:44:49.823364 [debug] [Thread-4 (]: Marking all children of 'test.contoso_gold.not_null_fct_orders_customer_id.16fe324f7b' to be skipped because of status 'skipped'. 
+[0m00:44:49.823486 [info ] [Thread-1 (]: 9 of 13 SKIP test not_null_fct_orders_order_id ................................. [[33mSKIP[0m]
+[0m00:44:49.823672 [debug] [Thread-1 (]: Finished running node test.contoso_gold.not_null_fct_orders_order_id.4e687af8d0
+[0m00:44:49.823792 [debug] [Thread-1 (]: Began running node test.contoso_gold.relationships_fct_orders_customer_id__customer_id__ref_dim_customer_.d39c4721da
+[0m00:44:49.823873 [debug] [Thread-4 (]: Marking all children of 'test.contoso_gold.not_null_fct_orders_order_id.4e687af8d0' to be skipped because of status 'skipped'. 
+[0m00:44:49.823982 [info ] [Thread-1 (]: 10 of 13 SKIP test relationships_fct_orders_customer_id__customer_id__ref_dim_customer_  [[33mSKIP[0m]
+[0m00:44:49.824166 [debug] [Thread-1 (]: Finished running node test.contoso_gold.relationships_fct_orders_customer_id__customer_id__ref_dim_customer_.d39c4721da
+[0m00:44:49.824281 [debug] [Thread-1 (]: Began running node test.contoso_gold.unique_fct_orders_order_id.523ddb6ce5
+[0m00:44:49.824362 [debug] [Thread-4 (]: Marking all children of 'test.contoso_gold.relationships_fct_orders_customer_id__customer_id__ref_dim_customer_.d39c4721da' to be skipped because of status 'skipped'. 
+[0m00:44:49.824471 [info ] [Thread-1 (]: 11 of 13 SKIP test unique_fct_orders_order_id .................................. [[33mSKIP[0m]
+[0m00:44:49.824633 [debug] [Thread-1 (]: Finished running node test.contoso_gold.unique_fct_orders_order_id.523ddb6ce5
+[0m00:44:49.824738 [debug] [Thread-4 (]: Marking all children of 'test.contoso_gold.unique_fct_orders_order_id.523ddb6ce5' to be skipped because of status 'skipped'. 
+[0m00:44:49.825096 [debug] [Thread-1 (]: Began running node model.contoso_gold.fct_daily_revenue
+[0m00:44:49.825215 [info ] [Thread-1 (]: 12 of 13 SKIP relation dbo.fct_daily_revenue ................................... [[33mSKIP[0m]
+[0m00:44:49.825364 [debug] [Thread-1 (]: Finished running node model.contoso_gold.fct_daily_revenue
+[0m00:44:49.825459 [debug] [Thread-4 (]: Marking all children of 'model.contoso_gold.fct_daily_revenue' to be skipped because of status 'skipped'. 
+[0m00:44:49.825710 [debug] [Thread-1 (]: Began running node test.contoso_gold.not_null_fct_daily_revenue_revenue.c93edc6f9e
+[0m00:44:49.825853 [info ] [Thread-1 (]: 13 of 13 SKIP test not_null_fct_daily_revenue_revenue .......................... [[33mSKIP[0m]
+[0m00:44:49.826021 [debug] [Thread-1 (]: Finished running node test.contoso_gold.not_null_fct_daily_revenue_revenue.c93edc6f9e
+[0m00:44:49.826139 [debug] [Thread-4 (]: Marking all children of 'test.contoso_gold.not_null_fct_daily_revenue_revenue.c93edc6f9e' to be skipped because of status 'skipped'. 
+[0m00:44:49.826611 [debug] [MainThread]: On master: COMMIT
+[0m00:44:49.826760 [debug] [MainThread]: Connection 'master' was properly closed.
+[0m00:44:49.826846 [debug] [MainThread]: Connection 'list_aee86aac-de4c-435a-b206-1b1e54f4eb07' was properly closed.
+[0m00:44:49.826919 [debug] [MainThread]: Connection 'model.contoso_gold.fct_orders' was properly closed.
+[0m00:44:49.827058 [info ] [MainThread]: 
+[0m00:44:49.827166 [info ] [MainThread]: Finished running 3 table models, 10 data tests in 0 hours 0 minutes and 0.68 seconds (0.68s).
+[0m00:44:49.827533 [debug] [MainThread]: Command end result
+[0m00:44:49.837946 [debug] [MainThread]: Wrote artifact WritableManifest to /gold/target/manifest.json
+[0m00:44:49.838810 [debug] [MainThread]: Wrote artifact SemanticManifest to /gold/target/semantic_manifest.json
+[0m00:44:49.841316 [debug] [MainThread]: Wrote artifact RunExecutionResult to /gold/target/run_results.json
+[0m00:44:49.841427 [info ] [MainThread]: 
+[0m00:44:49.841584 [info ] [MainThread]: [31mCompleted with 2 errors, 0 partial successes, and 0 warnings:[0m
+[0m00:44:49.841693 [info ] [MainThread]: 
+[0m00:44:49.841839 [error] [MainThread]:   ('42S02', "[42S02] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid object name 'a254f50a-6ef9-4312-82f4-1e31e2aae7d9.dbo.silver_customers'. (208) (SQLMoreResults)")
+[0m00:44:49.841940 [info ] [MainThread]: 
+[0m00:44:49.842056 [error] [MainThread]:   ('42S02', "[42S02] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid object name 'a254f50a-6ef9-4312-82f4-1e31e2aae7d9.dbo.silver_orders'. (208) (SQLMoreResults)")
+[0m00:44:49.842167 [info ] [MainThread]: 
+[0m00:44:49.842283 [info ] [MainThread]: Done. PASS=0 WARN=0 ERROR=2 SKIP=11 TOTAL=13
+[0m00:44:49.842766 [debug] [MainThread]: Resource report: {"command_name": "build", "command_success": false, "command_wall_clock_time": 0.9882661, "process_in_blocks": "6080", "process_kernel_time": 0.10803, "process_mem_max_rss": "129968", "process_out_blocks": "4852", "process_user_time": 0.887097}
+[0m00:44:49.842976 [debug] [MainThread]: Command `dbt build` failed at 00:44:49.842937 after 0.99 seconds
+[0m00:44:49.843119 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff96d229f0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff92bb6ed0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffff9495adb0>]}
+[0m00:44:49.843241 [debug] [MainThread]: Flushing usage events
+[0m00:44:50.953953 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m00:44:50.961508 [info ] [MainThread]: fabric adapter: Skipping warehouse snapshot update: error
+[0m00:45:39.371302 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffffadcb8770>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffffae138c50>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffffac4a3e30>]}
+
+
+============================== 00:45:39.374784 | 8fa5b5bc-9c2a-4016-82c6-d79b7adf003d ==============================
+[0m00:45:39.374784 [info ] [MainThread]: Running with dbt=1.9.10
+[0m00:45:39.375024 [debug] [MainThread]: running dbt with arguments {'log_format': 'default', 'partial_parse': 'True', 'introspect': 'True', 'profiles_dir': '/gold', 'static_parser': 'True', 'version_check': 'True', 'use_experimental_parser': 'False', 'fail_fast': 'False', 'send_anonymous_usage_stats': 'True', 'warn_error': 'None', 'cache_selected_only': 'False', 'invocation_command': 'dbt build --profiles-dir /gold', 'write_json': 'True', 'empty': 'False', 'quiet': 'False', 'log_cache_events': 'False', 'target_path': 'None', 'printer_width': '80', 'use_colors': 'True', 'no_print': 'None', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'indirect_selection': 'eager', 'debug': 'False', 'log_path': '/gold/logs'}
+[0m00:45:39.495481 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'project_id', 'label': '8fa5b5bc-9c2a-4016-82c6-d79b7adf003d', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffffab47aae0>]}
+[0m00:45:39.518640 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'adapter_info', 'label': '8fa5b5bc-9c2a-4016-82c6-d79b7adf003d', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffffaa1b7680>]}
+[0m00:45:39.518987 [info ] [MainThread]: Registered adapter: fabric=1.9.10
+[0m00:45:39.544324 [debug] [MainThread]: checksum: c40cca0353c9a9b4dbd2a57cdc3e2440f5c9a71a795694b25a51e704baaf554e, vars: {}, profile: , target: , version: 1.9.10
+[0m00:45:39.591871 [debug] [MainThread]: Partial parsing enabled: 0 files deleted, 0 files added, 0 files changed.
+[0m00:45:39.592064 [debug] [MainThread]: Partial parsing enabled, no changes found, skipping parsing
+[0m00:45:39.611402 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'load_project', 'label': '8fa5b5bc-9c2a-4016-82c6-d79b7adf003d', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffffaa0f0830>]}
+[0m00:45:39.646412 [debug] [MainThread]: Wrote artifact WritableManifest to /gold/target/manifest.json
+[0m00:45:39.648509 [debug] [MainThread]: Wrote artifact SemanticManifest to /gold/target/semantic_manifest.json
+[0m00:45:39.662111 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'resource_counts', 'label': '8fa5b5bc-9c2a-4016-82c6-d79b7adf003d', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffffa9d2b380>]}
+[0m00:45:39.662343 [info ] [MainThread]: Found 3 models, 10 data tests, 2 sources, 526 macros
+[0m00:45:39.663483 [info ] [MainThread]: 
+[0m00:45:39.663642 [info ] [MainThread]: Concurrency: 1 threads (target='dev')
+[0m00:45:39.663755 [info ] [MainThread]: 
+[0m00:45:39.663983 [debug] [MainThread]: Acquiring new fabric connection 'master'
+[0m00:45:39.666198 [debug] [ThreadPool]: Acquiring new fabric connection 'list_aee86aac-de4c-435a-b206-1b1e54f4eb07'
+[0m00:45:39.672614 [debug] [ThreadPool]: dbt-fabric
+[0m00:45:39.672769 [debug] [ThreadPool]: Using fabric connection "list_aee86aac-de4c-435a-b206-1b1e54f4eb07"
+[0m00:45:39.672863 [debug] [ThreadPool]: On list_aee86aac-de4c-435a-b206-1b1e54f4eb07: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "connection_name": "list_aee86aac-de4c-435a-b206-1b1e54f4eb07"} */
+USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    select  name as [schema]
+    from sys.schemas  
+    OPTION (LABEL = 'dbt-fabric-dw');
+
+  
+[0m00:45:39.672944 [debug] [ThreadPool]: Opening a new connection, currently in state init
+[0m00:45:39.673040 [debug] [ThreadPool]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:45:39.680980 [debug] [ThreadPool]: fabric adapter: Connected to db: aee86aac-de4c-435a-b206-1b1e54f4eb07
+[0m00:45:39.681198 [warn ] [ThreadPool]: fabric adapter: No workspace_id provided; skipping snapshot management.
+[0m00:45:39.681863 [debug] [ThreadPool]: SQL status: OK in 0.000 seconds
+[0m00:45:39.682463 [debug] [ThreadPool]: On list_aee86aac-de4c-435a-b206-1b1e54f4eb07: Close
+[0m00:45:39.683024 [debug] [ThreadPool]: Re-using an available connection from the pool (formerly list_aee86aac-de4c-435a-b206-1b1e54f4eb07, now list_aee86aac-de4c-435a-b206-1b1e54f4eb07_dbo)
+[0m00:45:39.685671 [debug] [ThreadPool]: dbt-fabric
+[0m00:45:39.685870 [debug] [ThreadPool]: Using fabric connection "list_aee86aac-de4c-435a-b206-1b1e54f4eb07_dbo"
+[0m00:45:39.685982 [debug] [ThreadPool]: On list_aee86aac-de4c-435a-b206-1b1e54f4eb07_dbo: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "connection_name": "list_aee86aac-de4c-435a-b206-1b1e54f4eb07_dbo"} */
+USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    with base as (
+      select
+        DB_NAME() as [database],
+        t.name as [name],
+        SCHEMA_NAME(t.schema_id) as [schema],
+        'table' as table_type
+      from sys.tables as t 
+      where SCHEMA_NAME(t.schema_id) like 'dbo'
+      union all
+      select
+        DB_NAME() as [database],
+        v.name as [name],
+        SCHEMA_NAME(v.schema_id) as [schema],
+        'view' as table_type
+      from sys.views as v 
+      where SCHEMA_NAME(v.schema_id) like 'dbo'
+    )
+    select * from base
+    
+    OPTION (LABEL = 'dbt-fabric-dw');
+
+  
+[0m00:45:39.686070 [debug] [ThreadPool]: Opening a new connection, currently in state closed
+[0m00:45:39.686188 [debug] [ThreadPool]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:45:39.686336 [debug] [ThreadPool]: fabric adapter: Connected to db: aee86aac-de4c-435a-b206-1b1e54f4eb07
+[0m00:45:39.690214 [debug] [ThreadPool]: SQL status: OK in 0.000 seconds
+[0m00:45:39.690720 [debug] [ThreadPool]: On list_aee86aac-de4c-435a-b206-1b1e54f4eb07_dbo: Close
+[0m00:45:39.690981 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': '8fa5b5bc-9c2a-4016-82c6-d79b7adf003d', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffffa9d56cf0>]}
+[0m00:45:39.691194 [debug] [MainThread]: On master: COMMIT
+[0m00:45:39.693050 [debug] [Thread-1 (]: Began running node model.contoso_gold.dim_customer
+[0m00:45:39.693260 [info ] [Thread-1 (]: 1 of 13 START sql table model dbo.dim_customer ................................. [RUN]
+[0m00:45:39.693407 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly list_aee86aac-de4c-435a-b206-1b1e54f4eb07_dbo, now model.contoso_gold.dim_customer)
+[0m00:45:39.693521 [debug] [Thread-1 (]: Began compiling node model.contoso_gold.dim_customer
+[0m00:45:39.696484 [debug] [Thread-1 (]: Writing injected SQL for node "model.contoso_gold.dim_customer"
+[0m00:45:39.697080 [debug] [Thread-1 (]: Began executing node model.contoso_gold.dim_customer
+[0m00:45:39.706738 [debug] [Thread-1 (]: Applying DROP to: [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[dim_customer__dbt_temp]
+[0m00:45:39.709349 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.dim_customer"
+[0m00:45:39.709474 [debug] [Thread-1 (]: On model.contoso_gold.dim_customer: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.dim_customer"} */
+
+      
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    EXEC('DROP table IF EXISTS [dbo].[dim_customer__dbt_temp];');
+
+[0m00:45:39.709580 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m00:45:39.709691 [debug] [Thread-1 (]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:45:39.709873 [debug] [Thread-1 (]: fabric adapter: Connected to db: aee86aac-de4c-435a-b206-1b1e54f4eb07
+[0m00:45:39.710925 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:39.712796 [debug] [Thread-1 (]: Applying DROP to: [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[dim_customer__dbt_temp__dbt_tmp_vw]
+[0m00:45:39.713137 [debug] [Thread-1 (]: dbt-fabric
+[0m00:45:39.713309 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.dim_customer"
+[0m00:45:39.713427 [debug] [Thread-1 (]: On model.contoso_gold.dim_customer: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.dim_customer"} */
+
+        USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+        select
+            sch.name as schema_name,
+            obj.name as view_name
+        from sys.sql_expression_dependencies refs
+        inner join sys.objects obj
+        on refs.referencing_id = obj.object_id
+        inner join sys.schemas sch
+        on obj.schema_id = sch.schema_id
+        where refs.referenced_database_name = 'aee86aac-de4c-435a-b206-1b1e54f4eb07'
+        and refs.referenced_schema_name = 'dbo'
+        and refs.referenced_entity_name = 'dim_customer__dbt_temp__dbt_tmp_vw'
+        and refs.referencing_class = 1
+        and obj.type = 'V'
+        
+    OPTION (LABEL = 'dbt-fabric-dw');
+
+      
+[0m00:45:39.714490 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:39.714987 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.dim_customer"
+[0m00:45:39.715109 [debug] [Thread-1 (]: On model.contoso_gold.dim_customer: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.dim_customer"} */
+
+      
+      
+    
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    EXEC('DROP view IF EXISTS [dbo].[dim_customer__dbt_temp__dbt_tmp_vw];');
+
+[0m00:45:39.715802 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:39.721081 [debug] [Thread-1 (]: dbt-fabric
+[0m00:45:39.722129 [debug] [Thread-1 (]: Applying DROP to: [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[dim_customer__dbt_temp__dbt_tmp_vw]
+[0m00:45:39.722420 [debug] [Thread-1 (]: dbt-fabric
+[0m00:45:39.722534 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.dim_customer"
+[0m00:45:39.722647 [debug] [Thread-1 (]: On model.contoso_gold.dim_customer: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.dim_customer"} */
+
+        USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+        select
+            sch.name as schema_name,
+            obj.name as view_name
+        from sys.sql_expression_dependencies refs
+        inner join sys.objects obj
+        on refs.referencing_id = obj.object_id
+        inner join sys.schemas sch
+        on obj.schema_id = sch.schema_id
+        where refs.referenced_database_name = 'aee86aac-de4c-435a-b206-1b1e54f4eb07'
+        and refs.referenced_schema_name = 'dbo'
+        and refs.referenced_entity_name = 'dim_customer__dbt_temp__dbt_tmp_vw'
+        and refs.referencing_class = 1
+        and obj.type = 'V'
+        
+    OPTION (LABEL = 'dbt-fabric-dw');
+
+      
+[0m00:45:39.723173 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:39.723666 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.dim_customer"
+[0m00:45:39.723779 [debug] [Thread-1 (]: On model.contoso_gold.dim_customer: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.dim_customer"} */
+
+      
+      
+    
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    EXEC('DROP view IF EXISTS [dbo].[dim_customer__dbt_temp__dbt_tmp_vw];');
+
+[0m00:45:39.724480 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:39.729214 [debug] [Thread-1 (]: Writing runtime sql for node "model.contoso_gold.dim_customer"
+[0m00:45:39.729555 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.dim_customer"
+[0m00:45:39.729678 [debug] [Thread-1 (]: On model.contoso_gold.dim_customer: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.dim_customer"} */
+
+  
+    
+    
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    
+    
+
+    EXEC('create view [dbo].[dim_customer__dbt_temp__dbt_tmp_vw] as -- The customer dimension: a projection of silver, not a second source of truth.
+select
+    customer_id,
+    name,
+    email,
+    country
+from [a254f50a-6ef9-4312-82f4-1e31e2aae7d9].[dbo].[silver_customers];');
+
+
+
+
+    
+    
+
+    
+    
+            EXEC('CREATE TABLE [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[dim_customer__dbt_temp]  AS SELECT * FROM [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[dim_customer__dbt_temp__dbt_tmp_vw] 
+    OPTION (LABEL = ''dbt-fabric-dw'');
+');
+        
+    
+
+
+  
+  
+[0m00:45:40.192709 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:40.195909 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.dim_customer"
+[0m00:45:40.196052 [debug] [Thread-1 (]: On model.contoso_gold.dim_customer: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.dim_customer"} */
+USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+      EXEC sp_rename 'dbo.dim_customer__dbt_temp', 'dim_customer'
+[0m00:45:40.435276 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:40.436805 [debug] [Thread-1 (]: Applying DROP to: [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[dim_customer__dbt_temp__dbt_tmp_vw]
+[0m00:45:40.437099 [debug] [Thread-1 (]: dbt-fabric
+[0m00:45:40.437255 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.dim_customer"
+[0m00:45:40.437379 [debug] [Thread-1 (]: On model.contoso_gold.dim_customer: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.dim_customer"} */
+
+        USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+        select
+            sch.name as schema_name,
+            obj.name as view_name
+        from sys.sql_expression_dependencies refs
+        inner join sys.objects obj
+        on refs.referencing_id = obj.object_id
+        inner join sys.schemas sch
+        on obj.schema_id = sch.schema_id
+        where refs.referenced_database_name = 'aee86aac-de4c-435a-b206-1b1e54f4eb07'
+        and refs.referenced_schema_name = 'dbo'
+        and refs.referenced_entity_name = 'dim_customer__dbt_temp__dbt_tmp_vw'
+        and refs.referencing_class = 1
+        and obj.type = 'V'
+        
+    OPTION (LABEL = 'dbt-fabric-dw');
+
+      
+[0m00:45:40.460811 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:40.461623 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.dim_customer"
+[0m00:45:40.461759 [debug] [Thread-1 (]: On model.contoso_gold.dim_customer: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.dim_customer"} */
+
+      
+      
+    
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    EXEC('DROP view IF EXISTS [dbo].[dim_customer__dbt_temp__dbt_tmp_vw];');
+
+[0m00:45:40.465696 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:40.471607 [debug] [Thread-1 (]: On model.contoso_gold.dim_customer: COMMIT
+[0m00:45:40.473689 [debug] [Thread-1 (]: On model.contoso_gold.dim_customer: Close
+[0m00:45:40.474356 [debug] [Thread-1 (]: Sending event: {'category': 'dbt', 'action': 'run_model', 'label': '8fa5b5bc-9c2a-4016-82c6-d79b7adf003d', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffffade09160>]}
+[0m00:45:40.474597 [info ] [Thread-1 (]: 1 of 13 OK created sql table model dbo.dim_customer ............................ [[32mOK[0m in 0.78s]
+[0m00:45:40.474867 [debug] [Thread-1 (]: Finished running node model.contoso_gold.dim_customer
+[0m00:45:40.475016 [debug] [Thread-1 (]: Began running node model.contoso_gold.fct_orders
+[0m00:45:40.475293 [info ] [Thread-1 (]: 2 of 13 START sql table model dbo.fct_orders ................................... [RUN]
+[0m00:45:40.475646 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly model.contoso_gold.dim_customer, now model.contoso_gold.fct_orders)
+[0m00:45:40.475790 [debug] [Thread-1 (]: Began compiling node model.contoso_gold.fct_orders
+[0m00:45:40.477050 [debug] [Thread-1 (]: Writing injected SQL for node "model.contoso_gold.fct_orders"
+[0m00:45:40.477416 [debug] [Thread-1 (]: Began executing node model.contoso_gold.fct_orders
+[0m00:45:40.478994 [debug] [Thread-1 (]: Applying DROP to: [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_orders__dbt_temp]
+[0m00:45:40.479220 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_orders"
+[0m00:45:40.479329 [debug] [Thread-1 (]: On model.contoso_gold.fct_orders: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_orders"} */
+
+      
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    EXEC('DROP table IF EXISTS [dbo].[fct_orders__dbt_temp];');
+
+[0m00:45:40.479421 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m00:45:40.479529 [debug] [Thread-1 (]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:45:40.479694 [debug] [Thread-1 (]: fabric adapter: Connected to db: aee86aac-de4c-435a-b206-1b1e54f4eb07
+[0m00:45:40.480882 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:40.482113 [debug] [Thread-1 (]: Applying DROP to: [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_orders__dbt_temp__dbt_tmp_vw]
+[0m00:45:40.482425 [debug] [Thread-1 (]: dbt-fabric
+[0m00:45:40.482569 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_orders"
+[0m00:45:40.482682 [debug] [Thread-1 (]: On model.contoso_gold.fct_orders: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_orders"} */
+
+        USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+        select
+            sch.name as schema_name,
+            obj.name as view_name
+        from sys.sql_expression_dependencies refs
+        inner join sys.objects obj
+        on refs.referencing_id = obj.object_id
+        inner join sys.schemas sch
+        on obj.schema_id = sch.schema_id
+        where refs.referenced_database_name = 'aee86aac-de4c-435a-b206-1b1e54f4eb07'
+        and refs.referenced_schema_name = 'dbo'
+        and refs.referenced_entity_name = 'fct_orders__dbt_temp__dbt_tmp_vw'
+        and refs.referencing_class = 1
+        and obj.type = 'V'
+        
+    OPTION (LABEL = 'dbt-fabric-dw');
+
+      
+[0m00:45:40.483416 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:40.483926 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_orders"
+[0m00:45:40.484030 [debug] [Thread-1 (]: On model.contoso_gold.fct_orders: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_orders"} */
+
+      
+      
+    
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    EXEC('DROP view IF EXISTS [dbo].[fct_orders__dbt_temp__dbt_tmp_vw];');
+
+[0m00:45:40.484642 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:40.485023 [debug] [Thread-1 (]: dbt-fabric
+[0m00:45:40.486568 [debug] [Thread-1 (]: Applying DROP to: [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_orders__dbt_temp__dbt_tmp_vw]
+[0m00:45:40.486838 [debug] [Thread-1 (]: dbt-fabric
+[0m00:45:40.486950 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_orders"
+[0m00:45:40.487055 [debug] [Thread-1 (]: On model.contoso_gold.fct_orders: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_orders"} */
+
+        USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+        select
+            sch.name as schema_name,
+            obj.name as view_name
+        from sys.sql_expression_dependencies refs
+        inner join sys.objects obj
+        on refs.referencing_id = obj.object_id
+        inner join sys.schemas sch
+        on obj.schema_id = sch.schema_id
+        where refs.referenced_database_name = 'aee86aac-de4c-435a-b206-1b1e54f4eb07'
+        and refs.referenced_schema_name = 'dbo'
+        and refs.referenced_entity_name = 'fct_orders__dbt_temp__dbt_tmp_vw'
+        and refs.referencing_class = 1
+        and obj.type = 'V'
+        
+    OPTION (LABEL = 'dbt-fabric-dw');
+
+      
+[0m00:45:40.487509 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:40.487961 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_orders"
+[0m00:45:40.488065 [debug] [Thread-1 (]: On model.contoso_gold.fct_orders: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_orders"} */
+
+      
+      
+    
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    EXEC('DROP view IF EXISTS [dbo].[fct_orders__dbt_temp__dbt_tmp_vw];');
+
+[0m00:45:40.488590 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:40.489103 [debug] [Thread-1 (]: Writing runtime sql for node "model.contoso_gold.fct_orders"
+[0m00:45:40.489418 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_orders"
+[0m00:45:40.489536 [debug] [Thread-1 (]: On model.contoso_gold.fct_orders: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_orders"} */
+
+  
+    
+    
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    
+    
+
+    EXEC('create view [dbo].[fct_orders__dbt_temp__dbt_tmp_vw] as -- Order grain, after silver''s dedupe and quarantine.
+--
+-- INNER JOIN deliberately: an order whose customer is unknown has no place in
+-- a star keyed by customer. Dropping it silently would be the problem, so the
+-- schema test asserts the row count survives.
+select
+    o.order_id,
+    o.customer_id,
+    o.product_id,
+    o.order_date,
+    o.channel,
+    o.quantity,
+    o.unit_price,
+    o.amount
+from [a254f50a-6ef9-4312-82f4-1e31e2aae7d9].[dbo].[silver_orders] o;');
+
+
+
+
+    
+    
+
+    
+    
+            EXEC('CREATE TABLE [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_orders__dbt_temp]  AS SELECT * FROM [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_orders__dbt_temp__dbt_tmp_vw] 
+    OPTION (LABEL = ''dbt-fabric-dw'');
+');
+        
+    
+
+
+  
+  
+[0m00:45:40.866330 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:40.868339 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_orders"
+[0m00:45:40.868488 [debug] [Thread-1 (]: On model.contoso_gold.fct_orders: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_orders"} */
+USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+      EXEC sp_rename 'dbo.fct_orders__dbt_temp', 'fct_orders'
+[0m00:45:40.872605 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:40.873917 [debug] [Thread-1 (]: Applying DROP to: [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_orders__dbt_temp__dbt_tmp_vw]
+[0m00:45:40.874254 [debug] [Thread-1 (]: dbt-fabric
+[0m00:45:40.874407 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_orders"
+[0m00:45:40.874528 [debug] [Thread-1 (]: On model.contoso_gold.fct_orders: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_orders"} */
+
+        USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+        select
+            sch.name as schema_name,
+            obj.name as view_name
+        from sys.sql_expression_dependencies refs
+        inner join sys.objects obj
+        on refs.referencing_id = obj.object_id
+        inner join sys.schemas sch
+        on obj.schema_id = sch.schema_id
+        where refs.referenced_database_name = 'aee86aac-de4c-435a-b206-1b1e54f4eb07'
+        and refs.referenced_schema_name = 'dbo'
+        and refs.referenced_entity_name = 'fct_orders__dbt_temp__dbt_tmp_vw'
+        and refs.referencing_class = 1
+        and obj.type = 'V'
+        
+    OPTION (LABEL = 'dbt-fabric-dw');
+
+      
+[0m00:45:40.885947 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:40.886821 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_orders"
+[0m00:45:40.886981 [debug] [Thread-1 (]: On model.contoso_gold.fct_orders: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_orders"} */
+
+      
+      
+    
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    EXEC('DROP view IF EXISTS [dbo].[fct_orders__dbt_temp__dbt_tmp_vw];');
+
+[0m00:45:40.890527 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:40.891125 [debug] [Thread-1 (]: On model.contoso_gold.fct_orders: COMMIT
+[0m00:45:40.891503 [debug] [Thread-1 (]: On model.contoso_gold.fct_orders: Close
+[0m00:45:40.891742 [debug] [Thread-1 (]: Sending event: {'category': 'dbt', 'action': 'run_model', 'label': '8fa5b5bc-9c2a-4016-82c6-d79b7adf003d', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffffa84664b0>]}
+[0m00:45:40.891999 [info ] [Thread-1 (]: 2 of 13 OK created sql table model dbo.fct_orders .............................. [[32mOK[0m in 0.42s]
+[0m00:45:40.892264 [debug] [Thread-1 (]: Finished running node model.contoso_gold.fct_orders
+[0m00:45:40.892420 [debug] [Thread-1 (]: Began running node test.contoso_gold.accepted_values_dim_customer_country__True__US__GB__SG.b7c4aeb11e
+[0m00:45:40.892673 [info ] [Thread-1 (]: 3 of 13 START test accepted_values_dim_customer_country__True__US__GB__SG ...... [RUN]
+[0m00:45:40.892937 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly model.contoso_gold.fct_orders, now test.contoso_gold.accepted_values_dim_customer_country__True__US__GB__SG.b7c4aeb11e)
+[0m00:45:40.893114 [debug] [Thread-1 (]: Began compiling node test.contoso_gold.accepted_values_dim_customer_country__True__US__GB__SG.b7c4aeb11e
+[0m00:45:40.898368 [debug] [Thread-1 (]: Writing injected SQL for node "test.contoso_gold.accepted_values_dim_customer_country__True__US__GB__SG.b7c4aeb11e"
+[0m00:45:40.898865 [debug] [Thread-1 (]: Began executing node test.contoso_gold.accepted_values_dim_customer_country__True__US__GB__SG.b7c4aeb11e
+[0m00:45:40.907421 [debug] [Thread-1 (]: Writing runtime sql for node "test.contoso_gold.accepted_values_dim_customer_country__True__US__GB__SG.b7c4aeb11e"
+[0m00:45:40.907919 [debug] [Thread-1 (]: Using fabric connection "test.contoso_gold.accepted_values_dim_customer_country__True__US__GB__SG.b7c4aeb11e"
+[0m00:45:40.908078 [debug] [Thread-1 (]: On test.contoso_gold.accepted_values_dim_customer_country__True__US__GB__SG.b7c4aeb11e: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "test.contoso_gold.accepted_values_dim_customer_country__True__US__GB__SG.b7c4aeb11e"} */
+
+    
+    with test_main_sql as (
+  
+    
+    
+    
+
+with all_values as (
+
+    select
+        country as value_field,
+        count(*) as n_records
+
+    from [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[dim_customer]
+    group by country
+
+)
+
+select *
+from all_values
+where value_field not in (
+    'US','GB','SG'
+)
+
+
+
+  
+  ),
+  dbt_internal_test as (
+    select  * from test_main_sql
+  )
+  select
+    count(*) as failures,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_warn,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_error
+  from dbt_internal_test
+[0m00:45:40.908206 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m00:45:40.908331 [debug] [Thread-1 (]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:45:40.908520 [debug] [Thread-1 (]: fabric adapter: Connected to db: aee86aac-de4c-435a-b206-1b1e54f4eb07
+[0m00:45:41.069772 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:41.071450 [debug] [Thread-1 (]: On test.contoso_gold.accepted_values_dim_customer_country__True__US__GB__SG.b7c4aeb11e: Close
+[0m00:45:41.071714 [info ] [Thread-1 (]: 3 of 13 PASS accepted_values_dim_customer_country__True__US__GB__SG ............ [[32mPASS[0m in 0.18s]
+[0m00:45:41.071974 [debug] [Thread-1 (]: Finished running node test.contoso_gold.accepted_values_dim_customer_country__True__US__GB__SG.b7c4aeb11e
+[0m00:45:41.072113 [debug] [Thread-1 (]: Began running node test.contoso_gold.not_null_dim_customer_country.01a349dff4
+[0m00:45:41.072228 [info ] [Thread-1 (]: 4 of 13 START test not_null_dim_customer_country ............................... [RUN]
+[0m00:45:41.072432 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly test.contoso_gold.accepted_values_dim_customer_country__True__US__GB__SG.b7c4aeb11e, now test.contoso_gold.not_null_dim_customer_country.01a349dff4)
+[0m00:45:41.072538 [debug] [Thread-1 (]: Began compiling node test.contoso_gold.not_null_dim_customer_country.01a349dff4
+[0m00:45:41.075265 [debug] [Thread-1 (]: Writing injected SQL for node "test.contoso_gold.not_null_dim_customer_country.01a349dff4"
+[0m00:45:41.075668 [debug] [Thread-1 (]: Began executing node test.contoso_gold.not_null_dim_customer_country.01a349dff4
+[0m00:45:41.076612 [debug] [Thread-1 (]: Writing runtime sql for node "test.contoso_gold.not_null_dim_customer_country.01a349dff4"
+[0m00:45:41.076891 [debug] [Thread-1 (]: Using fabric connection "test.contoso_gold.not_null_dim_customer_country.01a349dff4"
+[0m00:45:41.077005 [debug] [Thread-1 (]: On test.contoso_gold.not_null_dim_customer_country.01a349dff4: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "test.contoso_gold.not_null_dim_customer_country.01a349dff4"} */
+
+    
+    with test_main_sql as (
+  
+    
+    
+    
+
+
+
+select country
+from [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[dim_customer]
+where country is null
+
+
+
+  
+  ),
+  dbt_internal_test as (
+    select  * from test_main_sql
+  )
+  select
+    count(*) as failures,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_warn,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_error
+  from dbt_internal_test
+[0m00:45:41.077113 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m00:45:41.077224 [debug] [Thread-1 (]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:45:41.077386 [debug] [Thread-1 (]: fabric adapter: Connected to db: aee86aac-de4c-435a-b206-1b1e54f4eb07
+[0m00:45:41.093199 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:41.093910 [debug] [Thread-1 (]: On test.contoso_gold.not_null_dim_customer_country.01a349dff4: Close
+[0m00:45:41.094147 [info ] [Thread-1 (]: 4 of 13 PASS not_null_dim_customer_country ..................................... [[32mPASS[0m in 0.02s]
+[0m00:45:41.094375 [debug] [Thread-1 (]: Finished running node test.contoso_gold.not_null_dim_customer_country.01a349dff4
+[0m00:45:41.094505 [debug] [Thread-1 (]: Began running node test.contoso_gold.not_null_dim_customer_customer_id.9775012dfc
+[0m00:45:41.094635 [info ] [Thread-1 (]: 5 of 13 START test not_null_dim_customer_customer_id ........................... [RUN]
+[0m00:45:41.094783 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly test.contoso_gold.not_null_dim_customer_country.01a349dff4, now test.contoso_gold.not_null_dim_customer_customer_id.9775012dfc)
+[0m00:45:41.094899 [debug] [Thread-1 (]: Began compiling node test.contoso_gold.not_null_dim_customer_customer_id.9775012dfc
+[0m00:45:41.096607 [debug] [Thread-1 (]: Writing injected SQL for node "test.contoso_gold.not_null_dim_customer_customer_id.9775012dfc"
+[0m00:45:41.096917 [debug] [Thread-1 (]: Began executing node test.contoso_gold.not_null_dim_customer_customer_id.9775012dfc
+[0m00:45:41.097761 [debug] [Thread-1 (]: Writing runtime sql for node "test.contoso_gold.not_null_dim_customer_customer_id.9775012dfc"
+[0m00:45:41.098019 [debug] [Thread-1 (]: Using fabric connection "test.contoso_gold.not_null_dim_customer_customer_id.9775012dfc"
+[0m00:45:41.098135 [debug] [Thread-1 (]: On test.contoso_gold.not_null_dim_customer_customer_id.9775012dfc: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "test.contoso_gold.not_null_dim_customer_customer_id.9775012dfc"} */
+
+    
+    with test_main_sql as (
+  
+    
+    
+    
+
+
+
+select customer_id
+from [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[dim_customer]
+where customer_id is null
+
+
+
+  
+  ),
+  dbt_internal_test as (
+    select  * from test_main_sql
+  )
+  select
+    count(*) as failures,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_warn,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_error
+  from dbt_internal_test
+[0m00:45:41.098243 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m00:45:41.098344 [debug] [Thread-1 (]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:45:41.098504 [debug] [Thread-1 (]: fabric adapter: Connected to db: aee86aac-de4c-435a-b206-1b1e54f4eb07
+[0m00:45:41.282327 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:41.283145 [debug] [Thread-1 (]: On test.contoso_gold.not_null_dim_customer_customer_id.9775012dfc: Close
+[0m00:45:41.283403 [info ] [Thread-1 (]: 5 of 13 PASS not_null_dim_customer_customer_id ................................. [[32mPASS[0m in 0.19s]
+[0m00:45:41.283594 [debug] [Thread-1 (]: Finished running node test.contoso_gold.not_null_dim_customer_customer_id.9775012dfc
+[0m00:45:41.283726 [debug] [Thread-1 (]: Began running node test.contoso_gold.unique_dim_customer_customer_id.b42affccd1
+[0m00:45:41.283927 [info ] [Thread-1 (]: 6 of 13 START test unique_dim_customer_customer_id ............................. [RUN]
+[0m00:45:41.284083 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly test.contoso_gold.not_null_dim_customer_customer_id.9775012dfc, now test.contoso_gold.unique_dim_customer_customer_id.b42affccd1)
+[0m00:45:41.284193 [debug] [Thread-1 (]: Began compiling node test.contoso_gold.unique_dim_customer_customer_id.b42affccd1
+[0m00:45:41.287525 [debug] [Thread-1 (]: Writing injected SQL for node "test.contoso_gold.unique_dim_customer_customer_id.b42affccd1"
+[0m00:45:41.287901 [debug] [Thread-1 (]: Began executing node test.contoso_gold.unique_dim_customer_customer_id.b42affccd1
+[0m00:45:41.313319 [debug] [Thread-1 (]: Writing runtime sql for node "test.contoso_gold.unique_dim_customer_customer_id.b42affccd1"
+[0m00:45:41.313760 [debug] [Thread-1 (]: Using fabric connection "test.contoso_gold.unique_dim_customer_customer_id.b42affccd1"
+[0m00:45:41.313896 [debug] [Thread-1 (]: On test.contoso_gold.unique_dim_customer_customer_id.b42affccd1: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "test.contoso_gold.unique_dim_customer_customer_id.b42affccd1"} */
+
+    
+    with test_main_sql as (
+  
+    
+    
+    
+
+select
+    customer_id as unique_field,
+    count(*) as n_records
+
+from [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[dim_customer]
+where customer_id is not null
+group by customer_id
+having count(*) > 1
+
+
+
+  
+  ),
+  dbt_internal_test as (
+    select  * from test_main_sql
+  )
+  select
+    count(*) as failures,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_warn,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_error
+  from dbt_internal_test
+[0m00:45:41.314050 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m00:45:41.314170 [debug] [Thread-1 (]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:45:41.314346 [debug] [Thread-1 (]: fabric adapter: Connected to db: aee86aac-de4c-435a-b206-1b1e54f4eb07
+[0m00:45:41.365794 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:41.366588 [debug] [Thread-1 (]: On test.contoso_gold.unique_dim_customer_customer_id.b42affccd1: Close
+[0m00:45:41.366834 [info ] [Thread-1 (]: 6 of 13 PASS unique_dim_customer_customer_id ................................... [[32mPASS[0m in 0.08s]
+[0m00:45:41.367218 [debug] [Thread-1 (]: Finished running node test.contoso_gold.unique_dim_customer_customer_id.b42affccd1
+[0m00:45:41.367348 [debug] [Thread-1 (]: Began running node test.contoso_gold.not_null_fct_orders_amount.66810a8d08
+[0m00:45:41.367520 [info ] [Thread-1 (]: 7 of 13 START test not_null_fct_orders_amount .................................. [RUN]
+[0m00:45:41.367691 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly test.contoso_gold.unique_dim_customer_customer_id.b42affccd1, now test.contoso_gold.not_null_fct_orders_amount.66810a8d08)
+[0m00:45:41.368265 [debug] [Thread-1 (]: Began compiling node test.contoso_gold.not_null_fct_orders_amount.66810a8d08
+[0m00:45:41.370045 [debug] [Thread-1 (]: Writing injected SQL for node "test.contoso_gold.not_null_fct_orders_amount.66810a8d08"
+[0m00:45:41.370474 [debug] [Thread-1 (]: Began executing node test.contoso_gold.not_null_fct_orders_amount.66810a8d08
+[0m00:45:41.372545 [debug] [Thread-1 (]: Writing runtime sql for node "test.contoso_gold.not_null_fct_orders_amount.66810a8d08"
+[0m00:45:41.372906 [debug] [Thread-1 (]: Using fabric connection "test.contoso_gold.not_null_fct_orders_amount.66810a8d08"
+[0m00:45:41.373029 [debug] [Thread-1 (]: On test.contoso_gold.not_null_fct_orders_amount.66810a8d08: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "test.contoso_gold.not_null_fct_orders_amount.66810a8d08"} */
+
+    
+    with test_main_sql as (
+  
+    
+    
+    
+
+
+
+select amount
+from [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_orders]
+where amount is null
+
+
+
+  
+  ),
+  dbt_internal_test as (
+    select  * from test_main_sql
+  )
+  select
+    count(*) as failures,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_warn,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_error
+  from dbt_internal_test
+[0m00:45:41.373144 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m00:45:41.373255 [debug] [Thread-1 (]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:45:41.373424 [debug] [Thread-1 (]: fabric adapter: Connected to db: aee86aac-de4c-435a-b206-1b1e54f4eb07
+[0m00:45:41.425421 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:41.426255 [debug] [Thread-1 (]: On test.contoso_gold.not_null_fct_orders_amount.66810a8d08: Close
+[0m00:45:41.426512 [info ] [Thread-1 (]: 7 of 13 PASS not_null_fct_orders_amount ........................................ [[32mPASS[0m in 0.06s]
+[0m00:45:41.426803 [debug] [Thread-1 (]: Finished running node test.contoso_gold.not_null_fct_orders_amount.66810a8d08
+[0m00:45:41.426943 [debug] [Thread-1 (]: Began running node test.contoso_gold.not_null_fct_orders_customer_id.16fe324f7b
+[0m00:45:41.427112 [info ] [Thread-1 (]: 8 of 13 START test not_null_fct_orders_customer_id ............................. [RUN]
+[0m00:45:41.427275 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly test.contoso_gold.not_null_fct_orders_amount.66810a8d08, now test.contoso_gold.not_null_fct_orders_customer_id.16fe324f7b)
+[0m00:45:41.427382 [debug] [Thread-1 (]: Began compiling node test.contoso_gold.not_null_fct_orders_customer_id.16fe324f7b
+[0m00:45:41.429121 [debug] [Thread-1 (]: Writing injected SQL for node "test.contoso_gold.not_null_fct_orders_customer_id.16fe324f7b"
+[0m00:45:41.429523 [debug] [Thread-1 (]: Began executing node test.contoso_gold.not_null_fct_orders_customer_id.16fe324f7b
+[0m00:45:41.430457 [debug] [Thread-1 (]: Writing runtime sql for node "test.contoso_gold.not_null_fct_orders_customer_id.16fe324f7b"
+[0m00:45:41.430726 [debug] [Thread-1 (]: Using fabric connection "test.contoso_gold.not_null_fct_orders_customer_id.16fe324f7b"
+[0m00:45:41.430840 [debug] [Thread-1 (]: On test.contoso_gold.not_null_fct_orders_customer_id.16fe324f7b: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "test.contoso_gold.not_null_fct_orders_customer_id.16fe324f7b"} */
+
+    
+    with test_main_sql as (
+  
+    
+    
+    
+
+
+
+select customer_id
+from [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_orders]
+where customer_id is null
+
+
+
+  
+  ),
+  dbt_internal_test as (
+    select  * from test_main_sql
+  )
+  select
+    count(*) as failures,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_warn,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_error
+  from dbt_internal_test
+[0m00:45:41.430953 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m00:45:41.431065 [debug] [Thread-1 (]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:45:41.431253 [debug] [Thread-1 (]: fabric adapter: Connected to db: aee86aac-de4c-435a-b206-1b1e54f4eb07
+[0m00:45:41.614065 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:41.614890 [debug] [Thread-1 (]: On test.contoso_gold.not_null_fct_orders_customer_id.16fe324f7b: Close
+[0m00:45:41.615130 [info ] [Thread-1 (]: 8 of 13 PASS not_null_fct_orders_customer_id ................................... [[32mPASS[0m in 0.19s]
+[0m00:45:41.615410 [debug] [Thread-1 (]: Finished running node test.contoso_gold.not_null_fct_orders_customer_id.16fe324f7b
+[0m00:45:41.615599 [debug] [Thread-1 (]: Began running node test.contoso_gold.not_null_fct_orders_order_id.4e687af8d0
+[0m00:45:41.615798 [info ] [Thread-1 (]: 9 of 13 START test not_null_fct_orders_order_id ................................ [RUN]
+[0m00:45:41.615995 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly test.contoso_gold.not_null_fct_orders_customer_id.16fe324f7b, now test.contoso_gold.not_null_fct_orders_order_id.4e687af8d0)
+[0m00:45:41.616133 [debug] [Thread-1 (]: Began compiling node test.contoso_gold.not_null_fct_orders_order_id.4e687af8d0
+[0m00:45:41.617879 [debug] [Thread-1 (]: Writing injected SQL for node "test.contoso_gold.not_null_fct_orders_order_id.4e687af8d0"
+[0m00:45:41.618246 [debug] [Thread-1 (]: Began executing node test.contoso_gold.not_null_fct_orders_order_id.4e687af8d0
+[0m00:45:41.619211 [debug] [Thread-1 (]: Writing runtime sql for node "test.contoso_gold.not_null_fct_orders_order_id.4e687af8d0"
+[0m00:45:41.619488 [debug] [Thread-1 (]: Using fabric connection "test.contoso_gold.not_null_fct_orders_order_id.4e687af8d0"
+[0m00:45:41.619604 [debug] [Thread-1 (]: On test.contoso_gold.not_null_fct_orders_order_id.4e687af8d0: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "test.contoso_gold.not_null_fct_orders_order_id.4e687af8d0"} */
+
+    
+    with test_main_sql as (
+  
+    
+    
+    
+
+
+
+select order_id
+from [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_orders]
+where order_id is null
+
+
+
+  
+  ),
+  dbt_internal_test as (
+    select  * from test_main_sql
+  )
+  select
+    count(*) as failures,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_warn,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_error
+  from dbt_internal_test
+[0m00:45:41.619707 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m00:45:41.619814 [debug] [Thread-1 (]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:45:41.619980 [debug] [Thread-1 (]: fabric adapter: Connected to db: aee86aac-de4c-435a-b206-1b1e54f4eb07
+[0m00:45:41.814241 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:41.815018 [debug] [Thread-1 (]: On test.contoso_gold.not_null_fct_orders_order_id.4e687af8d0: Close
+[0m00:45:41.815277 [info ] [Thread-1 (]: 9 of 13 PASS not_null_fct_orders_order_id ...................................... [[32mPASS[0m in 0.20s]
+[0m00:45:41.815463 [debug] [Thread-1 (]: Finished running node test.contoso_gold.not_null_fct_orders_order_id.4e687af8d0
+[0m00:45:41.815610 [debug] [Thread-1 (]: Began running node test.contoso_gold.relationships_fct_orders_customer_id__customer_id__ref_dim_customer_.d39c4721da
+[0m00:45:41.815723 [info ] [Thread-1 (]: 10 of 13 START test relationships_fct_orders_customer_id__customer_id__ref_dim_customer_  [RUN]
+[0m00:45:41.816023 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly test.contoso_gold.not_null_fct_orders_order_id.4e687af8d0, now test.contoso_gold.relationships_fct_orders_customer_id__customer_id__ref_dim_customer_.d39c4721da)
+[0m00:45:41.816146 [debug] [Thread-1 (]: Began compiling node test.contoso_gold.relationships_fct_orders_customer_id__customer_id__ref_dim_customer_.d39c4721da
+[0m00:45:41.819433 [debug] [Thread-1 (]: Writing injected SQL for node "test.contoso_gold.relationships_fct_orders_customer_id__customer_id__ref_dim_customer_.d39c4721da"
+[0m00:45:41.820005 [debug] [Thread-1 (]: Began executing node test.contoso_gold.relationships_fct_orders_customer_id__customer_id__ref_dim_customer_.d39c4721da
+[0m00:45:41.820926 [debug] [Thread-1 (]: Writing runtime sql for node "test.contoso_gold.relationships_fct_orders_customer_id__customer_id__ref_dim_customer_.d39c4721da"
+[0m00:45:41.821216 [debug] [Thread-1 (]: Using fabric connection "test.contoso_gold.relationships_fct_orders_customer_id__customer_id__ref_dim_customer_.d39c4721da"
+[0m00:45:41.821347 [debug] [Thread-1 (]: On test.contoso_gold.relationships_fct_orders_customer_id__customer_id__ref_dim_customer_.d39c4721da: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "test.contoso_gold.relationships_fct_orders_customer_id__customer_id__ref_dim_customer_.d39c4721da"} */
+
+    
+    with test_main_sql as (
+  
+    
+    
+    
+
+with child as (
+    select customer_id as from_field
+    from [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_orders]
+    where customer_id is not null
+),
+
+parent as (
+    select customer_id as to_field
+    from [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[dim_customer]
+)
+
+select
+    from_field
+
+from child
+left join parent
+    on child.from_field = parent.to_field
+
+where parent.to_field is null
+
+
+
+  
+  ),
+  dbt_internal_test as (
+    select  * from test_main_sql
+  )
+  select
+    count(*) as failures,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_warn,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_error
+  from dbt_internal_test
+[0m00:45:41.821464 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m00:45:41.821577 [debug] [Thread-1 (]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:45:41.821745 [debug] [Thread-1 (]: fabric adapter: Connected to db: aee86aac-de4c-435a-b206-1b1e54f4eb07
+[0m00:45:41.946918 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:41.949255 [debug] [Thread-1 (]: On test.contoso_gold.relationships_fct_orders_customer_id__customer_id__ref_dim_customer_.d39c4721da: Close
+[0m00:45:41.949561 [info ] [Thread-1 (]: 10 of 13 PASS relationships_fct_orders_customer_id__customer_id__ref_dim_customer_  [[32mPASS[0m in 0.13s]
+[0m00:45:41.953895 [debug] [Thread-1 (]: Finished running node test.contoso_gold.relationships_fct_orders_customer_id__customer_id__ref_dim_customer_.d39c4721da
+[0m00:45:41.954093 [debug] [Thread-1 (]: Began running node test.contoso_gold.unique_fct_orders_order_id.523ddb6ce5
+[0m00:45:41.954292 [info ] [Thread-1 (]: 11 of 13 START test unique_fct_orders_order_id ................................. [RUN]
+[0m00:45:41.954507 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly test.contoso_gold.relationships_fct_orders_customer_id__customer_id__ref_dim_customer_.d39c4721da, now test.contoso_gold.unique_fct_orders_order_id.523ddb6ce5)
+[0m00:45:41.954884 [debug] [Thread-1 (]: Began compiling node test.contoso_gold.unique_fct_orders_order_id.523ddb6ce5
+[0m00:45:41.957755 [debug] [Thread-1 (]: Writing injected SQL for node "test.contoso_gold.unique_fct_orders_order_id.523ddb6ce5"
+[0m00:45:41.958270 [debug] [Thread-1 (]: Began executing node test.contoso_gold.unique_fct_orders_order_id.523ddb6ce5
+[0m00:45:41.959184 [debug] [Thread-1 (]: Writing runtime sql for node "test.contoso_gold.unique_fct_orders_order_id.523ddb6ce5"
+[0m00:45:41.959477 [debug] [Thread-1 (]: Using fabric connection "test.contoso_gold.unique_fct_orders_order_id.523ddb6ce5"
+[0m00:45:41.959603 [debug] [Thread-1 (]: On test.contoso_gold.unique_fct_orders_order_id.523ddb6ce5: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "test.contoso_gold.unique_fct_orders_order_id.523ddb6ce5"} */
+
+    
+    with test_main_sql as (
+  
+    
+    
+    
+
+select
+    order_id as unique_field,
+    count(*) as n_records
+
+from [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_orders]
+where order_id is not null
+group by order_id
+having count(*) > 1
+
+
+
+  
+  ),
+  dbt_internal_test as (
+    select  * from test_main_sql
+  )
+  select
+    count(*) as failures,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_warn,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_error
+  from dbt_internal_test
+[0m00:45:41.959719 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m00:45:41.959841 [debug] [Thread-1 (]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:45:41.960007 [debug] [Thread-1 (]: fabric adapter: Connected to db: aee86aac-de4c-435a-b206-1b1e54f4eb07
+[0m00:45:42.082438 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:42.083310 [debug] [Thread-1 (]: On test.contoso_gold.unique_fct_orders_order_id.523ddb6ce5: Close
+[0m00:45:42.083601 [info ] [Thread-1 (]: 11 of 13 PASS unique_fct_orders_order_id ....................................... [[32mPASS[0m in 0.13s]
+[0m00:45:42.083958 [debug] [Thread-1 (]: Finished running node test.contoso_gold.unique_fct_orders_order_id.523ddb6ce5
+[0m00:45:42.084532 [debug] [Thread-1 (]: Began running node model.contoso_gold.fct_daily_revenue
+[0m00:45:42.084741 [info ] [Thread-1 (]: 12 of 13 START sql table model dbo.fct_daily_revenue ........................... [RUN]
+[0m00:45:42.084896 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly test.contoso_gold.unique_fct_orders_order_id.523ddb6ce5, now model.contoso_gold.fct_daily_revenue)
+[0m00:45:42.085171 [debug] [Thread-1 (]: Began compiling node model.contoso_gold.fct_daily_revenue
+[0m00:45:42.086798 [debug] [Thread-1 (]: Writing injected SQL for node "model.contoso_gold.fct_daily_revenue"
+[0m00:45:42.087284 [debug] [Thread-1 (]: Began executing node model.contoso_gold.fct_daily_revenue
+[0m00:45:42.089033 [debug] [Thread-1 (]: Applying DROP to: [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_daily_revenue__dbt_temp]
+[0m00:45:42.089275 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_daily_revenue"
+[0m00:45:42.089387 [debug] [Thread-1 (]: On model.contoso_gold.fct_daily_revenue: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_daily_revenue"} */
+
+      
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    EXEC('DROP table IF EXISTS [dbo].[fct_daily_revenue__dbt_temp];');
+
+[0m00:45:42.089489 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m00:45:42.089597 [debug] [Thread-1 (]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:45:42.089767 [debug] [Thread-1 (]: fabric adapter: Connected to db: aee86aac-de4c-435a-b206-1b1e54f4eb07
+[0m00:45:42.091029 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:42.092378 [debug] [Thread-1 (]: Applying DROP to: [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_daily_revenue__dbt_temp__dbt_tmp_vw]
+[0m00:45:42.092683 [debug] [Thread-1 (]: dbt-fabric
+[0m00:45:42.092843 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_daily_revenue"
+[0m00:45:42.092974 [debug] [Thread-1 (]: On model.contoso_gold.fct_daily_revenue: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_daily_revenue"} */
+
+        USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+        select
+            sch.name as schema_name,
+            obj.name as view_name
+        from sys.sql_expression_dependencies refs
+        inner join sys.objects obj
+        on refs.referencing_id = obj.object_id
+        inner join sys.schemas sch
+        on obj.schema_id = sch.schema_id
+        where refs.referenced_database_name = 'aee86aac-de4c-435a-b206-1b1e54f4eb07'
+        and refs.referenced_schema_name = 'dbo'
+        and refs.referenced_entity_name = 'fct_daily_revenue__dbt_temp__dbt_tmp_vw'
+        and refs.referencing_class = 1
+        and obj.type = 'V'
+        
+    OPTION (LABEL = 'dbt-fabric-dw');
+
+      
+[0m00:45:42.103690 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:42.104448 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_daily_revenue"
+[0m00:45:42.104579 [debug] [Thread-1 (]: On model.contoso_gold.fct_daily_revenue: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_daily_revenue"} */
+
+      
+      
+    
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    EXEC('DROP view IF EXISTS [dbo].[fct_daily_revenue__dbt_temp__dbt_tmp_vw];');
+
+[0m00:45:42.105596 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:42.106234 [debug] [Thread-1 (]: dbt-fabric
+[0m00:45:42.107349 [debug] [Thread-1 (]: Applying DROP to: [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_daily_revenue__dbt_temp__dbt_tmp_vw]
+[0m00:45:42.107668 [debug] [Thread-1 (]: dbt-fabric
+[0m00:45:42.107810 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_daily_revenue"
+[0m00:45:42.107931 [debug] [Thread-1 (]: On model.contoso_gold.fct_daily_revenue: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_daily_revenue"} */
+
+        USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+        select
+            sch.name as schema_name,
+            obj.name as view_name
+        from sys.sql_expression_dependencies refs
+        inner join sys.objects obj
+        on refs.referencing_id = obj.object_id
+        inner join sys.schemas sch
+        on obj.schema_id = sch.schema_id
+        where refs.referenced_database_name = 'aee86aac-de4c-435a-b206-1b1e54f4eb07'
+        and refs.referenced_schema_name = 'dbo'
+        and refs.referenced_entity_name = 'fct_daily_revenue__dbt_temp__dbt_tmp_vw'
+        and refs.referencing_class = 1
+        and obj.type = 'V'
+        
+    OPTION (LABEL = 'dbt-fabric-dw');
+
+      
+[0m00:45:42.108589 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:42.109163 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_daily_revenue"
+[0m00:45:42.109293 [debug] [Thread-1 (]: On model.contoso_gold.fct_daily_revenue: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_daily_revenue"} */
+
+      
+      
+    
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    EXEC('DROP view IF EXISTS [dbo].[fct_daily_revenue__dbt_temp__dbt_tmp_vw];');
+
+[0m00:45:42.110057 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:42.110663 [debug] [Thread-1 (]: Writing runtime sql for node "model.contoso_gold.fct_daily_revenue"
+[0m00:45:42.111034 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_daily_revenue"
+[0m00:45:42.111166 [debug] [Thread-1 (]: On model.contoso_gold.fct_daily_revenue: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_daily_revenue"} */
+
+  
+    
+    
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    
+    
+
+    EXEC('create view [dbo].[fct_daily_revenue__dbt_temp__dbt_tmp_vw] as -- The reporting aggregate the semantic model serves.
+select
+    o.order_date,
+    c.country,
+    count(*)        as orders,
+    sum(o.quantity) as units,
+    sum(o.amount)   as revenue
+from [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_orders] o
+join [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[dim_customer] c
+  on o.customer_id = c.customer_id
+group by o.order_date, c.country;');
+
+
+
+
+    
+    
+
+    
+    
+            EXEC('CREATE TABLE [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_daily_revenue__dbt_temp]  AS SELECT * FROM [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_daily_revenue__dbt_temp__dbt_tmp_vw] 
+    OPTION (LABEL = ''dbt-fabric-dw'');
+');
+        
+    
+
+
+  
+  
+[0m00:45:42.331828 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:42.333476 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_daily_revenue"
+[0m00:45:42.333619 [debug] [Thread-1 (]: On model.contoso_gold.fct_daily_revenue: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_daily_revenue"} */
+USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+      EXEC sp_rename 'dbo.fct_daily_revenue__dbt_temp', 'fct_daily_revenue'
+[0m00:45:42.337122 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:42.338490 [debug] [Thread-1 (]: Applying DROP to: [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_daily_revenue__dbt_temp__dbt_tmp_vw]
+[0m00:45:42.338798 [debug] [Thread-1 (]: dbt-fabric
+[0m00:45:42.338956 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_daily_revenue"
+[0m00:45:42.339094 [debug] [Thread-1 (]: On model.contoso_gold.fct_daily_revenue: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_daily_revenue"} */
+
+        USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+        select
+            sch.name as schema_name,
+            obj.name as view_name
+        from sys.sql_expression_dependencies refs
+        inner join sys.objects obj
+        on refs.referencing_id = obj.object_id
+        inner join sys.schemas sch
+        on obj.schema_id = sch.schema_id
+        where refs.referenced_database_name = 'aee86aac-de4c-435a-b206-1b1e54f4eb07'
+        and refs.referenced_schema_name = 'dbo'
+        and refs.referenced_entity_name = 'fct_daily_revenue__dbt_temp__dbt_tmp_vw'
+        and refs.referencing_class = 1
+        and obj.type = 'V'
+        
+    OPTION (LABEL = 'dbt-fabric-dw');
+
+      
+[0m00:45:42.350229 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:42.350960 [debug] [Thread-1 (]: Using fabric connection "model.contoso_gold.fct_daily_revenue"
+[0m00:45:42.351102 [debug] [Thread-1 (]: On model.contoso_gold.fct_daily_revenue: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "model.contoso_gold.fct_daily_revenue"} */
+
+      
+      
+    
+    USE [aee86aac-de4c-435a-b206-1b1e54f4eb07];
+    EXEC('DROP view IF EXISTS [dbo].[fct_daily_revenue__dbt_temp__dbt_tmp_vw];');
+
+[0m00:45:42.354407 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:42.354951 [debug] [Thread-1 (]: On model.contoso_gold.fct_daily_revenue: COMMIT
+[0m00:45:42.355389 [debug] [Thread-1 (]: On model.contoso_gold.fct_daily_revenue: Close
+[0m00:45:42.355610 [debug] [Thread-1 (]: Sending event: {'category': 'dbt', 'action': 'run_model', 'label': '8fa5b5bc-9c2a-4016-82c6-d79b7adf003d', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffffa847e4e0>]}
+[0m00:45:42.355858 [info ] [Thread-1 (]: 12 of 13 OK created sql table model dbo.fct_daily_revenue ...................... [[32mOK[0m in 0.27s]
+[0m00:45:42.356058 [debug] [Thread-1 (]: Finished running node model.contoso_gold.fct_daily_revenue
+[0m00:45:42.356446 [debug] [Thread-1 (]: Began running node test.contoso_gold.not_null_fct_daily_revenue_revenue.c93edc6f9e
+[0m00:45:42.356635 [info ] [Thread-1 (]: 13 of 13 START test not_null_fct_daily_revenue_revenue ......................... [RUN]
+[0m00:45:42.356844 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly model.contoso_gold.fct_daily_revenue, now test.contoso_gold.not_null_fct_daily_revenue_revenue.c93edc6f9e)
+[0m00:45:42.356965 [debug] [Thread-1 (]: Began compiling node test.contoso_gold.not_null_fct_daily_revenue_revenue.c93edc6f9e
+[0m00:45:42.358733 [debug] [Thread-1 (]: Writing injected SQL for node "test.contoso_gold.not_null_fct_daily_revenue_revenue.c93edc6f9e"
+[0m00:45:42.359138 [debug] [Thread-1 (]: Began executing node test.contoso_gold.not_null_fct_daily_revenue_revenue.c93edc6f9e
+[0m00:45:42.361036 [debug] [Thread-1 (]: Writing runtime sql for node "test.contoso_gold.not_null_fct_daily_revenue_revenue.c93edc6f9e"
+[0m00:45:42.361371 [debug] [Thread-1 (]: Using fabric connection "test.contoso_gold.not_null_fct_daily_revenue_revenue.c93edc6f9e"
+[0m00:45:42.361485 [debug] [Thread-1 (]: On test.contoso_gold.not_null_fct_daily_revenue_revenue.c93edc6f9e: /* {"app": "dbt", "dbt_version": "1.9.10", "profile_name": "contoso_gold", "target_name": "dev", "node_id": "test.contoso_gold.not_null_fct_daily_revenue_revenue.c93edc6f9e"} */
+
+    
+    with test_main_sql as (
+  
+    
+    
+    
+
+
+
+select revenue
+from [aee86aac-de4c-435a-b206-1b1e54f4eb07].[dbo].[fct_daily_revenue]
+where revenue is null
+
+
+
+  
+  ),
+  dbt_internal_test as (
+    select  * from test_main_sql
+  )
+  select
+    count(*) as failures,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_warn,
+    case when count(*) != 0
+      then 'true' else 'false' end as should_error
+  from dbt_internal_test
+[0m00:45:42.361594 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m00:45:42.361716 [debug] [Thread-1 (]: fabric adapter: Using connection string: DRIVER={ODBC Driver 18 for SQL Server};SERVER=fabric-emulator;Database=aee86aac-de4c-435a-b206-1b1e54f4eb07;Pooling=true;SQL_ATTR_TRACE=SQL_OPT_TRACE_OFF;encrypt=No;TrustServerCertificate=Yes;APP=dbt-fabric/1.9.10;ConnectRetryCount=3;ConnectRetryInterval=10
+[0m00:45:42.361888 [debug] [Thread-1 (]: fabric adapter: Connected to db: aee86aac-de4c-435a-b206-1b1e54f4eb07
+[0m00:45:42.368113 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m00:45:42.368983 [debug] [Thread-1 (]: On test.contoso_gold.not_null_fct_daily_revenue_revenue.c93edc6f9e: Close
+[0m00:45:42.369285 [info ] [Thread-1 (]: 13 of 13 PASS not_null_fct_daily_revenue_revenue ............................... [[32mPASS[0m in 0.01s]
+[0m00:45:42.369560 [debug] [Thread-1 (]: Finished running node test.contoso_gold.not_null_fct_daily_revenue_revenue.c93edc6f9e
+[0m00:45:42.370068 [debug] [MainThread]: On master: COMMIT
+[0m00:45:42.370210 [debug] [MainThread]: Connection 'master' was properly closed.
+[0m00:45:42.370291 [debug] [MainThread]: Connection 'test.contoso_gold.not_null_fct_daily_revenue_revenue.c93edc6f9e' was properly closed.
+[0m00:45:42.370414 [info ] [MainThread]: 
+[0m00:45:42.370620 [info ] [MainThread]: Finished running 3 table models, 10 data tests in 0 hours 0 minutes and 2.71 seconds (2.71s).
+[0m00:45:42.371398 [debug] [MainThread]: Command end result
+[0m00:45:42.382342 [debug] [MainThread]: Wrote artifact WritableManifest to /gold/target/manifest.json
+[0m00:45:42.383275 [debug] [MainThread]: Wrote artifact SemanticManifest to /gold/target/semantic_manifest.json
+[0m00:45:42.385983 [debug] [MainThread]: Wrote artifact RunExecutionResult to /gold/target/run_results.json
+[0m00:45:42.386197 [info ] [MainThread]: 
+[0m00:45:42.386374 [info ] [MainThread]: [32mCompleted successfully[0m
+[0m00:45:42.386489 [info ] [MainThread]: 
+[0m00:45:42.386612 [info ] [MainThread]: Done. PASS=13 WARN=0 ERROR=0 SKIP=0 TOTAL=13
+[0m00:45:42.387105 [debug] [MainThread]: Resource report: {"command_name": "build", "command_success": true, "command_wall_clock_time": 3.0363328, "process_in_blocks": "102472", "process_kernel_time": 0.114321, "process_mem_max_rss": "129720", "process_out_blocks": "4978", "process_user_time": 1.023878}
+[0m00:45:42.387364 [debug] [MainThread]: Command `dbt build` succeeded at 00:45:42.387325 after 3.04 seconds
+[0m00:45:42.387517 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffffac1ceea0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffffab5b2f60>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0xffffab55d2e0>]}
+[0m00:45:42.387645 [debug] [MainThread]: Flushing usage events
+[0m00:45:43.410615 [debug] [MainThread]: An error was encountered while trying to flush usage events

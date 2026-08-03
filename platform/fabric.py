@@ -66,6 +66,25 @@ def token(audience: str) -> str:
     return tok
 
 
+def ensure_audience(audience: str, name: str) -> None:
+    """Make sure a token for `audience` can be minted.
+
+    A no-op against real Fabric: Azure SQL and Power BI are first-party Entra
+    resources and every tenant can already request them. The local family's
+    entra mints only for audiences it knows, so a non-default one is registered
+    first — a setup difference, resolved by the target like every other.
+    """
+    if not T.entra_admin_api:
+        return
+    r = S.post(
+        T.entra_admin_api,
+        json={"displayName": name, "appIdUri": audience, "isConfidential": False},
+        timeout=30,
+    )
+    # 409 means it is already there, which is the normal case on a re-run.
+    assert r.status_code in (200, 201, 409), (audience, r.status_code, r.text[:200])
+
+
 def fabric(method: str, path: str, tok: str, **kw):
     r = S.request(
         method,

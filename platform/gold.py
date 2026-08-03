@@ -1,0 +1,128 @@
+"""Silver → gold: the star, built in the WAREHOUSE by dbt-fabric over TDS.
+
+Gold is a Warehouse because that is what Fabric gives you: a T-SQL MPP engine
+reached over TDS on 1433, authenticated with Entra. Spark cannot write one —
+Spark writes Delta to a Lakehouse and the Warehouse reads across the boundary
+by three-part name, which is exactly what gold/models/sources.yml does.
+
+WHY dbt RUNS IN A CONTAINER. `dbt-fabric` requires Microsoft's ODBC Driver 18;
+Microsoft's own documentation says there is no driver-free option. A native
+driver install is the one thing `git clone && make` cannot do on three
+platforms, so the driver lives in an image. That is also how dbt usually runs
+in production — Fabric does not host dbt, so it executes on a laptop, a CI
+agent, or a container, and a container is what any repeatable pipeline picks.
+
+This step itself needs no driver: it creates the Warehouse item over REST and
+hands dbt a token.
+"""
+
+from __future__ import annotations
+
+import os
+import pathlib
+import subprocess
+
+import state
+from fabric import FABRIC_AUD, ensure_audience, fabric, log, token
+from provision import find_item
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+WAREHOUSE = "contoso_warehouse"
+
+# The Warehouse audience is Azure SQL's, not Fabric's — the token goes to a TDS
+# endpoint, and the same audience is correct against real Fabric.
+SQL_AUD = "https://database.windows.net"
+
+
+def main() -> int:
+    st = state.load()
+    tok = token(FABRIC_AUD)
+    ensure_audience(SQL_AUD, "Azure SQL")
+
+    wh = find_item(tok, st["workspace"], WAREHOUSE, "Warehouse")
+    if wh is None:
+        r = fabric(
+            "POST",
+            f"/workspaces/{st['workspace']}/items",
+            tok,
+            json={"displayName": WAREHOUSE, "type": "Warehouse"},
+        )
+        assert r.status_code in (201, 202), (r.status_code, r.text[:300])
+        wh = r.json()
+        log(f"created warehouse {WAREHOUSE}")
+    else:
+        log(f"reusing warehouse {WAREHOUSE}")
+    assert wh["id"], wh
+
+    state.save(warehouse=wh["id"], warehouse_name=WAREHOUSE)
+
+    # dbt gets the connection through the environment, so nothing about the
+    # target is written into the project. The same profiles.yml points at a real
+    # Fabric Warehouse when these values do.
+    env = {
+        **os.environ,
+        "WAREHOUSE_ID": wh["id"],
+        "WAREHOUSE_TOKEN": token(SQL_AUD),
+        "LAKEHOUSE_ID": st["lakehouse"],
+    }
+
+    def in_dbt_container(*args: str) -> int:
+        return subprocess.run(
+            [
+                "docker",
+                "compose",
+                "--env-file",
+                "versions.env",
+                "-f",
+                "compose/docker-compose.yml",
+                "-f",
+                "compose/sources.yml",
+                "--profile",
+                "gold",
+                "run",
+                "--rm",
+                "-e",
+                f"LAKEHOUSE_ID={st['lakehouse']}",
+                *args,
+            ],
+            cwd=ROOT,
+            env=env,
+        ).returncode
+
+    # Silver has to be visible through the lakehouse SQL analytics endpoint
+    # before gold can read it by three-part name. On real Fabric it already is;
+    # here the connect is what makes the emulator reflect it.
+    log("verifying silver through the SQL analytics endpoint")
+    rc = in_dbt_container("--entrypoint", "python", "dbt", "/tools/reflect.py")
+    assert rc == 0, f"silver is not queryable from the warehouse: exit {rc}"
+
+    cmd = [
+        "docker",
+        "compose",
+        "--env-file",
+        "versions.env",
+        "-f",
+        "compose/docker-compose.yml",
+        "-f",
+        "compose/sources.yml",
+        "--profile",
+        "gold",
+        "run",
+        "--rm",
+        "-e",
+        f"LAKEHOUSE_ID={st['lakehouse']}",
+        "dbt",
+        "build",
+        "--profiles-dir",
+        "/gold",
+    ]
+    log("dbt build (containerised dbt-fabric over TDS)")
+    rc = subprocess.run(cmd, cwd=ROOT, env=env).returncode
+    assert rc == 0, f"dbt build failed: exit {rc}"
+
+    log(f"gold: star built in warehouse {wh['id']}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

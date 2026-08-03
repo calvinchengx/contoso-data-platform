@@ -27,6 +27,7 @@ STEPS = [
     ("ingest_erp_cdc", "consume the change stream into Files/landing"),
     ("bronze", "landing -> bronze Delta tables, verbatim"),
     ("silver", "bronze -> silver: dedupe, conform, quarantine"),
+    ("gold", "silver -> gold: the star, in the Warehouse via dbt-fabric"),
 ]
 
 

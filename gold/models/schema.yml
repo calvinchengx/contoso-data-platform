@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: dim_customer
+    columns:
+      - name: customer_id
+        tests: [unique, not_null]
+      - name: country
+        tests:
+          - not_null
+          - accepted_values: {values: ["US", "GB", "SG"], quote: true}
+  - name: fct_orders
+    columns:
+      - name: order_id
+        tests: [unique, not_null]
+      - name: customer_id
+        # The join being TOTAL is the star's whole claim. An order resolving to
+        # nobody would otherwise be dropped by every downstream aggregate
+        # without trace.
+        tests:
+          - not_null
+          - relationships: {to: ref('dim_customer'), field: customer_id}
+      - name: amount
+        tests: [not_null]
+  - name: fct_daily_revenue
+    columns:
+      - name: revenue
+        tests: [not_null]
