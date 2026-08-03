@@ -207,22 +207,22 @@ def test_the_transforms_are_engine_side():
 
 
 def test_every_rule_names_a_test_that_exists():
-    """CLAUDE.md is the codebase's rules. A rule citing a test that does not
+    """RULES.md is the codebase's rules. A rule citing a test that does not
     exist is prose asserting a guarantee nothing enforces — the failure this
     whole platform is built to catch, turned on our own documentation.
 
     `judgement` is an honest answer and is allowed. A wrong test name is not.
     """
-    rules = (ROOT / "CLAUDE.md").read_text()
+    rules = (ROOT / "RULES.md").read_text()
     cited = set(re.findall(r"`(test_[a-z0-9_]+)`", rules))
-    assert cited, "CLAUDE.md cites no tests at all"
+    assert cited, "RULES.md cites no tests at all"
 
     defined = set()
     for p in (ROOT / "tests").glob("test_*.py"):
         defined |= set(re.findall(r"^def (test_[a-z0-9_]+)", p.read_text(), re.M))
 
     missing = sorted(cited - defined)
-    assert not missing, f"CLAUDE.md cites tests that do not exist: {missing}"
+    assert not missing, f"RULES.md cites tests that do not exist: {missing}"
 
 
 def test_credentials_come_from_key_vault():

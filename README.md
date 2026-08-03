@@ -18,7 +18,7 @@ make verify      # run the platform end to end
 
 ## Rules
 
-[CLAUDE.md](CLAUDE.md) holds the rules this codebase is built on — Fabric-first,
+[RULES.md](RULES.md) holds the rules this codebase is built on — Fabric-first,
 engine-side transforms, secrets in Key Vault, one file for the emulator/real
 difference. Each rule names the test that enforces it, and says `judgement`
 where nothing does.

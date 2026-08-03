@@ -5,3 +5,8 @@ capture/shots/
 state.json
 *_summary.json
 sources/_data/
+
+# Personal assistant config — the rules themselves are in RULES.md,
+# which is committed so CI and every contributor see them.
+CLAUDE.md
+CLAUDE.local.md
