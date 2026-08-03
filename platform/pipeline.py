@@ -29,6 +29,7 @@ STEPS = [
     ("silver", "bronze -> silver: dedupe, conform, quarantine"),
     ("gold", "silver -> gold: the star, in the Warehouse via dbt-fabric"),
     ("semantic_model", "publish the model; query it with DAX over executeQueries"),
+    ("xmla_probe", "run the same DAX through a real BI client over XMLA"),
 ]
 
 

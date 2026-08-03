@@ -32,6 +32,14 @@ EXPORT = ROOT / "gold" / "_export.json"
 PBI_AUD = "https://analysis.windows.net/powerbi/api"
 MODEL = "ContosoRevenue"
 
+# One query, asked over two surfaces. xmla_probe.py runs this same DAX through
+# ADOMD.NET, so if both answer they must agree — which is a stronger statement
+# than either surface makes alone.
+DAX = (
+    "EVALUATE SUMMARIZECOLUMNS(Customer[Country], "
+    '"Revenue", [Total Revenue], "PerUnit", [Revenue per Unit])'
+)
+
 
 def definition(rows: dict) -> dict:
     """TMSL plus the rows, as InlineBase64 definition parts."""
