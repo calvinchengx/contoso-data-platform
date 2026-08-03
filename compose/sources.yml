@@ -2,24 +2,65 @@
 #
 # Kept in its own file so the boundary is legible from the layout alone: what
 # is a Fabric emulator and what is a vendor a Fabric pipeline pulls from.
+#
+# ONE mokapi PER VENDOR, never one shared instance multiplexing several specs.
+# Two different companies do not share a process in production, and every way
+# the shared shape leaks is a way this platform would teach something false:
+#
+#   an outage is not shared     Contoso POS falling over must not take Contoso
+#                               Web with it — which a single instance does, and
+#                               which is how mokapi's OOM under a 170 MB body
+#                               would have become a platform-wide failure.
+#   a blast radius is real      each vendor gets its OWN memory budget, sized to
+#                               its OWN payload, rather than one ceiling that is
+#                               either too small for the largest or wasteful for
+#                               the rest.
+#   a mount is a boundary       a vendor is handed ONLY its own spec and its own
+#                               bytes. It is not possible for Contoso POS to
+#                               serve Contoso Web's export by a path typo,
+#                               because that path is not in its container.
+#   an address is a system      a vendor is reached at its own host:port, which
+#                               is what changes — and all that changes — when
+#                               this is pointed at the real company.
+#
+# Adding a vendor is copying one block and giving it the next port pair.
+# `test_one_mokapi_instance_per_source` fails if a spec appears without one.
 services:
-  mokapi:
+  # --- Contoso POS: the vendor's export API --------------------------------
+  mokapi-pos:
     image: mokapi/mokapi:${MOKAPI_VERSION:?see versions.env}
     command:
       - /sources/contoso-pos/openapi.yaml
       - /sources/contoso-pos/serve.js
     volumes:
-      # Read-only: mokapi serves the vendor's bytes, it never writes them.
-      # `make sources` materialises them from the published generators.
-      - ../sources:/sources:ro
+      # Read-only, and SCOPED TO THIS VENDOR: its spec and its bytes, nothing
+      # else. `make sources` materialises them from the published generators.
+      - ../sources/contoso-pos:/sources/contoso-pos:ro
+      - ../sources/_data/contoso-pos:/sources/_data/contoso-pos:ro
+    # An EXPLICIT ceiling, because the implicit one killed it. `read()` holds
+    # the whole body in a JS string — UTF-16, so ~2x the 170 MB file — and the
+    # container was OOMKilled with 15 GB free on the host, which points at a
+    # per-container default rather than host pressure. Stating the budget makes
+    # the failure reproducible instead of dependent on the runtime's defaults.
+    # Sized to THIS vendor's export; another vendor sets its own.
+    mem_limit: 4g
+    # A vendor that dies mid-run should come back, and its death should be
+    # visible rather than surfacing as `Connection refused` three steps later.
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     # NON-DEFAULT HOST PORTS, deliberately. 8080 is the most contended port on
     # a developer machine and 5432 is the second — a native Postgres service
     # silently won the race against this stack's container and produced
     # `role "contoso" does not exist`, an error that names neither port nor
     # process. Container-side ports stay standard; only what we publish moves.
+    # Each vendor owns a pair: 1809x for its API, 1808x for its dashboard.
     ports:
-      - "${MOKAPI_PORT:-18090}:8090"   # the vendor APIs
-      - "${MOKAPI_UI_PORT:-18081}:8080"  # mokapi's dashboard
+      - "${POS_API_PORT:-18090}:8090"   # the vendor's API
+      - "${POS_UI_PORT:-18081}:8080"    # its mokapi dashboard
 
   # --- Contoso ERP: a relational source, captured ---------------------------
   # POS and Web publish file-shaped exports, so a REST endpoint is the honest

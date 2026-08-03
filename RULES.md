@@ -71,6 +71,12 @@ will break** — the "enforced by" column is the honest part of this document, a
 | **Why** | Calling a generator in-process makes lineage start at a landed file, and the vendor is never a node. It also skips auth, transport and failure entirely. |
 | **Enforced by** | `test_every_spec_has_a_serve_script`, `test_every_operation_requires_a_key` |
 
+| | |
+|---|---|
+| **Rule** | Each source system gets its **own** mokapi instance, mounted only its own spec and its own bytes. Never one instance serving several vendors. |
+| **Why** | Separate companies are separate processes. Sharing one makes a single vendor's outage everyone's outage, puts every payload under one memory ceiling — the shape that let a 170 MB body OOM-kill the container — and hands each vendor every other one's export to serve by a path typo. |
+| **Enforced by** | `test_one_mokapi_instance_per_source` |
+
 ## 4. Numbers are claims
 
 | | |
