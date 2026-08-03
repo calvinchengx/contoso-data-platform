@@ -30,8 +30,21 @@ services:
   mokapi-pos:
     image: mokapi/mokapi:${MOKAPI_VERSION:?see versions.env}
     command:
+      # The dashboard keeps every request AND its response body in memory. For
+      # a 95 MB export that is a 246 MB JSON copy retained per call — measured,
+      # not estimated — so the history is capped at one entry per API. The
+      # dashboard still shows the last call, which is all it is used for here.
+      - --event-store-default-size=1
       - /sources/contoso-pos/openapi.yaml
       - /sources/contoso-pos/serve.js
+    environment:
+      # Go does NOT read the cgroup limit. Without this the runtime assumes it
+      # can grow, lets the heap climb past `mem_limit`, and the container is
+      # terminated mid-response — which is what `restart: unless-stopped` was
+      # quietly papering over. Measured: 7 large requests killed it without
+      # this, 24 ran clean with it. Set below mem_limit so the GC has room to
+      # work rather than at the ceiling where it has none.
+      GOMEMLIMIT: 2GiB
     volumes:
       # Read-only, and SCOPED TO THIS VENDOR: its spec and its bytes, nothing
       # else. `make sources` materialises them from the published generators.
@@ -46,6 +59,10 @@ services:
     mem_limit: 4g
     # A vendor that dies mid-run should come back, and its death should be
     # visible rather than surfacing as `Connection refused` three steps later.
+    # NOTE: this is a seatbelt, not the fix. It restarted 4 times across a
+    # session and every run still passed, because a fresh mokapi answers the
+    # next request — so the policy hid a real defect behind a green pipeline.
+    # GOMEMLIMIT above is the fix; keep this for genuine crashes only.
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080 || exit 1"]
