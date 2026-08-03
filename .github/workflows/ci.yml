@@ -35,7 +35,32 @@ jobs:
       # Reports, never fails on PENDING: the fixture wheels are published by
       # fabric-emulator's release workflow, and until a release carries them
       # this repo is legitimately waiting. Saying so out loud beats a skip.
-      - run: make doctor
+      #
+      # GitHub's macOS runners ship NO DOCKER — a documented fact about the
+      # image, not a defect here — so `make doctor` correctly fails there and
+      # `make config` has no `docker compose` to call.
+      - if: matrix.os != 'macos-latest'
+        run: make doctor
       # Proves the compose file parses and the pin resolves, without pulling
       # a single image.
-      - run: make config
+      - if: matrix.os != 'macos-latest'
+        run: make config
+      # macOS gets the STRONGER check, not a skip. Asserting that doctor
+      # detects the missing daemon exercises its failure path — the branch a
+      # user actually hits on a fresh machine, and the one that never runs
+      # anywhere Docker is installed. A skip would prove nothing and would
+      # hide the day doctor stops noticing.
+      - if: matrix.os == 'macos-latest'
+        name: doctor reports the absent Docker rather than passing blindly
+        run: |
+          if out=$(make doctor 2>&1); then
+            echo "$out"
+            echo "::error::doctor passed on a runner with no Docker installed"
+            exit 1
+          fi
+          echo "$out"
+          echo "$out" | grep -q "MISS.*docker" || {
+            echo "::error::doctor failed but never named docker as the cause"
+            exit 1
+          }
+          echo "doctor correctly reported the absent Docker daemon"
