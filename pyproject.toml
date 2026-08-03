@@ -24,7 +24,7 @@ dependencies = [
 # Locked, not resolved fresh on every run: `--with pytest` would pull whatever
 # version exists that day, which is a different test suite than the one that
 # passed yesterday.
-dev = ["pytest>=8,<9", "ruff>=0.14,<0.15", "ty>=0.0.1a1"]
+dev = ["pytest>=9.0.3,<10", "ruff>=0.14,<0.15", "ty>=0.0.1a1"]
 
 [tool.uv]
 package = false
