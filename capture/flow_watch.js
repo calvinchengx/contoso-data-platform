@@ -34,15 +34,31 @@ const STOP = process.env.STOP_FILE || '/capture/shots/.stop'
   await page.goto(`${PORTAL}/#flow`, { waitUntil: 'domcontentloaded' })
   await page.waitForTimeout(4000)
 
-  // The graph comes from recorded lineage, so it exists before anything runs.
-  // If it does not, the video would show an empty pane for ten minutes.
-  const rendered = await page
-    .locator('svg, canvas, .react-flow, [class*="flow"]')
-    .first()
-    .waitFor({ timeout: 30000 })
-    .then(() => true)
-    .catch(() => false)
-  console.log(`RENDERED ${rendered}`)
+  // What "rendered" has to mean, and why it cannot be checked up front.
+  //
+  // This asserted once, seconds after opening the page, on the premise that
+  // "the graph comes from recorded lineage, so it exists before anything runs".
+  // That is true only when a PREVIOUS run left lineage in the store. On a fresh
+  // workspace — the case this recording exists for — there are no edges yet, so
+  // the portal renders "No lineage recorded yet" and emits no <svg> at all. The
+  // check therefore failed on every clean run while the video was perfectly
+  // good: the graph appeared a minute later and the recording caught it.
+  //
+  // So the question is not "was a graph there when we arrived" but "did this
+  // recording ever capture one". That can only be answered by watching, which
+  // is what the loop below already does. `g.node` and not `svg` because an
+  // empty <svg> is not a graph — the original selector would also have accepted
+  // any element whose class merely contains "flow".
+  const NODES = 'svg g.node'
+  let maxNodes = 0
+
+  const countNodes = async () => {
+    const n = await page.locator(NODES).count().catch(() => 0)
+    if (n > maxNodes) maxNodes = n
+    return n
+  }
+
+  await countNodes()
 
   // Poll for the stop file rather than sleeping a fixed span: the pipeline
   // decides when it is done, and a fixed duration either truncates the run or
@@ -51,8 +67,20 @@ const STOP = process.env.STOP_FILE || '/capture/shots/.stop'
   let ticks = 0
   while (Date.now() < deadline && !fs.existsSync(STOP)) {
     await page.waitForTimeout(1000)
-    if (++ticks % 30 === 0) console.log(`WATCHING ${ticks}s`)
+    ticks++
+    // Sampled, not continuous: the count is only needed to know the graph was
+    // on screen, and a locator query every second would contend with the very
+    // rendering being recorded.
+    if (ticks % 5 === 0) await countNodes()
+    if (ticks % 30 === 0) console.log(`WATCHING ${ticks}s  nodes=${maxNodes}`)
   }
+
+  // One last look. A run that finishes between samples — a short pipeline, or
+  // the stop file landing just after a tick — would otherwise be recorded as
+  // having shown nothing.
+  await countNodes()
+  const rendered = maxNodes > 0
+  console.log(`RENDERED ${rendered} (max nodes on screen: ${maxNodes})`)
 
   await page.screenshot({ path: path.join(OUT, '99-data-flow-final.png') })
 
