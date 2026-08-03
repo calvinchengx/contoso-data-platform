@@ -31,11 +31,23 @@ def local_override():
     wheels = sorted(pathlib.Path(d).glob("*.whl"))
     if not wheels:
         sys.exit(f"FIXTURE_WHEELS_DIR={d} contains no wheels")
+    # Extras apply to local wheels too. Without them fabric-target installs but
+    # cannot authenticate, and the lazy import means that surfaces at the first
+    # call rather than here — the exact confusion this override exists to avoid.
+    specs = []
+    for w in wheels:
+        name = w.name.split("-")[0]  # `fabric_target-0.14.1-py3-...whl`
+        extras = rel.EXTRAS.get(name)
+        if extras:
+            # A PEP 508 direct reference needs a URI, not a bare path.
+            specs.append(f"{name.replace('_', '-')}{extras} @ {w.resolve().as_uri()}")
+        else:
+            specs.append(str(w))
     print("!" * 72)
     print("LOCAL WHEELS — not the published artifact. This run verifies your")
     print(f"working tree, NOT a released fabric-emulator.  {d}")
     print("!" * 72)
-    return [str(w) for w in wheels]
+    return specs
 
 
 def ensure_env():

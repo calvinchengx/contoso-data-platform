@@ -6,27 +6,61 @@ nowhere else, so a reader can see the whole difference in one file — and so
 that "would this run on real Fabric?" is answerable by reading it rather than
 by auditing every call site.
 
-The contract is the emulator's own (docs/21-real-fabric-toggle):
+THE CONTRACT ITSELF IS NOT WRITTEN HERE. It is `fabric-target`, published from
+the emulator's release workflow and installed by `make fixtures` alongside the
+generators. This file is the CONSUMER half: the handful of decisions that are
+this platform's policy rather than the toggle's — who plays the Spark pool,
+whether a capacity has to be assigned, which Host header OneLake wants locally.
 
-    FABRIC_TARGET=emulator   local family, seeded credentials, self-signed TLS
-    FABRIC_TARGET=real       api.fabric.microsoft.com, AZURE_* credentials, TLS on
+That split is new, and it is the fix for a real defect. While `fabric-target`
+was unpublished this file RESTATED the contract, and the restatement drifted:
+it resolved the real target to an Entra client-credentials flow and required
+AZURE_CLIENT_SECRET, which meant `az login` did not work, a managed identity
+did not work, and the platform could not have run inside a Fabric notebook at
+all — a notebook has no client secret to give. The published package resolves
+`DefaultAzureCredential` instead: env service-principal vars win when set, and
+otherwise the developer's own `az login` does. A contract you copy is a
+contract you get wrong, so this file no longer copies one.
 
 Ids can never match across targets, so anything durable is addressed BY NAME
 and resolved to a GUID per target.
-
-NOTE FOR THE EMULATOR PROJECT: `python/fabric-target/` implements this contract
-already, but it is not published, so a consumer cannot install it and must
-restate the contract here. Publishing it alongside the fixture wheels would
-remove this file.
 """
 
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from typing import Protocol
+
+import fabric_target
+
+
+class AccessToken(Protocol):
+    token: str
+
+
+class TokenCredential(Protocol):
+    """azure-core's credential shape, structurally.
+
+    Declared rather than imported so this module keeps working when
+    azure-identity is not installed — against the emulator it is not, and the
+    credential is `fabric-target`'s own stdlib client-credentials object. What
+    matters is the shape both satisfy, which is the reason a Fabric notebook's
+    managed identity drops in here without anything above knowing.
+    """
+
+    def get_token(self, *scopes: str) -> AccessToken: ...
+
 
 EMULATOR = "emulator"
 REAL = "real"
+
+# The one workspace this platform owns. Named here because the name is the
+# cross-target address — `provision.py` resolves it to a GUID per target — and
+# because real mode is workspace-scoped by construction: `fabric-target`
+# refuses to operate tenant-wide, which is the right rule and one this platform
+# has no reason to opt out of.
+WORKSPACE = "contoso-analytics"
 
 
 def target() -> str:
@@ -40,10 +74,12 @@ def target() -> str:
 class Target:
     name: str
     api_root: str
-    authority: str
     tenant: str
-    client_id: str
-    client_secret: str
+    # A TokenCredential — `get_token(scope) -> .token`. Against the emulator it
+    # is the seeded daemon; against real Fabric, DefaultAzureCredential, which
+    # is what makes `az login` and a Fabric notebook's own managed identity
+    # work without this platform knowing which one it got.
+    credential: TokenCredential
     onelake_url: str
     # The emulator serves OneLake on the Fabric port and routes by Host header,
     # the way `curl --resolve` does. Real Fabric has its own hostname and needs
@@ -58,6 +94,18 @@ class Target:
     # Where the Spark session comes from. In a Fabric notebook `spark` is
     # ambient and this is None; outside one, a Spark Connect endpoint.
     spark_remote: str | None
+    # WHO EXECUTES A NOTEBOOK. Real Fabric runs a RunNotebook job on its own
+    # Spark pool: the client submits and polls, and nothing else is required of
+    # it. The emulator parses the notebook into ordered cells and records a
+    # Pending run, then waits for an attached engine to execute them and report
+    # back — deliberately, so that a terminal job status means execution really
+    # happened rather than that a clock advanced.
+    #
+    # So the notebook itself is identical on both targets, and this is the only
+    # difference: on the emulator the platform must ALSO play the Spark pool.
+    # That is emulator scaffolding, which is why it is selected here and why
+    # engine.py never runs against production.
+    runs_notebooks_itself: bool
     # Where secrets live. The azure-keyvault-emulator locally, the customer's
     # real vault in production — never the source tree, on either target.
     vault_url: str
@@ -70,6 +118,16 @@ class Target:
     @property
     def is_emulator(self) -> bool:
         return self.name == EMULATOR
+
+    def token(self, audience: str) -> str:
+        """A bearer token for `audience`, from whatever credential this target
+        resolved. The audiences are the real Fabric ones on both targets — the
+        emulator validates the same strings — so nothing above this line knows
+        which identity answered, which is the whole point: `az login`, a
+        service principal and a notebook's managed identity are all just a
+        credential here.
+        """
+        return self.credential.get_token(f"{audience}/.default").token
 
     def delta_storage_options(self, tok: str) -> dict[str, str]:
         """What delta-rs needs to reach OneLake on this target.
@@ -95,61 +153,60 @@ class Target:
         return opts
 
 
-def _require(name: str) -> str:
-    v = os.environ.get(name)
-    if not v:
-        raise SystemExit(
-            f"FABRIC_TARGET=real needs {name}. The real target authenticates with "
-            f"a Microsoft Entra service principal — see docs/21-real-fabric-toggle."
-        )
-    return v
-
-
 def resolve() -> Target:
-    if target() == REAL:
-        tenant = _require("AZURE_TENANT_ID")
+    # Declared before the resolver runs, because real mode refuses to construct
+    # without a workspace scope. An explicit default is not a workaround for
+    # that rule — this platform genuinely owns one workspace, and saying so is
+    # what the rule asks for. An operator pointing the platform at a
+    # differently named workspace sets FABRIC_WORKSPACE and this leaves it be.
+    os.environ.setdefault("FABRIC_WORKSPACE", WORKSPACE)
+
+    # Endpoints, credentials and the seed guards come from the PUBLISHED
+    # contract; everything below is this platform's own policy.
+    ft = fabric_target.target(target(), fresh=True)
+    # `fabric-target` hands back the versioned control plane; this platform
+    # composes `/v1` per call, and xmla_probe needs the bare host.
+    api_root = ft.api_root.removesuffix("/v1")
+
+    if ft.is_real:
+        vault = ft.vault_url
+        if not vault:
+            raise SystemExit(
+                "FABRIC_TARGET=real needs AZURE_KEY_VAULT_URL — secrets come "
+                "from the customer's own Key Vault, never the source tree."
+            )
         return Target(
             name=REAL,
-            api_root=os.environ.get(
-                "FABRIC_API_ROOT_URL", "https://api.fabric.microsoft.com"
-            ),
-            authority="https://login.microsoftonline.com",
-            tenant=tenant,
-            client_id=_require("AZURE_CLIENT_ID"),
-            client_secret=_require("AZURE_CLIENT_SECRET"),
-            onelake_url="https://onelake.dfs.fabric.microsoft.com",
+            api_root=api_root,
+            tenant=ft.tenant,
+            credential=ft.credential,
+            onelake_url=ft.onelake_url,
             onelake_host_header=None,
             verify_tls=True,
             capacity_is_auto_assigned=False,
             # A Fabric Spark notebook supplies the session; nothing to connect to.
             spark_remote=os.environ.get("SPARK_REMOTE"),
-            vault_url=_require("AZURE_KEY_VAULT_URL"),
+            runs_notebooks_itself=True,
+            vault_url=vault,
             entra_admin_api=None,
         )
 
-    fabric = os.environ.get("FABRIC_URL", "https://localhost:9443")
     return Target(
         name=EMULATOR,
-        api_root=fabric,
-        authority=os.environ.get("ENTRA_URL", "https://localhost:8443"),
-        # The seeded tenant and daemon principal, published in the quickstart.
-        tenant=os.environ.get(
-            "AZURE_TENANT_ID", "11111111-1111-1111-1111-111111111111"
-        ),
-        client_id=os.environ.get(
-            "AZURE_CLIENT_ID", "cccccccc-0000-0000-0000-000000000002"
-        ),
-        client_secret=os.environ.get("AZURE_CLIENT_SECRET", "daemon-app-secret"),
-        onelake_url=fabric,
+        api_root=api_root,
+        tenant=ft.tenant,
+        credential=ft.credential,
+        onelake_url=ft.onelake_url,
         onelake_host_header="onelake.dfs.fabric.microsoft.com",
-        # Off ONLY here. The family serves self-signed certificates a consumer
-        # has no CA for; the TLS path is still exercised. On the real target
-        # this is True and there is no way to turn it off from configuration,
-        # which is deliberate.
-        verify_tls=False,
+        # Off ONLY here, and not by this file's choice — the published contract
+        # sets tls_verify False for the emulator, whose family serves
+        # self-signed certificates a consumer has no CA for. The TLS path is
+        # still exercised. On the real target it is True above, literally, and
+        # no configuration reaches it.
+        verify_tls=ft.tls_verify,
         capacity_is_auto_assigned=True,
         spark_remote=os.environ.get("SPARK_REMOTE", "sc://localhost:50051"),
-        vault_url=os.environ.get("AZURE_KEY_VAULT_URL", "https://localhost:8444"),
-        entra_admin_api=os.environ.get("ENTRA_URL", "https://localhost:8443")
-        + "/admin/api/apps",
+        runs_notebooks_itself=False,
+        vault_url=ft.vault_url,
+        entra_admin_api=ft.entra_url + "/admin/api/apps",
     )

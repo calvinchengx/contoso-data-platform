@@ -116,6 +116,39 @@ def test_the_emulator_client_plumbing_is_never_imported():
     assert not offenders, f"must not import the emulator's own plumbing: {offenders}"
 
 
+def test_the_toggle_contract_is_installed_not_restated():
+    """`fabric-target` is the FABRIC_TARGET contract, published by the emulator
+    and installed by `make fixtures`. This repo consumes it.
+
+    It used to restate it, and the restatement drifted: the real target
+    resolved an Entra client-credentials flow and required AZURE_CLIENT_SECRET,
+    so `az login` could not drive the platform, a managed identity could not,
+    and it could not have run inside a Fabric notebook at all — there is no
+    client secret to give there. A copied contract is a contract that gets one
+    branch wrong and stays green, because the emulator does not care which
+    identity showed up.
+    """
+    src = (ROOT / "platform" / "target.py").read_text()
+    assert "import fabric_target" in src, (
+        "target.py must consume the published contract, not restate it"
+    )
+    assert "grant_type" not in src, "the grant type is the package's business"
+
+    # And nowhere else may mint a token by hand. Matched on the CODE shape — a
+    # quoted `grant_type` key, or the token endpoint — rather than on the bare
+    # words, which appear in the prose explaining why this rule exists.
+    hand_rolled = re.compile(r"""["']grant_type["']|oauth2/v2\.0/token""")
+    offenders = []
+    for p in sorted((ROOT / "platform").glob("*.py")):
+        for i, line in enumerate(p.read_text().splitlines(), 1):
+            if hand_rolled.search(line):
+                offenders.append(f"{p.name}:{i}: {line.strip()}")
+    assert not offenders, (
+        "tokens come from the target's credential, so that az login, a service "
+        f"principal and a notebook's managed identity all work: {offenders}"
+    )
+
+
 def test_python_is_only_ever_invoked_through_uv():
     """uv, strictly.
 
@@ -170,10 +203,22 @@ def test_the_emulator_appears_only_in_the_target_resolver():
     )
 
 
+def real_branch() -> str:
+    """The real target's arm of the resolver, as source.
+
+    Read rather than executed: constructing the real target needs a live
+    credential source, and the point of these assertions is that the value is a
+    LITERAL no configuration can reach — which is a property of the text.
+    """
+    src = (ROOT / "platform" / "target.py").read_text()
+    return src[
+        src.index("if ft.is_real:") : src.index("return Target(\n        name=EMULATOR")
+    ]
+
+
 def test_tls_verification_is_never_hardcoded_off():
     """The real target must not be able to run with verification disabled."""
-    src = (ROOT / "platform" / "target.py").read_text()
-    real = src[src.index("if target() == REAL:") : src.index("fabric = os.environ")]
+    real = real_branch()
     assert "verify_tls=True" in real, "the real target must verify TLS"
     assert "allow_invalid" not in real
 

@@ -39,6 +39,12 @@ will break** — the "enforced by" column is the honest part of this document, a
 
 | | |
 |---|---|
+| **Rule** | The `FABRIC_TARGET` contract is **installed**, never restated. `platform/target.py` consumes the published `fabric-target` package and adds only this platform's own policy. |
+| **Why** | It used to restate it, and the copy drifted: the real target resolved an Entra client-credentials flow and demanded `AZURE_CLIENT_SECRET`, so `az login` could not drive the platform, a managed identity could not, and it could not have run inside a Fabric notebook at all — there is no client secret to give there. The emulator never noticed, because it does not care which identity shows up. A copied contract is one you get wrong in the branch nothing exercises. |
+| **Enforced by** | `test_the_toggle_contract_is_installed_not_restated` |
+
+| | |
+|---|---|
 | **Rule** | Never import `common` from the fixture wheels. |
 | **Why** | It is the emulator's own client plumbing. Using it would void the claim this repository exists to make: that a consumer can build against a published image without the source. |
 | **Enforced by** | `test_the_emulator_client_plumbing_is_never_imported` |
@@ -145,10 +151,15 @@ will break** — the "enforced by" column is the honest part of this document, a
 
 Nothing here duplicates the emulator's own guidance. Two things belong there:
 
-- **`docs/21-real-fabric-toggle.md`** — the `FABRIC_TARGET` contract this repo
-  implements. `python/fabric-target/` implements it too but is **not published**,
-  so a consumer must restate it; publishing it beside the fixture wheels would
-  delete our `target.py`.
+- **`docs/21-real-fabric-toggle.md`** and the `fabric-target` package that
+  implements it — the `FABRIC_TARGET` contract. It **is** published now, beside
+  the fixture wheels, and `make fixtures` installs it. What survives in our
+  `platform/target.py` is only the consumer half: the decisions that are this
+  platform's policy rather than the toggle's (who plays the Spark pool, whether
+  a capacity must be assigned, OneLake's local Host header). Endpoints,
+  credentials and the seed guards come from the package. Anything you are
+  tempted to add to `target.py` that would be true for *any* consumer belongs
+  upstream instead.
 - Anything that exists *only* to make the emulator work. The dbt runner image is
   **not** that: `dbt-fabric` + ODBC Driver 18 is Microsoft's own requirement
   against real Fabric, so it stays here as this platform's build tooling.

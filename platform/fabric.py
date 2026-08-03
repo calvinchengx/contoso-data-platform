@@ -1,10 +1,12 @@
 """A Fabric client. Not an emulator client that happens to reach Fabric.
 
-Every call below is the real Fabric contract — the Entra client-credentials
-flow, the `/v1` control plane, OneLake's ADLS Gen2 create/append/flush. What
-differs between the local family and production is resolved in target.py and
-appears here only as configuration: an endpoint, a credential, a TLS flag, one
-Host header. Nothing in this module is shaped around the emulator.
+Every call below is the real Fabric contract — an Entra bearer token, the `/v1`
+control plane, OneLake's ADLS Gen2 create/append/flush. What differs between
+the local family and production is resolved in target.py and appears here only
+as configuration: an endpoint, a credential, a TLS flag, one Host header.
+Nothing in this module is shaped around the emulator — including how it
+authenticates, which is a credential object rather than a grant type this file
+picked.
 
 DELIBERATELY NOT `common.py`. That module ships inside the contoso-fixtures
 wheel and would give this repository the emulator's own client plumbing — which
@@ -17,6 +19,7 @@ from __future__ import annotations
 
 import pathlib
 import ssl
+import time
 import urllib.parse
 
 import requests
@@ -48,21 +51,22 @@ def log(msg: str) -> None:
 
 
 def token(audience: str) -> str:
-    """Entra client credentials. The same flow and the same audiences against
-    both targets — only the authority and the principal differ."""
-    r = S.post(
-        f"{T.authority}/{T.tenant}/oauth2/v2.0/token",
-        data={
-            "grant_type": "client_credentials",
-            "client_id": T.client_id,
-            "client_secret": T.client_secret,
-            "scope": f"{audience}/.default",
-        },
-        timeout=30,
-    )
-    r.raise_for_status()
-    tok = r.json()["access_token"]
-    assert tok, "entra returned an empty access token"
+    """A bearer token for `audience`, from the target's credential.
+
+    THE GRANT TYPE IS NOT DECIDED HERE, and that is the point. This used to POST
+    `grant_type=client_credentials` with a client id and secret, which quietly
+    made a service principal the only identity the platform could ever use:
+    `az login` could not drive it, and inside a Fabric notebook — where the
+    session runs as the invoking user or a managed identity and there is no
+    secret to hand over — it could not run at all. The target resolves a
+    credential instead, so who is authenticating is the deployment's business
+    and not this module's.
+
+    The audiences are the real Fabric ones on both targets; the emulator
+    validates the same strings.
+    """
+    tok = T.token(audience)
+    assert tok, f"the {T.name} credential returned an empty access token"
     return tok
 
 
@@ -94,6 +98,39 @@ def fabric(method: str, path: str, tok: str, **kw):
         **kw,
     )
     return r
+
+
+def await_operation(resp, tok: str, what: str) -> dict:
+    """Poll a long-running operation to its result.
+
+    Fabric splits item writes by whether a DEFINITION is involved: creating an
+    empty item is synchronous (201), while creating or updating one that
+    carries source — a notebook, a report — is a 202 with an operation to poll.
+    Both are the real contract, so a caller that only handles 201 works right up
+    until it publishes something with a body.
+
+    Returns the operation result, or `{}` for an operation that succeeds
+    without one (updateDefinition).
+    """
+    if resp.status_code == 201:
+        return resp.json()
+    assert resp.status_code == 202, (what, resp.status_code, resp.text[:300])
+    op = resp.headers.get("x-ms-operation-id")
+    assert op, f"{what}: 202 with no x-ms-operation-id: {dict(resp.headers)}"
+
+    for _ in range(120):
+        r = fabric("GET", f"/operations/{op}", tok)
+        assert r.status_code == 200, (what, r.status_code, r.text[:200])
+        status = r.json().get("status")
+        if status == "Succeeded":
+            got = fabric("GET", f"/operations/{op}/result", tok)
+            # An operation with nothing to return answers 400
+            # OperationNotComplete-style rather than a body; that is a success
+            # with no result, not a failure.
+            return got.json() if got.status_code == 200 else {}
+        assert status != "Failed", (what, r.text[:300])
+        time.sleep(1)
+    raise SystemExit(f"{what}: operation {op} never completed")
 
 
 def onelake(method: str, path: str, tok: str, **kw):

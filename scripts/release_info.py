@@ -25,7 +25,18 @@ VERSIONS = ROOT / "versions.env"
 # The generators. Published from the emulator's release workflow so that this
 # repo's assertions and the in-tree examples' assertions come from ONE seeded
 # generator — see scripts/build_fixture_wheels.py over there.
-WHEELS = ["contoso_fixtures", "contoso_fixtures_advanced"]
+#
+# `fabric_target` rides the same channel for the same reason, one level up: it
+# is the emulator-or-real contract, and this repo used to RESTATE it in
+# platform/target.py. The restatement drifted — it dropped the
+# `DefaultAzureCredential` branch, so the real target demanded a client secret
+# and could never have run inside a Fabric notebook, where there is no secret
+# to give. A contract you copy is a contract you get wrong.
+#
+# The extras are not optional here: the package is stdlib-only at its core and
+# lazily imports azure-identity (real credentials) and requests (sessions).
+WHEELS = ["contoso_fixtures", "contoso_fixtures_advanced", "fabric_target"]
+EXTRAS = {"fabric_target": "[real,sessions]"}
 
 
 def pins() -> dict[str, str]:
@@ -53,6 +64,22 @@ def wheel_urls(v=None):
     return [
         f"https://github.com/{REPO}/releases/download/v{v}/{name}-{v}-py3-none-any.whl"
         for name in WHEELS
+    ]
+
+
+def install_specs(v=None):
+    """What to hand `uv pip install` — the URLs, carrying their extras.
+
+    A bare wheel URL installs the package WITHOUT its extras, and for
+    fabric-target that failure is invisible until the first real call: the
+    azure-identity import is lazy, so a run would get all the way to
+    authenticating before saying anything. The extras belong on the install
+    line, which is why this is separate from `wheel_urls` — that one feeds HEAD
+    checks, where a PEP 508 spec is not a URL.
+    """
+    return [
+        f"{name.replace('_', '-')}{EXTRAS[name]} @ {url}" if name in EXTRAS else url
+        for name, url in zip(WHEELS, wheel_urls(v), strict=True)
     ]
 
 

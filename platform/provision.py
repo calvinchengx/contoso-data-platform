@@ -16,7 +16,11 @@ from __future__ import annotations
 import state
 from fabric import FABRIC_AUD, T, fabric, log, token
 
-WORKSPACE = "contoso-analytics"
+# From the target, not restated here: real mode is workspace-scoped and the
+# resolver needs the name before this module is even imported. One string, one
+# place — a second copy would be a second answer the day it drifts.
+from target import WORKSPACE
+
 LAKEHOUSE = "contoso_lake"
 
 
