@@ -1142,17 +1142,23 @@ def test_no_table_with_a_nested_column_is_read_over_tds():
     the released build, with a flat column positioned after three nested ones
     coming back correct. So this is no longer about corruption.
 
-    IT STILL HOLDS, because nested data is not reachable over TDS on either
-    target. Real Fabric does not represent these columns at all: "Types that
-    aren't listed in the table aren't represented as the table columns in the
-    SQL analytics endpoint", and its Delta-to-SQL mapping lists no struct, array
-    or map. The emulator instead surfaces them as varchar NULL, which is a
-    remaining divergence rather than the documented behaviour — but either way
-    the data is not there.
+    IT STILL HOLDS, because nested data is not reachable over TDS on any build.
+    Real Fabric does not represent these columns at all: "Types that aren't
+    listed in the table aren't represented as the table columns in the SQL
+    analytics endpoint", and its Delta-to-SQL mapping lists no struct, array or
+    map.
 
-    So a table read over TDS silently loses whatever the vendor nested inside
-    it. Spark reads Delta directly and gets the real thing, which is why
-    bronze_web_orders is read by the notebook and never by dbt or the catalog.
+    HOW THE EMULATOR GETS THERE HAS CHANGED, and this test deliberately does not
+    depend on which: on v0.16.0, the pinned build, the columns are present and
+    always NULL; past f51d5bd they are absent from INFORMATION_SCHEMA entirely,
+    matching the documented contract. The second is the one to write new
+    assertions against — but the invariant here is about which tables get read
+    over TDS at all, so it is true either way and stays true across the bump.
+
+    So a table read over TDS loses whatever the vendor nested inside it, whether
+    by returning nothing or by not offering the column. Spark reads Delta
+    directly and gets the real thing, which is why bronze_web_orders is read by
+    the notebook and never by dbt or the catalog.
     """
     govern = (ROOT / "platform" / "govern.py").read_text(encoding="utf-8")
     start = govern.index("MEDALLION = [")
