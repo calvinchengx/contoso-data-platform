@@ -312,11 +312,16 @@ def test_credentials_come_from_key_vault():
 
 
 def test_set_release_moves_every_version_the_emulator_tags():
-    """The emulator's release tags fabric-emulator AND sail together.
+    """The emulator's release tags fabric-emulator, sail AND spark-agent.
 
-    Sail is the Spark engine — bronze and silver run inside it — so moving the
-    emulator while leaving sail pinned would verify a new release against an
-    old engine and call the result a release test.
+    Sail is the Spark engine — bronze and silver run inside it. spark-agent is
+    what the emulator drives to execute a notebook. Moving the emulator while
+    leaving either pinned would verify a new release against an old engine and
+    call the result a release test.
+
+    NOTE this test cannot catch an allowlist that has fallen BEHIND; it derives
+    its expectation from the allowlist. That is
+    `test_every_emulator_family_image_tracks_the_release`'s job.
     """
     sys.path.insert(0, str(ROOT / "scripts"))
     from set_release import TRACKS_THE_RELEASE, set_version
@@ -339,6 +344,46 @@ def test_set_release_moves_every_version_the_emulator_tags():
         assert b.group(1) == a.group(1), f"{key} moved: {b.group(1)} -> {a.group(1)}"
 
 
+def test_every_emulator_family_image_tracks_the_release():
+    """Check the allowlist against something OTHER than itself.
+
+    `test_set_release_moves_every_version_the_emulator_tags` asserts
+    `set(moved) == set(TRACKS_THE_RELEASE)` — it derives its expectation FROM
+    the allowlist, so it passes whatever that tuple happens to say, including a
+    tuple that has silently fallen behind. Add a fourth image published by the
+    emulator's release workflow, forget the allowlist, and it stays pinned at
+    the previous version while everything above stays green. That already
+    nearly happened: spark-agent arrived and the allowlist named two things.
+
+    Compose is the independent witness. Every `ghcr.io/calvinchengx/
+    fabric-emulator*` image is tagged `{{version}}` by that one release
+    workflow, so its version variable MUST move with the release. entra and
+    keyvault are separate repositories on their own cadences, and the prefix
+    is what tells them apart.
+    """
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from set_release import TRACKS_THE_RELEASE
+
+    composed = "".join(p.read_text() for p in sorted((ROOT / "compose").glob("*.yml")))
+    family = dict(
+        re.findall(
+            r"image:\s*ghcr\.io/calvinchengx/(fabric-emulator[\w-]*)"
+            r":\$\{([A-Z_]+)",
+            composed,
+        )
+    )
+    assert family, (
+        "no ghcr.io/calvinchengx/fabric-emulator* images found in compose — "
+        "this guard is reading the wrong thing and would pass on anything"
+    )
+    missing = {img: var for img, var in family.items() if var not in TRACKS_THE_RELEASE}
+    assert not missing, (
+        f"published by the emulator's release but NOT in TRACKS_THE_RELEASE: "
+        f"{missing}. A release would move the emulator and leave these behind, "
+        f"silently — add them to scripts/set_release.py."
+    )
+
+
 def test_set_release_refuses_a_payload_that_is_not_a_version():
     """An empty client_payload would otherwise write `VERSION=` and surface
     four steps later as an image-pull error naming neither the payload nor this
@@ -350,6 +395,33 @@ def test_set_release_refuses_a_payload_that_is_not_a_version():
             text=True,
         )
         assert r.returncode != 0, f"accepted {bad!r}"
+
+
+def test_the_schedule_step_asserts_the_run_SUCCEEDED():
+    """ "It fired" is not the claim; "it ran unattended" is.
+
+    This step asserted only that a job instance with invokeType=Scheduled had
+    appeared. It logged "the platform runs unattended" over a run that died
+    mid-notebook on a Delta commit conflict, and `make verify` reported 14/14
+    across two such failures. A schedule that reliably starts something that
+    reliably fails is an alarm nobody wired up.
+    """
+    src = (ROOT / "platform" / "schedule.py").read_text()
+    assert "await_terminal(" in src, (
+        "the fired job is never polled to a terminal state, so its outcome is "
+        "unknown and the step passes on a failure"
+    )
+    assert 'detail.get("status") == "Completed"' in src, (
+        "the fired job's status is never asserted"
+    )
+    assert "await_quiet(" in src, (
+        "the schedule is created without waiting for the previous step's run "
+        "to finish; both write silver and one loses the Delta commit race"
+    )
+    assert 'detail["endTimeUtc"] >= detail["startTimeUtc"]' in src, (
+        "nothing checks that the fired job did not end before it started, "
+        "which is what resetting the clock under a running job produces"
+    )
 
 
 def test_the_acceptance_run_uses_the_dispatched_version():
@@ -434,23 +506,35 @@ def test_silver_runs_as_a_fabric_notebook():
     )
 
 
-def test_the_engine_driver_never_runs_against_real_fabric():
-    """Playing the Spark pool is emulator scaffolding.
+def test_the_platform_does_not_supply_its_own_spark_pool():
+    """The STACK runs the notebook; this repository is a consumer.
 
-    Real Fabric schedules a RunNotebook job onto its own pool; the emulator
-    parses the notebook and waits for an engine to report, so locally the
-    platform supplies one. That difference is resolved by the target like every
-    other, and an engine driver that ran against production would execute the
-    notebook twice — once here and once on Fabric's pool.
+    A driver that executed notebook cells here existed once, and only because
+    the published spark-agent image shipped without the agent in it — so no
+    consumer could supply the engine the emulator waits for. That was a
+    packaging bug upstream, fixed in fabric-emulator 0.15.0, and re-growing a
+    driver locally would mean this repository had quietly stopped being the
+    thing it exists to be.
+
+    So: no engine module, both targets run their own notebooks, and compose
+    provides the agent the emulator drives.
     """
-    real = real_branch()
-    assert "runs_notebooks_itself=True" in real, (
-        "real Fabric runs its own notebooks; the platform must not"
+    assert not (ROOT / "platform" / "engine.py").exists(), (
+        "platform/engine.py is back — the stack should run the notebook"
     )
 
-    src = (ROOT / "platform" / "silver.py").read_text()
-    assert "if not T.runs_notebooks_itself:" in src, (
-        "the engine driver is not gated on the target"
+    resolver = (ROOT / "platform" / "target.py").read_text()
+    assert "runs_notebooks_itself=False" not in resolver, (
+        "a target that does not run its own notebooks needs an engine from "
+        "somewhere, and this platform must not be it"
+    )
+
+    composed = "".join(p.read_text() for p in (ROOT / "compose").glob("*.yml"))
+    assert "spark-agent" in composed, (
+        "no spark-agent service; a notebook job would park forever"
+    )
+    assert "FABRIC_SPARK_AGENT_URL" in composed, (
+        "the emulator is never told where the agent is, so it cannot drive it"
     )
 
 
@@ -473,12 +557,11 @@ def test_notebook_lineage_is_observed_not_declared():
     assert 'LINEAGE.append(("read"' in nb, "the notebook does not record reads"
     assert 'LINEAGE.append(("write"' in nb, "the notebook does not record writes"
 
-    eng = (ROOT / "platform" / "engine.py").read_text()
-    assert "recorded[seen:]" in eng, (
-        "the engine must attribute the movements of EACH cell, not one set for "
-        "the whole notebook — that is what produced the phantom edges"
-    )
-
+    # Per-cell attribution is now the EMULATOR's job — it watches its own data
+    # plane and tags each access with the cell that made it. What this platform
+    # must not do is go back to declaring a set, which is what cross-multiplied
+    # into phantom edges. The edge COUNT is asserted for real by the govern
+    # step in `make verify`, which is where a regression would actually show.
     src = (ROOT / "platform" / "silver.py").read_text()
     for declared in ("READS", "WRITES"):
         assert f"{declared} = [" not in src, (
@@ -571,11 +654,24 @@ def test_the_schedule_step_puts_the_clock_back():
     """
     src = (ROOT / "platform" / "schedule.py").read_text()
     assert "def reset_clock()" in src, "the step never restores the clock"
-    # Before the assert, so a FAILING run also leaves time where it found it.
+
+    # THE GUARANTEE, NOT THE MECHANISM. This used to assert that reset_clock()
+    # appeared textually before the first assertion — which did give the
+    # property, but pinned one particular way of getting it. The step now has
+    # to poll the fired job to a terminal state while the clock is STILL
+    # advanced: that job's startTimeUtc was stamped in the advanced frame, so
+    # resetting first lands its endTimeUtc in the old one and the instance
+    # comes back having ended before it began. `finally` restores the clock on
+    # every path, failing ones included, without dictating the order.
     body = src[src.index("def main()") :]
-    assert body.index("reset_clock()") < body.index("assert len(after) > before"), (
-        "the clock must be restored before the assertion, or a failed run "
-        "leaves the stack broken for whatever runs next"
+    assert "finally:" in body, (
+        "the clock is restored on the happy path only; a failing assertion "
+        "leaves the stack an interval ahead of the token issuer"
+    )
+    tail = body[body.index("finally:") :]
+    assert "reset_clock()" in tail[:300], (
+        "reset_clock() is not in the finally block, so a failed run leaves the "
+        "stack broken for whatever runs next"
     )
 
 

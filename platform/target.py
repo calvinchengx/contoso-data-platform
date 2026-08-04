@@ -101,10 +101,18 @@ class Target:
     # back — deliberately, so that a terminal job status means execution really
     # happened rather than that a clock advanced.
     #
-    # So the notebook itself is identical on both targets, and this is the only
-    # difference: on the emulator the platform must ALSO play the Spark pool.
-    # That is emulator scaffolding, which is why it is selected here and why
-    # engine.py never runs against production.
+    # TRUE ON BOTH TARGETS since fabric-emulator 0.15.0, and the flag stays
+    # because the reason it could be false is worth keeping visible. The
+    # emulator parks a RunNotebook job until an engine reports — deliberately,
+    # so a terminal status means execution rather than a clock advancing — and
+    # for a long time nothing a consumer could pull could be that engine. This
+    # platform supplied one itself, in a driver that existed only because of
+    # that gap.
+    #
+    # It no longer does: compose runs the published spark-agent and the emulator
+    # is given FABRIC_SPARK_AGENT_URL, so the SERVICE executes the notebook, as
+    # real Fabric does. Point this platform at a stack without an agent and the
+    # job will park — which is the honest outcome, not a regression.
     runs_notebooks_itself: bool
     # WHETHER TIME CAN BE MOVED. A schedule is the one Fabric feature whose
     # whole behaviour is "wait, then act", and waiting is not a test. The
@@ -274,7 +282,7 @@ def resolve() -> Target:
         verify_tls=ft.tls_verify,
         capacity_is_auto_assigned=True,
         spark_remote=os.environ.get("SPARK_REMOTE", "sc://localhost:50051"),
-        runs_notebooks_itself=False,
+        runs_notebooks_itself=True,
         clock_is_controllable=True,
         event_triggers_have_rest_api=True,
         lineage_can_be_reported=True,

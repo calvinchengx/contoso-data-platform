@@ -59,7 +59,7 @@ will break** — the "enforced by" column is the honest part of this document, a
 
 | | |
 |---|---|
-| **Rule** | A transform's session comes from `spark.session()` in a script, and from the ambient `spark` in a notebook. Never `SparkSession.builder` at a call site. The one exception is `engine.py`, which *is* the engine and therefore has no session to inherit. |
+| **Rule** | A transform's session comes from `spark.session()` in a script, and from the ambient `spark` in a notebook. Never `SparkSession.builder` at a call site. |
 | **Why** | Inside a Fabric notebook a session is ambient with the workspace identity and the attached lakehouse; building a second one is wrong and slower. This is what makes the transforms paste-able into a notebook. |
 | **Enforced by** | judgement |
 
@@ -101,15 +101,21 @@ will break** — the "enforced by" column is the honest part of this document, a
 
 | | |
 |---|---|
-| **Rule** | A clock advance must fit inside one token lifetime, and the clock must be put back — before the assertion, so a failing run restores it too. |
-| **Why** | Only Fabric's clock moves; the Entra emulator that mints the tokens keeps its own. Jump further than a token lives and the two disagree permanently — every later call 401s `invalid token: expired`, including freshly minted tokens, because the new one is already past expiry as far as Fabric is concerned. It presents as an authentication fault and is really the clock lever. A stack left advanced breaks whatever runs next with an error nobody would trace back here. |
+| **Rule** | A clock advance must fit inside one token lifetime, and the clock must be put back on EVERY path — `finally`, so a failing run restores it too. Any job started in the advanced frame is polled to a terminal state before the reset. |
+| **Why** | Only Fabric's clock moves; the Entra emulator that mints the tokens keeps its own. Jump further than a token lives and the two disagree permanently — every later call 401s `invalid token: expired`, including freshly minted tokens, because the new one is already past expiry as far as Fabric is concerned. It presents as an authentication fault and is really the clock lever. A stack left advanced breaks whatever runs next with an error nobody would trace back here. And resetting *under a running job* is its own fault: the job's start was stamped in the advanced frame, so its end lands in the old one and the instance reports having finished before it began. |
 | **Enforced by** | `test_the_clock_advance_fits_inside_one_token_lifetime`, `test_the_schedule_step_puts_the_clock_back` |
 
 | | |
 |---|---|
-| **Rule** | Playing the Spark pool is emulator-only. `engine.py` runs behind `T.runs_notebooks_itself` and never against production. |
-| **Why** | Real Fabric schedules a RunNotebook job onto its own pool and reports back; the emulator parses the notebook and waits for an engine, deliberately, so that a terminal job status means execution happened rather than that a clock advanced. Locally the platform has to supply that engine — but running it against real Fabric would execute the notebook twice. |
-| **Enforced by** | `test_the_engine_driver_never_runs_against_real_fabric` |
+| | |
+|---|---|
+| **Rule** | A step asserts the OUTCOME of what it started, never merely that it was created. A job is polled to a terminal state and its status checked. |
+| **Why** | The schedule step asserted that a job instance with `invokeType=Scheduled` existed and stopped there. It logged "the platform runs unattended" over a run that had died mid-notebook on a Delta commit conflict, and `make verify` reported 14/14 across two such failures. A schedule that reliably starts something that reliably fails is not unattended operation; it is an alarm nobody wired up. The same shape appears wherever a create is mistaken for a result. |
+| **Enforced by** | `test_the_schedule_step_asserts_the_run_SUCCEEDED` |
+
+| **Rule** | The stack RUNS the notebook; this platform never plays the Spark pool. `compose` provides the published `spark-agent` and the emulator is given `FABRIC_SPARK_AGENT_URL`. |
+| **Why** | A Fabric notebook is executed by a Spark pool that reports back, and the emulator mirrors that rather than completing a job on a clock. Until fabric-emulator 0.15.0 no published artifact could be that engine — the spark-agent image shipped without the agent in it — so this platform supplied one, in `platform/engine.py`. That driver existed only because of a packaging bug upstream, and it is gone. Supplying an engine again would mean this repository had stopped being a consumer. |
+| **Enforced by** | `test_the_platform_does_not_supply_its_own_spark_pool` |
 
 ## 3. Layers do not leak
 

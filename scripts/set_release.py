@@ -6,11 +6,12 @@ carries a working platform". A run that fired on 0.13.1 but verified the 0.13.0
 in `versions.env` would be worse than no run at all: it reports success for a
 release nobody tested, and reports it in the emulator's own release history.
 
-TWO VERSIONS MOVE, not one. `sail` is built by the same release workflow with
-`type=semver,pattern={{version}}`, so it carries the emulator's tag — and it is
-the Spark engine, which decides how bronze and silver actually behave. Leaving
-it pinned while moving the emulator would verify a new emulator against an old
-engine and call that a release test.
+THREE VERSIONS MOVE, not one. `sail` and `spark-agent` are built by the same
+release workflow with `type=semver,pattern={{version}}`, so they carry the
+emulator's tag. Sail is the Spark engine, which decides how bronze and silver
+behave; spark-agent is what the emulator drives to run a notebook. Leaving
+either pinned while moving the emulator would verify a new emulator against an
+old engine and call that a release test.
 
 Rewrites in place rather than exporting environment variables, because compose
 reads `versions.env` via `--env-file` and `release_info` reads the same file.
@@ -27,7 +28,7 @@ VERSIONS = ROOT / "versions.env"
 
 # The keys the emulator's release tags in lockstep. Anything not listed here
 # ships on its own cadence and must NOT be moved by a fabric-emulator release.
-TRACKS_THE_RELEASE = ("FABRIC_EMULATOR_VERSION", "SAIL_VERSION")
+TRACKS_THE_RELEASE = ("FABRIC_EMULATOR_VERSION", "SAIL_VERSION", "SPARK_AGENT_VERSION")
 
 SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.\-]+)?$")
 

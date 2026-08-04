@@ -13,12 +13,11 @@ Connect script that merely *resembled* notebook code. `spark.py` has always
 claimed "the same code is a Spark notebook or a Spark Job Definition in
 production"; this is that claim under test rather than asserted.
 
-WHAT DIFFERS BETWEEN THE TARGETS, and it is only one thing: real Fabric runs the
-notebook on its own Spark pool, so submitting and polling is the whole job. The
-emulator parses the notebook and waits for an engine to report — so on that
-target the platform also plays the pool, in engine.py, selected by
-`T.runs_notebooks_itself`. The notebook, the item, the job and the polling are
-identical either way.
+WHAT DIFFERS BETWEEN THE TARGETS: nothing, now. Real Fabric runs the notebook on
+its own Spark pool; the emulator drives the spark-agent that compose provides.
+Either way this module submits and polls, which is the whole job. It was not
+always so — the emulator's published agent image shipped empty, so this platform
+had to execute the cells itself — and the absence of that code is the point.
 
 Three rules the notebook implements, each because bronze deliberately violates
 it: the vendor repeats rows, so customers are deduped on the key; orders arrive
@@ -34,10 +33,9 @@ import json
 import pathlib
 import time
 
-import engine
 import provision
 import state
-from fabric import FABRIC_AUD, T, await_operation, fabric, log, token
+from fabric import FABRIC_AUD, await_operation, fabric, log, token
 
 NOTEBOOK = "silver-conform"
 SOURCE = pathlib.Path(__file__).resolve().parent / "silver_notebook.py"
@@ -140,11 +138,6 @@ def main() -> int:
     assert r.status_code in (200, 202), (r.status_code, r.text[:300])
     job = r.headers["Location"].rstrip("/").rsplit("/", 1)[-1]
     log(f"submitted RunNotebook job {job}")
-
-    # The emulator does not execute notebooks; on that target the platform
-    # attaches an engine. Against real Fabric this branch never runs.
-    if not T.runs_notebooks_itself:
-        engine.run(ws, notebook, job, lake)
 
     detail = await_job(tok, ws, notebook, job)
     assert detail.get("exitValue"), f"the notebook exited with no value: {detail}"

@@ -57,6 +57,11 @@ services:
       FABRIC_ENTRA_ISSUER: "https://entra-emulator:8443/11111111-1111-1111-1111-111111111111/v2.0"
       FABRIC_ENTRA_JWKS_URL: "https://entra-emulator:8443/11111111-1111-1111-1111-111111111111/discovery/v2.0/keys"
       FABRIC_ENTRA_TLS_INSECURE: "true"
+      # Notebook execution. With this set the emulator drives the spark-agent
+      # itself, so a RunNotebook job runs and completes; without it the job
+      # parks forever waiting for an engine, which is the honest behaviour when
+      # there is none.
+      FABRIC_SPARK_AGENT_URL: "http://spark-agent:8099"
       FABRIC_DATA_DIR: ""
 
 # Source systems (mokapi, Postgres, Redpanda, Debezium) and OpenMetadata arrive
@@ -88,6 +93,43 @@ services:
       AZURE_STORAGE_ENDPOINT: "https://fabric-emulator:9443/onelake"
       AZURE_ALLOW_INVALID_CERTIFICATES: "true"
       SAIL_SPARK__SESSION_TIMEOUT_SECS: "3600"
+
+  # The statement executor the emulator drives to RUN a notebook.
+  #
+  # WHY THIS EXISTS. A Fabric notebook job is executed by a Spark pool that
+  # reports back; the emulator mirrors that and will not complete a job on a
+  # clock, so something has to execute the cells. Until 0.15.0 nothing a
+  # consumer could pull did — the published image shipped without the agent in
+  # it — and this platform had to play the pool itself, in a driver that existed
+  # only because of that gap.
+  #
+  # With this service the emulator executes the notebook, which is what real
+  # Fabric does and one fewer thing this repository has to pretend about.
+  spark-agent:
+    image: ghcr.io/calvinchengx/fabric-emulator-spark-agent:${SPARK_AGENT_VERSION:?see versions.env}
+    depends_on:
+      sail: {condition: service_started}
+    environment:
+      SPARK_REMOTE: "sc://sail:50051"   # a Spark Connect client of sail; no JVM
+      # delta-rs reaches OneLake on its own account: a Connect client cannot
+      # read back the bearer sail holds, so the agent mints its own from the
+      # same issuer with the same Storage audience.
+      ENTRA_TOKEN_URL: "https://entra-emulator:8443/11111111-1111-1111-1111-111111111111/oauth2/v2.0/token"
+      ENTRA_FORGE_URL: "https://entra-emulator:8443/admin/api/tokens"
+      ENTRA_CLIENT_ID: "cccccccc-0000-0000-0000-000000000002"
+      ENTRA_CLIENT_SECRET: "daemon-app-secret"
+      AZURE_STORAGE_ACCOUNT_NAME: "onelake"
+      AZURE_STORAGE_ENDPOINT: "https://fabric-emulator:9443/onelake"
+      AZURE_ALLOW_INVALID_CERTIFICATES: "true"
+    # `started` is not `listening`: the agent builds a Spark session before it
+    # binds, and a notebook submitted in that window fails on connection
+    # refused — which reads as a broken feature rather than a startup race.
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8099/health', timeout=3)"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
 
   # The T-SQL engine behind the Warehouse. Not an emulator invention: a Fabric
   # Warehouse IS a T-SQL engine reached over TDS, and this is a real one.

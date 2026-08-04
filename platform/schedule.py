@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import time
 
 import state
 from fabric import FABRIC_AUD, S, T, fabric, log, token
@@ -145,6 +146,57 @@ def scheduled_runs(tok: str, workspace: str, item: str) -> list[dict]:
     return [j for j in r.json().get("value", []) if j.get("invokeType") == "Scheduled"]
 
 
+TERMINAL = ("Completed", "Failed", "Cancelled", "Deduped")
+
+
+def in_flight(tok: str, workspace: str, item: str) -> list[dict]:
+    """Job instances of this item that have not reached a terminal state."""
+    r = fabric("GET", f"/workspaces/{workspace}/items/{item}/jobs/instances", tok)
+    assert r.status_code == 200, (r.status_code, r.text[:200])
+    return [j for j in r.json().get("value", []) if j.get("status") not in TERMINAL]
+
+
+def await_quiet(tok: str, workspace: str, item: str, timeout: int = 180) -> None:
+    """Wait until nothing is running this notebook, BEFORE creating a schedule.
+
+    The emulator evaluates due schedules the moment one is created, so the
+    first occurrence fires immediately — and the previous step leaves an
+    event-triggered run in flight. Both write the same silver Delta tables, and
+    Delta's optimistic concurrency does exactly what it should: one commits and
+    the other dies with `Failed to commit transaction: 0`.
+
+    That is not a bug to engineer around in the emulator, and NOT one to hide.
+    Real Fabric would collide identically — a scheduled and a triggered run of
+    one notebook are not mutually excluded there either. It is this pipeline
+    racing itself, in a step whose claim is "a schedule fires unattended".
+    Proving that does not require two writers, so it no longer has two.
+    """
+    for _ in range(timeout):
+        running = in_flight(tok, workspace, item)
+        if not running:
+            return
+        time.sleep(1)
+    raise AssertionError(
+        f"{item} still has {len(in_flight(tok, workspace, item))} run(s) in "
+        f"flight after {timeout}s; scheduling now would race them"
+    )
+
+
+def await_terminal(
+    tok: str, workspace: str, item: str, job: str, timeout: int = 180
+) -> dict:
+    """Poll one job instance to a terminal state and return it."""
+    base = f"/workspaces/{workspace}/items/{item}/jobs/instances/{job}"
+    for _ in range(timeout):
+        r = fabric("GET", base, tok)
+        assert r.status_code == 200, (r.status_code, r.text[:200])
+        detail = r.json()
+        if detail.get("status") in TERMINAL:
+            return detail
+        time.sleep(1)
+    raise AssertionError(f"scheduled job {job} never reached a terminal state")
+
+
 def advance(seconds: int) -> None:
     """Move the emulator's clock. Emulator-only, by construction — real Fabric
     has no such lever and this is never called against it."""
@@ -170,6 +222,11 @@ def main() -> int:
     st = state.load()
     tok = token(FABRIC_AUD)
     ws, notebook = st["workspace"], st["silver_notebook"]
+
+    # Nothing else may be writing silver when the schedule is created: the
+    # first occurrence fires immediately, and step 13's trigger run is still
+    # going. See await_quiet.
+    await_quiet(tok, ws, notebook)
 
     when = now()
     created = ensure(tok, ws, notebook, when)
@@ -217,26 +274,54 @@ def main() -> int:
     # broken scheduler take longer to report.
     after = scheduled_runs(tok, ws, notebook)
 
-    # PUT TIME BACK before asserting, so a failure does not also leave the
-    # emulator an interval ahead of the identity provider that issues its
-    # tokens. Anyone poking at the stack afterwards — the portal, a re-run, the
-    # capture step — would otherwise meet `invalid token: expired` and have no
-    # reason to connect it to a schedule assertion that failed minutes ago.
-    reset_clock()
+    # WAIT FOR THE RUN INSIDE THE ADVANCED FRAME, then always put time back.
+    #
+    # The clock must be reset even when this step fails, or the stack is left
+    # an interval ahead of the identity provider that mints its tokens and the
+    # next unrelated command dies with `invalid token: expired`, pointing at
+    # nothing. That is what `finally` is for.
+    #
+    # But the reset cannot come FIRST. The fired job was created while the
+    # clock was advanced, so its startTimeUtc is in that frame; resetting
+    # before it finishes stamps its endTimeUtc in the old one and the instance
+    # comes back with an end BEFORE its start. That is not an emulator defect —
+    # it is what moving a clock backwards under a running job means, and the
+    # emulator is reporting both timestamps exactly as they were taken.
+    try:
+        assert len(after) > before, (
+            f"the clock advanced {ADVANCE_SECONDS}s past an occurrence and no "
+            f"scheduled run appeared ({before} before, {len(after)} after) — the "
+            f"schedule exists but does not fire, which is the failure this step "
+            f"was written to catch"
+        )
+        fired = after[-1]
+        assert fired["jobType"] == JOB_TYPE, fired
 
-    assert len(after) > before, (
-        f"the clock advanced {ADVANCE_SECONDS}s past an occurrence and no "
-        f"scheduled run appeared ({before} before, {len(after)} after) — the "
-        f"schedule exists but does not fire, which is the failure this step "
-        f"was written to catch"
+        # THE OUTCOME, not just the existence. This step used to assert that a
+        # job with invokeType=Scheduled appeared and stop there — so it logged
+        # "the platform runs unattended" over a run that had died mid-notebook,
+        # and the pipeline reported 14/14. A schedule that reliably starts
+        # something that reliably fails is not unattended operation; it is an
+        # alarm nobody wired up. `make verify` was green across two such
+        # failures before this line existed.
+        detail = await_terminal(tok, ws, notebook, fired["id"])
+    finally:
+        reset_clock()
+
+    assert detail.get("status") == "Completed", (
+        f"the schedule fired job {fired['id']} and it ended "
+        f"{detail.get('status')!r}: {detail.get('failureReason')}"
     )
-    fired = after[-1]
-    assert fired["jobType"] == JOB_TYPE, fired
+    assert detail["endTimeUtc"] >= detail["startTimeUtc"], (
+        f"job {fired['id']} ended before it started "
+        f"({detail['startTimeUtc']} -> {detail['endTimeUtc']}) — the clock was "
+        f"moved backwards while it was still running"
+    )
 
     state.save(schedule={"id": created["id"], "fired": fired["id"]})
     log(
-        f"the schedule FIRED: job {fired['id']} on the silver notebook, "
-        f"invokeType=Scheduled — the platform runs unattended"
+        f"the schedule FIRED and the run COMPLETED: job {fired['id']} on the "
+        f"silver notebook, invokeType=Scheduled — the platform runs unattended"
     )
     return 0
 
