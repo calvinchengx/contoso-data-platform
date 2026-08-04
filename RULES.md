@@ -175,6 +175,12 @@ will break** — the "enforced by" column is the honest part of this document, a
 
 | | |
 |---|---|
+| | |
+|---|---|
+| **Rule** | `tests/test_repo.py` must not import `fabric` or `target`. A runtime guard that needs testing there goes in a dependency-free module, like `platform/apipath.py`. |
+| **Why** | That file's first paragraph promises its tests need no emulator, no Docker and no fixture wheels — they are the part of CI green from day one on all three platforms. Importing the client resolves a target, which needs the `fabric-target` wheel `make fixtures` installs from the pinned release, deliberately outside `uv.lock`. The day a guard was tested by importing the client that carries it, CI went red on ubuntu, macOS and Windows at once. |
+| **Enforced by** | `test_the_repo_tests_need_no_fixture_wheels` |
+
 | **Rule** | uv, strictly. `pyproject.toml` + committed `uv.lock`. No bare `python`, no `pip`, no `--with`. |
 | **Why** | `--with pytest` resolves fresh every run, so the same commit can test against two different suites. |
 | **Enforced by** | `test_python_is_only_ever_invoked_through_uv`, `test_the_lockfile_is_committed` |

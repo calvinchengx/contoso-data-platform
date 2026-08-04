@@ -22,6 +22,7 @@ import ssl
 import time
 import urllib.parse
 
+import apipath
 import requests
 import target
 import urllib3
@@ -101,17 +102,9 @@ def fabric(method: str, path: str, tok: str, **kw):
     plausible number for a platform that only declares its lineage, so nothing
     about the output looked wrong. The real answer was four.
     """
-    if not path.startswith("/"):
-        raise ValueError(f"fabric() path must start with '/': {path!r}")
-    if path == "/v1" or path.startswith("/v1/"):
-        raise ValueError(
-            f"fabric() adds the /v1 prefix; pass {path[3:] or '/'!r} rather than "
-            f"{path!r}, or the request goes to /v1/v1/... and 404s as "
-            f"UnknownEndpoint without raising"
-        )
     r = S.request(
         method,
-        f"{FABRIC}/v1{path}",
+        f"{FABRIC}/v1{apipath.check(path)}",
         headers={"Authorization": f"Bearer {tok}", **kw.pop("headers", {})},
         timeout=120,
         **kw,

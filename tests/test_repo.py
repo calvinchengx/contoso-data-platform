@@ -316,12 +316,16 @@ def test_fabric_refuses_a_path_that_already_carries_v1():
     emulator answer 404 `UnknownEndpoint` — a successful HTTP response that
     `requests` does not raise on, which is how the original bug stayed silent.
     """
+    # `apipath`, not `fabric`: importing the client resolves a target, which
+    # needs the fabric-target wheel `make fixtures` installs. This file is the
+    # part of CI that runs without it (see the module docstring), so the rule
+    # lives in a module with no dependencies and the guard is tested there.
     sys.path.insert(0, str(ROOT / "platform"))
-    from fabric import fabric
+    import apipath
 
     def refused(path):
         try:
-            fabric("GET", path, "token")
+            apipath.check(path)
         except ValueError as e:
             return str(e)
         return None
@@ -336,15 +340,11 @@ def test_fabric_refuses_a_path_that_already_carries_v1():
     assert refused("workspaces/abc"), "a path without a leading slash was accepted"
 
     # And the correct form is NOT refused — a guard that rejects everything
-    # would pass both assertions above while breaking every call in the repo.
-    # It will fail to connect, which is fine; what matters is that it got past
-    # the argument check rather than being rejected out of hand.
-    try:
-        fabric("GET", "/workspaces", "token")
-    except ValueError as e:  # pragma: no cover - only on a regression
-        raise AssertionError(f"a correct path was refused: {e}") from e
-    except Exception:
-        pass  # any transport failure means the argument check let it through
+    # would pass every assertion above while breaking every call in the repo.
+    # Asserted against the rule itself rather than by calling `fabric()` and
+    # swallowing the transport error: `except Exception: pass` would also have
+    # accepted a TypeError from an unrelated bug, which is not what is meant.
+    assert apipath.check("/workspaces") == "/workspaces"
 
 
 def test_no_fabric_call_carries_its_own_v1_prefix():
@@ -1019,3 +1019,32 @@ def test_the_pbip_folder_carries_what_a_real_one_requires():
         assert json.loads((folder / "model.bim").read_text(encoding="utf-8")) == model
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_the_repo_tests_need_no_fixture_wheels():
+    """This file's first paragraph is a promise. Here it is enforced.
+
+    These tests are the part of CI that is green from day one on all three
+    platforms — no emulator, no Docker, no wheels installed from a release.
+    `make test` runs them with `uv run --frozen`, which knows only `uv.lock`,
+    and `fabric-target` is deliberately NOT in the lock: which release it came
+    from is the thing under test.
+
+    So importing `fabric` or `target` from here fails on a clean checkout with
+    `ModuleNotFoundError: No module named 'fabric_target'`. That is not
+    hypothetical — it turned CI red on ubuntu, macOS and Windows simultaneously
+    the day a runtime guard was tested by importing the client that carries it.
+    The guard moved to `platform/apipath.py`, which has no dependencies, and
+    this test stops the next one going the same way.
+    """
+    src = (ROOT / "tests" / "test_repo.py").read_text(encoding="utf-8")
+    # The modules that transitively resolve a target, and so need the wheel.
+    forbidden = re.compile(
+        r"^\s*(?:from (fabric|target) import|import (fabric|target))\b", re.M
+    )
+    hits = [m.group(0).strip() for m in forbidden.finditer(src)]
+    assert not hits, (
+        f"these imports need `make fixtures`, which this file promises not to "
+        f"require: {hits}. Put the rule in a dependency-free module and test "
+        f"that instead."
+    )
