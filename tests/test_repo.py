@@ -1220,3 +1220,53 @@ def test_money_is_catalogued_as_decimal_not_double():
     # nvarchar -> varchar change does not move anything here.
     assert om("nvarchar") == "STRING"
     assert om("varchar") == "STRING"
+
+
+def test_the_relationships_contract_rule_actually_checks_the_relationship():
+    """A published contract must not claim more than its query checks.
+
+    THIS RULE USED TO EMIT `select count(*) from {object} where <col> is null`
+    while being named `<col>_resolves`, tagged dimension `consistency`, and
+    described as "every <col> matches <to>.<field>". That is a not-null check.
+    It passes with every foreign key dangling, so long as none of them is NULL.
+
+    Most of this repository's near-misses have been a correct assertion beside
+    prose that drifted. This was the inverse — the prose was right and the
+    assertion was a no-op — and it is the worse direction, because a contract
+    exists to tell a consumer they do NOT need their own check. Claiming a key
+    resolves when only its presence was confirmed removes the reason to look
+    without supplying the guarantee.
+
+    Compiled rather than imported: govern.py reaches a live target at import.
+    """
+    import re as _re
+
+    src = (ROOT / "platform" / "govern.py").read_text(encoding="utf-8")
+    ns: dict = {"re": _re}
+    for fn in ("_ref_target", "_relationship_rule"):
+        start = src.index(f"def {fn}")
+        end = src.index("def ", start + 10)
+        exec(compile(src[start:end], fn, "exec"), ns)
+    rule = ns["_relationship_rule"]
+
+    r = rule("customer_id", {"to": "ref('dim_customer')", "field": "customer_id"})
+    q = r["query"].lower()
+    assert "join dim_customer" in q, q
+    assert "r.customer_id is null" in q, q
+    # The `is not null` guard keeps this about REFERENCES, not presence — a NULL
+    # key belongs to the not_null rule, and counting it here would be the old
+    # confusion running the other way.
+    assert "t.customer_id is not null" in q, q
+    assert r["dimension"] == "consistency"
+
+    # A bare presence check must never again be published as `_resolves`.
+    assert not _re.fullmatch(
+        r"select count\(\*\) from \{object\} where \w+ is null", r["query"].strip()
+    ), "the relationships rule has reverted to a not-null check"
+
+    # UNRESOLVABLE TARGET: the rule may fall back, but it must stop claiming
+    # referential integrity when it does — no `_resolves`, no `consistency`.
+    f = rule("customer_id", {"to": "dim_customer", "field": "customer_id"})
+    assert not f["name"].endswith("_resolves"), f["name"]
+    assert f["dimension"] != "consistency", f
+    assert "NOT asserted" in f["description"], f["description"]

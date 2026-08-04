@@ -23,6 +23,7 @@ from __future__ import annotations
 import base64
 import json
 import pathlib
+import re
 
 import requests
 import state
@@ -397,6 +398,74 @@ def emulator_producers(st: dict) -> dict[tuple[str, str], str]:
     return out
 
 
+def _ref_target(to: str) -> str:
+    """The model name inside dbt's `ref('...')`, or "" if it is not one.
+
+    Gold's models all land in one schema, so the bare name is what a query in
+    the contract can join to — the same assumption `{object}` already makes.
+    """
+    m = re.search(r"""ref\(\s*['"]([^'"]+)['"]\s*\)""", to or "")
+    return m.group(1) if m else ""
+
+
+def _relationship_rule(column: str, arg: dict) -> dict:
+    """dbt `relationships` → a rule that actually checks referential integrity.
+
+    WHAT THIS USED TO EMIT, and why it was worse than emitting nothing:
+
+        query: select count(*) from {object} where <column> is null
+
+    That is a NOT-NULL check. It passes with every foreign key dangling, so
+    long as none of them is NULL — and it was published as `<column>_resolves`,
+    dimension `consistency`, described as "every <column> matches <to>.<field>".
+    The name, the dimension and the description all claimed referential
+    integrity; the query checked something else entirely.
+
+    A contract is read by people deciding whether they need their own check.
+    One that says a key resolves, when it has only confirmed the key is
+    present, removes the reason to look without supplying the guarantee.
+
+    THE ANTI-JOIN IS THE CHECK: rows whose key finds no match. `is not null` on
+    the left keeps this about REFERENCES rather than presence — a NULL key is
+    the not_null rule's business, and this rule failing for that reason would
+    be the old confusion running the other way.
+    """
+    target, field = _ref_target(arg.get("to", "")), arg.get("field", "")
+    if not (target and field):
+        # HONEST FALLBACK. If the target cannot be resolved there is no join to
+        # publish, so the rule says what it actually does and drops the
+        # referential-integrity claim rather than keeping a name that implies
+        # one. See the note above about what that costs a reader.
+        return {
+            "type": "sql",
+            "name": f"{column}_present",
+            "column": column,
+            "dimension": "completeness",
+            "description": (
+                f"dbt `relationships` on {column}, reduced to a presence check: "
+                f"its target ({arg.get('to')!r}) could not be resolved to a "
+                f"table, so referential integrity is NOT asserted here."
+            ),
+            "query": f"select count(*) from {{object}} where {column} is null",
+            "mustBe": 0,
+        }
+    return {
+        "type": "sql",
+        "name": f"{column}_resolves",
+        "column": column,
+        "dimension": "consistency",
+        "description": (
+            f"dbt `relationships` — every {column} matches {target}.{field}."
+        ),
+        "query": (
+            f"select count(*) from {{object}} t "
+            f"left join {target} r on t.{column} = r.{field} "
+            f"where t.{column} is not null and r.{field} is null"
+        ),
+        "mustBe": 0,
+    }
+
+
 def dbt_quality_rules() -> dict[str, list[dict]]:
     """gold/models/schema.yml → ODCS quality rules, per model.
 
@@ -422,20 +491,7 @@ def dbt_quality_rules() -> dict[str, list[dict]]:
                     # that means something else.
                     if name == "relationships":
                         arg = test[name]
-                        rules.append(
-                            {
-                                "type": "sql",
-                                "name": f"{col['name']}_resolves",
-                                "column": col["name"],
-                                "dimension": "consistency",
-                                "description": f"dbt `relationships` — every "
-                                f"{col['name']} matches "
-                                f"{arg.get('to')}.{arg.get('field')}.",
-                                "query": f"select count(*) from {{object}} where "
-                                f"{col['name']} is null",
-                                "mustBe": 0,
-                            }
-                        )
+                        rules.append(_relationship_rule(col["name"], arg))
                     continue
                 desc = f"dbt `{name}` on {model['name']}.{col['name']}."
                 rule = {
