@@ -259,7 +259,18 @@ def main() -> int:
     # minute before now, so the first occurrence fires immediately. Counting
     # before and after is what makes the assertion about THIS advance rather
     # than about whatever the create happened to do.
-    before = len(scheduled_runs(tok, ws, notebook))
+    before = {j["id"] for j in scheduled_runs(tok, ws, notebook)}
+
+    # AND AGAIN, because creating the schedule fired one. `await_quiet` above
+    # cleared step 13's trigger run; this clears the occurrence the create
+    # itself produced. Without it the advance starts a second run seconds later
+    # in REAL time — the two are 15 virtual minutes apart and simultaneous in
+    # practice — and they race for the same silver tables. That is exactly how
+    # this step recorded `Failed to commit transaction: 0` while reporting
+    # success. Compressing time compresses the executions too, which is the one
+    # property of a controllable clock that has no real-Fabric counterpart.
+    await_quiet(tok, ws, notebook)
+
     advance(ADVANCE_SECONDS)
 
     # A fresh token. The advance is bounded to stay inside one token lifetime,
@@ -273,6 +284,13 @@ def main() -> int:
     # the occurrence has either fired or never will — waiting would only make a
     # broken scheduler take longer to report.
     after = scheduled_runs(tok, ws, notebook)
+    # BY IDENTITY, never by position. The API returns job instances
+    # NEWEST-FIRST, so `after[-1]` is the OLDEST scheduled run — the occurrence
+    # the create fired, not the one this advance produced. The outcome
+    # assertion below was therefore reading a different job's status, and a
+    # scheduled run that died mid-notebook passed as green. A set difference
+    # cannot pick the wrong one whichever way the list is ordered.
+    fresh = [j for j in after if j["id"] not in before]
 
     # WAIT FOR THE RUN INSIDE THE ADVANCED FRAME, then always put time back.
     #
@@ -288,13 +306,13 @@ def main() -> int:
     # it is what moving a clock backwards under a running job means, and the
     # emulator is reporting both timestamps exactly as they were taken.
     try:
-        assert len(after) > before, (
+        assert fresh, (
             f"the clock advanced {ADVANCE_SECONDS}s past an occurrence and no "
-            f"scheduled run appeared ({before} before, {len(after)} after) — the "
-            f"schedule exists but does not fire, which is the failure this step "
-            f"was written to catch"
+            f"NEW scheduled run appeared ({len(before)} before, {len(after)} "
+            f"after) — the schedule exists but does not fire, which is the "
+            f"failure this step was written to catch"
         )
-        fired = after[-1]
+        fired = fresh[0]
         assert fired["jobType"] == JOB_TYPE, fired
 
         # THE OUTCOME, not just the existence. This step used to assert that a

@@ -1048,3 +1048,57 @@ def test_the_repo_tests_need_no_fixture_wheels():
         f"require: {hits}. Put the rule in a dependency-free module and test "
         f"that instead."
     )
+
+
+def test_the_schedule_step_identifies_its_run_by_id_not_position():
+    """The API returns job instances NEWEST-FIRST.
+
+    `after[-1]` therefore picks the OLDEST scheduled run — the occurrence that
+    fired when the schedule was created, not the one the clock advance
+    produced. That is not a style point: the step asserts the fired run reached
+    Completed, and pointing that assertion at the wrong job is how a scheduled
+    run that died with `Failed to commit transaction: 0` was recorded on video
+    while `make verify` reported 14/14 green.
+
+    A set difference over ids cannot pick the wrong job whichever way the list
+    is ordered, so the ordering stops being something this step has to know.
+    """
+    src = (ROOT / "platform" / "schedule.py").read_text(encoding="utf-8")
+    assert 'j["id"] not in before' in src, (
+        "the fired run must be identified by id difference, not list position"
+    )
+    # CODE, not prose — the comment above the fix necessarily names the wrong
+    # spelling in order to warn against it, and a bare substring search cannot
+    # tell the warning from the mistake. This is the same trap
+    # test_the_toggle_contract_is_installed_not_restated documents for
+    # `grant_type`.
+    code = [ln for ln in src.splitlines() if not ln.lstrip().startswith("#")]
+    offenders = [ln.strip() for ln in code if "after[-1]" in ln]
+    assert not offenders, (
+        f"after[-1] is the OLDEST scheduled run — the API returns "
+        f"newest-first: {offenders}"
+    )
+
+
+def test_the_schedule_step_does_not_race_its_own_first_occurrence():
+    """Creating the schedule fires an occurrence; advancing fires another.
+
+    They are an interval apart in VIRTUAL time and seconds apart in real time,
+    so both notebooks execute at once and collide writing the same silver
+    tables. Compressing time compresses the executions too — the one property
+    of a controllable clock with no real-Fabric counterpart, and the actual
+    cause of the failure above.
+
+    So the step waits for the create-fired run to settle before it advances.
+    """
+    src = (ROOT / "platform" / "schedule.py").read_text(encoding="utf-8")
+    body = src[src.index("def main()") :]
+    quiets = [i for i in range(len(body)) if body.startswith("await_quiet(", i)]
+    assert len(quiets) >= 2, (
+        "main() must quiet the notebook twice: once before creating the "
+        "schedule (step 13's trigger run) and once before advancing (the "
+        "occurrence the create itself fired)"
+    )
+    assert quiets[-1] < body.index("advance(ADVANCE_SECONDS)"), (
+        "the second await_quiet must come BEFORE the advance, or the two runs race"
+    )
