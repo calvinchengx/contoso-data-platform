@@ -3,10 +3,18 @@
 -- The comment about an INNER JOIN to the customer dimension is now a comment
 -- about two joins, and they are deliberately different shapes.
 --
--- CURRENCY IS NOT COSMETIC. Orders are taken in USD, GBP, SGD and EUR, and
--- until now `amount` was summed across all four as though it were one number.
--- That total was not a currency — it was the sum of four, which is a quantity
--- with no unit and no meaning. `amount_usd` is the figure a P&L can use.
+-- CURRENCY, AND AN HONEST NOTE ABOUT WHAT IT DOES TODAY. The reference vendor
+-- publishes rates for USD, GBP, SGD and EUR, but Contoso POS stamps every
+-- order `USD` — so every rate looked up here is 1.0 and `amount_usd` currently
+-- equals `amount` to the cent. The conversion is an identity, not a fix.
+--
+-- IT IS STILL WORTH BUILDING, for two reasons that do not depend on today's
+-- fixture. The storefront is a second selling system with its own currencies
+-- and reaches this star with identity resolution, at which point summing raw
+-- `amount` silently becomes the sum of several currencies — a quantity with no
+-- unit. And `rate_is_carried` is already meaningful: it records which orders
+-- fell on a day the market did not publish, which is true of 28.8% of trading
+-- regardless of what the rate turned out to be.
 --
 -- LEFT JOIN TO FX, NOT INNER, and this is the important one. An inner join
 -- would silently DROP any order it could not price, and the query would still

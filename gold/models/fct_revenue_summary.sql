@@ -12,13 +12,18 @@
 --   CUSTOMER SEGMENT  from silver's conformed customer, which carried it all
 --                     along while the star projected four columns.
 --
--- REVENUE IS IN USD, converted per order at that day's rate. Summing `amount`
--- across four currencies, as this platform did until now, produces a number
--- with no unit. `revenue_at_carried_rate` reports how much of the total was
--- priced at an assumed rate rather than a quoted one — FX is published on
--- trading days only, so weekend trading is always converted at Friday's rate,
--- and a P&L that cannot see how much of itself rests on that assumption is
--- hiding the one thing a reviewer would ask about.
+-- REVENUE IS IN USD, converted per order at that day's rate — which today is
+-- an identity, because Contoso POS stamps every order `USD`. Stated plainly
+-- rather than implied: this column is not currently correcting anything. It is
+-- denominated so that it stays correct when the storefront's orders arrive
+-- with identity resolution, carrying currencies of their own.
+--
+-- `revenue_at_carried_rate` IS meaningful today. FX is published on trading
+-- days only, so every weekend order is priced at the preceding Friday's rate —
+-- 28.8% of this platform's revenue. That is a fact about provenance, not about
+-- the rate's value, and it holds whether or not the conversion moves a number.
+-- A P&L that cannot see how much of itself rests on an assumed rate is hiding
+-- the first thing a reviewer would ask about.
 --
 -- INNER JOINS THROUGHOUT, and every one is covered by a schema test asserting
 -- the grain and the totals survive. A dimension that failed to match would

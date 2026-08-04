@@ -59,11 +59,40 @@ def main() -> int:
             .execute("SELECT customer_id, name, country FROM dim_customer")
             .fetchall()
         ]
+        # THE MANAGEMENT REPORTING AGGREGATE, and the reason it needs no
+        # dimension tables beside it: fct_revenue_summary already carries its
+        # own attributes. A report writer slices it directly, so the model does
+        # not need a relationship to reach a fiscal period or a segment — which
+        # is exactly what the Revenue/Customer pair does need, and does badly.
+        reporting = [
+            {
+                "FiscalYearLabel": r[0],
+                "FiscalQuarterLabel": r[1],
+                "Department": r[2],
+                "ProductSegment": r[3],
+                "CustomerSegment": r[4],
+                "Country": r[5],
+                "Orders": int(r[6]),
+                "Units": int(r[7]),
+                "RevenueUsd": float(r[8]),
+                "RevenueAtCarriedRate": float(r[9]),
+            }
+            for r in c.cursor()
+            .execute(
+                "SELECT fiscal_year_label, fiscal_quarter_label, department, "
+                "product_segment, customer_segment, country, orders, units, "
+                "revenue_usd, revenue_at_carried_rate FROM fct_revenue_summary"
+            )
+            .fetchall()
+        ]
 
-    assert fact and dim, (len(fact), len(dim))
-    OUT.write_text(json.dumps({"Revenue": fact, "Customer": dim}))
+    assert fact and dim and reporting, (len(fact), len(dim), len(reporting))
+    OUT.write_text(
+        json.dumps({"Revenue": fact, "Customer": dim, "Reporting": reporting})
+    )
     print(
-        f"==> exported gold: {len(fact):,} revenue rows, {len(dim):,} customers",
+        f"==> exported gold: {len(fact):,} revenue rows, {len(dim):,} customers, "
+        f"{len(reporting):,} reporting rows",
         flush=True,
     )
     return 0

@@ -39,7 +39,11 @@ MODEL = "ContosoRevenue"
 # derived from the name: `Revenue` comes from `fct_daily_revenue`, and a
 # convention that guessed would break the first time a model table was renamed
 # for the report writer's benefit — which is the whole point of a semantic layer.
-GOLD_TABLE = {"Customer": "dim_customer", "Revenue": "fct_daily_revenue"}
+GOLD_TABLE = {
+    "Customer": "dim_customer",
+    "Revenue": "fct_daily_revenue",
+    "Reporting": "fct_revenue_summary",
+}
 
 # One query, asked over two surfaces. xmla_probe.py runs this same DAX through
 # ADOMD.NET, so if both answer they must agree — which is a stronger statement
@@ -184,8 +188,77 @@ def definition(rows: dict, server: str = "", database: str = "") -> dict:
                         },
                     ],
                 },
+                # --- the management reporting table -----------------------
+                # WHAT A P&L PACK IS ACTUALLY BUILT ON, and the table that
+                # makes this model answer management accounting rather than
+                # only "how did we trade today". Three axes the Revenue table
+                # cannot offer at all: Contoso's 1 April financial year, the
+                # group data office's product rollup, and customer segment.
+                #
+                # NO RELATIONSHIP, deliberately, and this is the contrast worth
+                # reading. `Revenue` has to reach `Customer` through Country —
+                # a three-value column, so the relationship is many-to-many and
+                # can carry a country total and nothing finer. An aggregate
+                # that carries its own attributes needs no such bridge: every
+                # slice below is a column on the row it describes.
+                {
+                    "name": "Reporting",
+                    "columns": [
+                        {"name": c, "dataType": t, "sourceColumn": c}
+                        for c, t in (
+                            ("FiscalYearLabel", "string"),
+                            ("FiscalQuarterLabel", "string"),
+                            ("Department", "string"),
+                            ("ProductSegment", "string"),
+                            ("CustomerSegment", "string"),
+                            ("Country", "string"),
+                            ("Orders", "int64"),
+                            ("Units", "int64"),
+                            ("RevenueUsd", "double"),
+                            ("RevenueAtCarriedRate", "double"),
+                        )
+                    ],
+                    "measures": [
+                        # IN USD, converted per order at that day's rate —
+                        # which today equals `Revenue`'s figure exactly,
+                        # because Contoso POS stamps every order `USD`. The
+                        # two are denominated differently even where they
+                        # agree, and only this one stays right when the
+                        # storefront's currencies arrive.
+                        {
+                            "name": "Revenue USD",
+                            "expression": "SUM(Reporting[RevenueUsd])",
+                        },
+                        {
+                            "name": "Units Sold",
+                            "expression": "SUM(Reporting[Units])",
+                        },
+                        # HOW MUCH OF THE ABOVE RESTS ON AN ASSUMPTION. FX is
+                        # published on trading days only, so weekend trading is
+                        # converted at the preceding Friday's rate. Surfacing
+                        # the share as a measure means a reviewer can ask the
+                        # question without leaving the report.
+                        {
+                            "name": "Revenue at Carried Rate",
+                            "expression": "SUM(Reporting[RevenueAtCarriedRate])",
+                        },
+                        {
+                            "name": "Carried Rate Share",
+                            "expression": (
+                                "DIVIDE([Revenue at Carried Rate], [Revenue USD])"
+                            ),
+                        },
+                    ],
+                },
             ],
             "relationships": [
+                # LEFT AS IT WAS, and it is the weak one. Country is a
+                # three-value column, so this is many-to-many: it can answer a
+                # country total and cannot slice revenue by anything finer.
+                # Replacing it means regrading the DAX that semantic_model.py
+                # and xmla_probe.py both assert against, which is a change of
+                # its own rather than a rider on this one. `Reporting` above is
+                # the surface that does not need it.
                 {
                     "name": "Revenue_Customer",
                     "fromTable": "Revenue",
@@ -272,7 +345,9 @@ def main() -> int:
     rc = in_dbt_container("--entrypoint", "python", "dbt", "/tools/export_gold.py")
     assert rc == 0, f"gold export failed: exit {rc}"
     rows = json.loads(EXPORT.read_text(encoding="utf-8"))
-    assert rows["Revenue"] and rows["Customer"], "the export is empty"
+    assert rows["Revenue"] and rows["Customer"] and rows["Reporting"], (
+        "the export is empty"
+    )
 
     tok = token(FABRIC_AUD)
     # The database name is the one thing the Warehouse differs about across
@@ -321,6 +396,46 @@ def main() -> int:
         src.EXPECTED_COUNTRIES,
     )
 
+    # --- the management reporting pack, over the same wire -----------------
+    # A PUBLISHED SURFACE NOBODY QUERIES is a surface nobody finds out has
+    # broken. The tables above are asserted, so this one is too — and it is
+    # asked the way a Power BI report asks it, by fiscal period and product
+    # segment, which is the whole reason this table exists.
+    pack_dax = (
+        "EVALUATE SUMMARIZECOLUMNS(Reporting[FiscalQuarterLabel], "
+        'Reporting[ProductSegment], "Revenue", [Revenue USD], '
+        '"Carried", [Revenue at Carried Rate])'
+    )
+    r = S.post(
+        url,
+        headers={"Authorization": f"Bearer {token(PBI_AUD)}"},
+        json={"queries": [{"query": pack_dax}]},
+        timeout=120,
+    )
+    assert r.status_code == 200, (r.status_code, r.text[:300])
+    pack = r.json()["results"][0]["tables"][0]["rows"]
+    assert pack, r.text[:300]
+
+    # Graded against the EXPORT, which came from the warehouse — so the model
+    # agreeing with itself is not what is being checked here.
+    usd = sum(row["[Revenue]"] for row in pack)
+    expected_usd = sum(x["RevenueUsd"] for x in rows["Reporting"])
+    assert abs(usd - expected_usd) < 0.01, (usd, expected_usd)
+
+    # THE FISCAL YEAR REALLY APPLIED. Contoso's year starts 1 April, so July
+    # trading must report as Q2 — a model that quietly fell back to the
+    # calendar would say Q3 and every total would still be right.
+    quarters = {row["Reporting[FiscalQuarterLabel]"] for row in pack}
+    assert quarters == {"FY27 Q2"}, (
+        f"expected July 2026 to report as FY27 Q2 on a 1 April financial "
+        f"year, got {sorted(quarters)}"
+    )
+    carried = sum(row["[Carried]"] for row in pack)
+    assert carried > 0, (
+        "no revenue is flagged as converted at a carried-forward rate — the "
+        "weekend FX gaps stopped being filled, or stopped existing"
+    )
+
     # A control-plane token must be refused. Fabric's audiences are not
     # interchangeable, and a surface that accepted either would be teaching the
     # wrong thing about its auth model.
@@ -336,7 +451,9 @@ def main() -> int:
 
     log(
         f"semantic model {dataset}: DAX over executeQueries — "
-        f"{total:,.2f} revenue across {sorted(countries)}"
+        f"{total:,.2f} revenue across {sorted(countries)}; reporting pack "
+        f"{usd:,.2f} USD over {sorted(quarters)}, {carried:,.2f} "
+        f"({100 * carried / usd:.1f}%) at a carried-forward rate"
     )
     log("executeQueries rejects a non-Power BI audience token (401)")
     return 0
