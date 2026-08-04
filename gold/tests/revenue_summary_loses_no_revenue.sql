@@ -1,19 +1,20 @@
--- The aggregate must account for EVERY dollar in the fact, to the cent.
+-- The aggregate must account for EVERY dollar in the unified fact, to the cent.
 --
--- fct_revenue_summary inner-joins three dimensions. Any one of them failing to
--- match removes revenue from the pack, and the result still balances against
--- itself — every subtotal adds up, the grand total is simply smaller than the
--- business earned. That is the failure mode a P&L reviewer cannot see and this
--- test exists to make impossible.
+-- fct_revenue_summary joins three dimensions and splits revenue into net and
+-- cancelled. Any dimension failing to match removes revenue from the pack, and
+-- the result still balances against itself: every subtotal adds up, the grand
+-- total is simply smaller than the business earned. That is the failure a P&L
+-- reviewer cannot see, and this test exists to make it impossible.
 --
--- A singular test rather than a column test because the claim is a relationship
--- BETWEEN two models, which `not_null` and `relationships` cannot express.
+-- NET + CANCELLED, not net alone — the storefront cancels about 5% of its
+-- orders, and checking only the headline would let the write-offs disappear.
 with detail as (
-    select sum(amount_usd) as total from {{ ref('fct_orders') }}
+    select sum(amount_usd) as total from {{ ref('fct_sales') }}
 ),
 
 summary as (
-    select sum(revenue_usd) as total from {{ ref('fct_revenue_summary') }}
+    select sum(revenue_usd) + sum(cancelled_revenue_usd) as total
+    from {{ ref('fct_revenue_summary') }}
 )
 
 select
@@ -21,6 +22,6 @@ select
     summary.total as summary_total
 from detail
 cross join summary
--- A cent, not zero: these are floating-point sums over a quarter of a million
--- rows, so demanding bit equality would fail on arithmetic rather than on loss.
+-- A cent, not zero: these are floating-point sums over half a million rows, so
+-- demanding bit equality would fail on arithmetic rather than on loss.
 where abs(detail.total - summary.total) > 0.01

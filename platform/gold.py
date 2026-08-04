@@ -104,8 +104,22 @@ def main() -> int:
     rc = in_dbt_container("--entrypoint", "python", "dbt", "/tools/reflect.py")
     assert rc == 0, f"silver is not queryable from the warehouse: exit {rc}"
 
+    # `--no-partial-parse`, and it is not a performance preference.
+    #
+    # dbt caches a parsed manifest under target/ and reuses it. When that cache
+    # went stale here it did not fail and did not warn — it silently ran 19 of
+    # the 46 data tests and reported `PASS=27 ERROR=0`, a completely green build
+    # that had never executed the assertions on five of the eight models.
+    # Measured: the same tree, after `rm -rf target/`, found all 46 and failed
+    # one of them. A test suite that quietly shrinks is worse than no suite,
+    # because the green is what people act on.
+    #
+    # Reparsing costs a second or two against a build that already takes longer
+    # than that over TDS.
     log("dbt build (containerised dbt-fabric over TDS)")
-    rc = in_dbt_container("dbt", "build", "--profiles-dir", "/gold")
+    rc = in_dbt_container(
+        "dbt", "build", "--no-partial-parse", "--profiles-dir", "/gold"
+    )
     assert rc == 0, f"dbt build failed: exit {rc}"
 
     log(f"gold: star built in warehouse {wh['id']}")

@@ -72,16 +72,19 @@ def main() -> int:
                 "ProductSegment": r[3],
                 "CustomerSegment": r[4],
                 "Country": r[5],
-                "Orders": int(r[6]),
-                "Units": int(r[7]),
-                "RevenueUsd": float(r[8]),
-                "RevenueAtCarriedRate": float(r[9]),
+                "ChannelSystem": r[6],
+                "SaleLines": int(r[7]),
+                "Units": int(r[8]),
+                "RevenueUsd": float(r[9]),
+                "CancelledRevenueUsd": float(r[10]),
+                "RevenueAtCarriedRate": float(r[11]),
             }
             for r in c.cursor()
             .execute(
                 "SELECT fiscal_year_label, fiscal_quarter_label, department, "
-                "product_segment, customer_segment, country, orders, units, "
-                "revenue_usd, revenue_at_carried_rate FROM fct_revenue_summary"
+                "product_segment, customer_segment, country, channel_system, "
+                "sale_lines, units, revenue_usd, cancelled_revenue_usd, "
+                "revenue_at_carried_rate FROM fct_revenue_summary"
             )
             .fetchall()
         ]

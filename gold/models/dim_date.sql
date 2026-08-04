@@ -18,9 +18,14 @@
 -- occur needs none of that and cannot drift from the facts it describes. The
 -- cost is that a period with no trading has no row, which is the right
 -- trade while every order falls inside a single month.
+-- BUILT FROM THE UNIFIED FACT, not from the POS orders alone. The storefront's
+-- timestamps carry real UTC offsets, so once they are honoured its sales reach
+-- back to 30 June — which is FY27 Q1, a different fiscal quarter from the July
+-- trading the shops report. A calendar built only from POS would have no row
+-- for that day and would drop the sales that fall on it.
 with days as (
     select distinct cast(order_date as date) as date_key
-    from {{ source('silver', 'silver_orders') }}
+    from {{ ref('fct_sales') }}
 ),
 
 parts as (

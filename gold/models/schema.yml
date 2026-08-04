@@ -46,10 +46,16 @@ models:
       # report rather than a row to aggregate over.
       - name: department
         tests: [not_null]
+      # "Unallocated" is a real member, not a gap in the data. The storefront
+      # sells SKUs the group data office never published, and they roll up here
+      # rather than being dropped from the fact — so the allowed set has to say
+      # so, or the dimension that keeps that revenue visible fails its own test.
       - name: product_segment
         tests:
           - not_null
-          - accepted_values: {values: ["Core", "Peripheral"], quote: true}
+          - accepted_values:
+              quote: true
+              values: ["Core", "Peripheral", "Unallocated"]
 
   - name: fct_orders
     columns:
@@ -85,13 +91,52 @@ models:
       - name: revenue
         tests: [not_null]
 
+  - name: dim_party
+    columns:
+      - name: party_key
+        tests: [unique, not_null]
+      # NOT tested for not_null: only the POS system segments its customers, so
+      # the 18,000 web-only shoppers legitimately have none. Asserting presence
+      # here would force an invented value into the dimension.
+      - name: marketing_segment
+        tests:
+          - accepted_values:
+              quote: true
+              values: ["value", "mainstream", "premium", "lapsed", "new"]
+
+  - name: fct_sales
+    columns:
+      - name: party_key
+        # EVERY sale resolves to a person. A line that did not would be revenue
+        # belonging to nobody, and would disappear from any customer-level cut
+        # of the pack without changing the grand total.
+        tests:
+          - not_null
+          - relationships: {to: ref('dim_party'), field: party_key}
+      - name: product_id
+        # Total because dim_product carries explicit members for the SKUs the
+        # storefront sells and the data office never published.
+        tests:
+          - not_null
+          - relationships: {to: ref('dim_product'), field: product_id}
+      - name: amount_usd
+        tests: [not_null]
+      - name: channel_system
+        tests:
+          - not_null
+          - accepted_values: {values: ["POS", "WEB"], quote: true}
+
   - name: fct_revenue_summary
     columns:
       - name: revenue_usd
+        tests: [not_null]
+      - name: cancelled_revenue_usd
         tests: [not_null]
       - name: fiscal_year_label
         tests: [not_null]
       - name: customer_segment
         tests: [not_null]
       - name: product_segment
+        tests: [not_null]
+      - name: channel_system
         tests: [not_null]

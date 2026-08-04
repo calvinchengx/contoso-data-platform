@@ -212,9 +212,15 @@ def definition(rows: dict, server: str = "", database: str = "") -> dict:
                             ("ProductSegment", "string"),
                             ("CustomerSegment", "string"),
                             ("Country", "string"),
-                            ("Orders", "int64"),
+                            # WHICH BUSINESS SOLD IT. "revenue is up" and
+                            # "online revenue is up" are different sentences,
+                            # and a pack that cannot separate them can only
+                            # make the first one.
+                            ("ChannelSystem", "string"),
+                            ("SaleLines", "int64"),
                             ("Units", "int64"),
                             ("RevenueUsd", "double"),
+                            ("CancelledRevenueUsd", "double"),
                             ("RevenueAtCarriedRate", "double"),
                         )
                     ],
@@ -232,6 +238,19 @@ def definition(rows: dict, server: str = "", database: str = "") -> dict:
                         {
                             "name": "Units Sold",
                             "expression": "SUM(Reporting[Units])",
+                        },
+                        # NET IS THE HEADLINE and cancellations are reported
+                        # beside it, never folded in. The storefront writes off
+                        # about 5% of what it takes and the shops write off
+                        # nothing, so a single "revenue" measure would overstate
+                        # one business and misdescribe the other.
+                        {
+                            "name": "Cancelled Revenue",
+                            "expression": "SUM(Reporting[CancelledRevenueUsd])",
+                        },
+                        {
+                            "name": "Gross Revenue",
+                            "expression": "[Revenue USD] + [Cancelled Revenue]",
                         },
                         # HOW MUCH OF THE ABOVE RESTS ON AN ASSUMPTION. FX is
                         # published on trading days only, so weekend trading is
@@ -403,7 +422,7 @@ def main() -> int:
     # segment, which is the whole reason this table exists.
     pack_dax = (
         "EVALUATE SUMMARIZECOLUMNS(Reporting[FiscalQuarterLabel], "
-        'Reporting[ProductSegment], "Revenue", [Revenue USD], '
+        'Reporting[ChannelSystem], "Revenue", [Revenue USD], '
         '"Carried", [Revenue at Carried Rate])'
     )
     r = S.post(
@@ -422,14 +441,24 @@ def main() -> int:
     expected_usd = sum(x["RevenueUsd"] for x in rows["Reporting"])
     assert abs(usd - expected_usd) < 0.01, (usd, expected_usd)
 
-    # THE FISCAL YEAR REALLY APPLIED. Contoso's year starts 1 April, so July
-    # trading must report as Q2 — a model that quietly fell back to the
-    # calendar would say Q3 and every total would still be right.
+    # THE FISCAL YEAR REALLY APPLIED, and it spans a QUARTER BOUNDARY. Contoso's
+    # year starts 1 April, so July trading reports as Q2 — a model that quietly
+    # fell back to the calendar would say Q3 and every total would still be
+    # right. Q1 exists only because the storefront's UTC offsets pull some sales
+    # back to 30 June; a reader that took the shopper's local date instead would
+    # report a single quarter and lose the boundary entirely.
     quarters = {row["Reporting[FiscalQuarterLabel]"] for row in pack}
-    assert quarters == {"FY27 Q2"}, (
-        f"expected July 2026 to report as FY27 Q2 on a 1 April financial "
-        f"year, got {sorted(quarters)}"
+    assert quarters == {"FY27 Q1", "FY27 Q2"}, (
+        f"expected FY27 Q1 and Q2 on a 1 April financial year — Q1 from the "
+        f"storefront sales that fall on 30 June once their UTC offsets are "
+        f"applied — got {sorted(quarters)}"
     )
+
+    # BOTH SELLING SYSTEMS reach the pack. The storefront arrives through the
+    # resolved party key, and a join that silently dropped it would leave a
+    # model describing a business with no online channel.
+    systems = {row["Reporting[ChannelSystem]"] for row in pack}
+    assert systems == {"POS", "WEB"}, sorted(systems)
     carried = sum(row["[Carried]"] for row in pack)
     assert carried > 0, (
         "no revenue is flagged as converted at a carried-forward rate — the "
@@ -452,8 +481,8 @@ def main() -> int:
     log(
         f"semantic model {dataset}: DAX over executeQueries — "
         f"{total:,.2f} revenue across {sorted(countries)}; reporting pack "
-        f"{usd:,.2f} USD over {sorted(quarters)}, {carried:,.2f} "
-        f"({100 * carried / usd:.1f}%) at a carried-forward rate"
+        f"{usd:,.2f} USD net over {sorted(quarters)} from {sorted(systems)}, "
+        f"{carried:,.2f} ({100 * carried / usd:.1f}%) at a carried-forward rate"
     )
     log("executeQueries rejects a non-Power BI audience token (401)")
     return 0
