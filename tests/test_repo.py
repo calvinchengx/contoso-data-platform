@@ -1148,12 +1148,13 @@ def test_no_table_with_a_nested_column_is_read_over_tds():
     analytics endpoint", and its Delta-to-SQL mapping lists no struct, array or
     map.
 
-    HOW THE EMULATOR GETS THERE HAS CHANGED, and this test deliberately does not
-    depend on which: on v0.16.0, the pinned build, the columns are present and
-    always NULL; past f51d5bd they are absent from INFORMATION_SCHEMA entirely,
-    matching the documented contract. The second is the one to write new
-    assertions against — but the invariant here is about which tables get read
-    over TDS at all, so it is true either way and stays true across the bump.
+    The pinned build does that too, as of v0.16.1 — measured: a table written
+    with array, struct and map columns reflects with those three absent, and a
+    bigint sentinel placed after them still reads 999, so nothing shifts. It was
+    not always so. v0.16.0 surfaced them as varchar NULL and v0.15.3 filled them
+    with another column's value, displacing everything after. This test does not
+    depend on which, because the invariant is about which tables get read over
+    TDS at all — it held through both and needs no revisiting at the next bump.
 
     So a table read over TDS loses whatever the vendor nested inside it, whether
     by returning nothing or by not offering the column. Spark reads Delta
