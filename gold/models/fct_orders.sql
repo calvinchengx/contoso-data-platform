@@ -52,15 +52,14 @@ select
     -- money again the moment the conversion is done.
     cast(o.amount * fx.rate_to_usd as decimal(19,4)) as amount_usd
 from {{ source('silver', 'silver_orders') }} o
--- JOINED AS TEXT, both sides. Every date in this platform travels as ISO text
--- because bronze keeps what the vendor sent, and silver_fx_daily formats its
--- dates back to match. Casting one side to `date` here would clash with the
--- other, which is exactly what it did: a Spark DateType surfaces through the
--- SQL analytics endpoint as bigint, and the build failed with `Operand type
--- clash: date is incompatible with bigint`.
+-- DATE TO DATE. `rate_date` is a real date; `order_date` is text because bronze
+-- keeps what the vendor sent, so the cast is on the order side where the
+-- conversion actually belongs.
 --
--- Fixed upstream and not yet released — silver_notebook.py carries the removal
--- condition, and both sides have to change together.
+-- This was `nvarchar = nvarchar` until fabric-emulator v0.16.0, because a Delta
+-- DateType reflected through the SQL analytics endpoint as bigint and any cast
+-- to `date` here clashed with it. Fixed in f26c182 and re-measured against the
+-- released build before this line moved.
 left join {{ source('silver', 'silver_fx_daily') }} fx
   on fx.currency = o.currency
- and fx.rate_date = o.order_date
+ and fx.rate_date = cast(o.order_date as date)

@@ -229,31 +229,20 @@ fx_daily = (
         & (F.col("e._quoted_on") == F.col("q.rate_date")),
     )
     .select(
-        # BACK TO STRINGS, and this is not cosmetic. A Spark DateType written
-        # to Delta surfaces through the SQL analytics endpoint as BIGINT —
-        # days since epoch — while `silver_orders.order_date` is nvarchar,
-        # because bronze keeps every vendor field as text. Gold joining the two
-        # fails with `Operand type clash: date is incompatible with bigint`,
-        # which names the symptom and not the cause. Measured on this stack;
-        # real Fabric surfaces the same column as `date`.
+        # A REAL DATE, which it has not always been able to be. Until
+        # fabric-emulator v0.16.0 a Spark DateType written to Delta came back
+        # through the SQL analytics endpoint as BIGINT — a day count — so gold
+        # joining it to anything died with `Operand type clash: date is
+        # incompatible with bigint`, and a plain SELECT returned 20627 with
+        # nothing to say it was a date. Silver formatted its dates back to ISO
+        # text to route around it.
         #
-        # So dates leave silver the way they entered it: ISO text. The date
-        # arithmetic above still happened in date space, where it belongs.
-        #
-        # THIS IS TEMPORARY, AND HERE IS THE CONDITION FOR REMOVING IT. The
-        # emulator's Delta type map has been fixed upstream (f26c182) — the
-        # reader was discarding the Parquet logical annotation, so date,
-        # timestamp AND int all arrived as int64 and reflected as BIGINT, and
-        # binary arrived as a string. The fix is NOT RELEASED: the newest tag is
-        # still v0.15.3, which is what versions.env pins, so this workaround is
-        # still load-bearing today.
-        #
-        # When the pin moves past v0.15.3: re-run the INFORMATION_SCHEMA.COLUMNS
-        # probe FIRST — it is what caught this, and it now has to clear
-        # timestamp, int, binary and decimal as well, none of which this
-        # platform had tested when it hit the date case. Then this formatting
-        # can go and gold can join date to date instead of nvarchar to nvarchar.
-        F.date_format(F.col("e.rate_date"), "yyyy-MM-dd").alias("rate_date"),
+        # That is fixed (f26c182), and the fix was re-measured here against the
+        # released v0.16.0 before this line changed: date, timestamp, int,
+        # bigint, double, boolean, string, decimal(9,2) and binary all reflect
+        # correctly, and a join against a real date matches. The history is kept
+        # because a silent type regression is worth recognising a second time.
+        F.col("e.rate_date").alias("rate_date"),
         F.col("e.currency").alias("currency"),
         # RATE, not MONEY: a rate is a ratio, and rounding it to four places
         # before it multiplies an amount would push that rounding into every
@@ -261,7 +250,7 @@ fx_daily = (
         F.col("q.rate_to_usd").cast(RATE).alias("rate_to_usd"),
         # Which day's rate this actually is. Equal to rate_date on a trading
         # day, the preceding trading day otherwise.
-        F.date_format(F.col("e._quoted_on"), "yyyy-MM-dd").alias("quoted_on"),
+        F.col("e._quoted_on").alias("quoted_on"),
         (F.col("e._quoted_on") != F.col("e.rate_date")).alias("rate_is_carried"),
     )
 )

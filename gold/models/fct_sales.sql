@@ -80,10 +80,8 @@ from united u
 -- amount_usd rather than silently removed from revenue. Silver's carry-forward
 -- means every calendar day in the FX span has a rate — including 30 June, which
 -- the storefront reaches once its UTC offsets are applied.
--- Text on both sides, for the reason fct_orders.sql sets out: a Delta DateType
--- reflects through the SQL analytics endpoint as bigint on the pinned build, so
--- every date in this platform travels as ISO text. silver_notebook.py holds the
--- condition for unwinding it.
+-- Date to date, with the cast on the order side — see fct_orders.sql for why
+-- this was text on both sides until v0.16.0.
 left join {{ source('silver', 'silver_fx_daily') }} fx
   on fx.currency = u.currency
- and fx.rate_date = u.order_date
+ and fx.rate_date = cast(u.order_date as date)
