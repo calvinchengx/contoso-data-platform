@@ -154,7 +154,7 @@ API, because a consumer would have to — and a test enforces it.
 
 ## Status
 
-The platform runs end to end. What it covers:
+Scaffold. It runs end to end today and still grows in phases — what it covers:
 
 | | |
 |---|---|
