@@ -220,6 +220,168 @@ n_fx = save(fx_daily, "silver_fx_daily")
 
 # CELL ********************
 
+# --- the storefront: conform, flatten, and resolve identity ----------------
+#
+# THE PROBLEM THIS CELL EXISTS FOR. Contoso Web has no customer id. It keys
+# accounts on email, so the only way to know that a shopper and a POS customer
+# are the same person is to match on the one field both systems happen to
+# carry — and neither vendor knows the other exists.
+#
+# TIMEZONE IS PINNED, NOT INHERITED. `placed_at` carries a real UTC offset on
+# 15% of orders, and 2,600 of them fall on a different DAY once that offset is
+# applied. Which day an order lands on decides which fiscal period reports it,
+# so leaving that to whatever timezone the engine happened to start in would
+# make the P&L depend on the machine that built it. Measured: the session
+# already reports Etc/UTC and `to_date` returns the correct UTC date; this line
+# is here so that stays true rather than being true by luck.
+spark.conf.set("spark.sql.session.timeZone", "UTC")
+
+web_customers = (
+    read("bronze_web_customers")
+    # The SAME normalisation silver already applies to POS emails, and it is
+    # the whole ballgame: 10% of POS emails carry mixed case and none of the
+    # storefront's do, so a case-sensitive match finds 19,821 of the 22,000
+    # people who are in both systems. Nearly a tenth of the overlap is
+    # recovered by `lower()` alone — and lost silently without it, since the
+    # unmatched rows simply look like customers who only ever shopped online.
+    .withColumn("email", F.lower(F.trim(F.col("email"))))
+    # Free text as the shopper picked it — "United States", not "US". The same
+    # map POS is conformed with, because one business rule conformed twice is
+    # two business rules waiting to disagree.
+    .withColumn(
+        "country",
+        F.coalesce(
+            conform[F.upper(F.trim(F.col("country")))],
+            F.upper(F.trim(F.col("country"))),
+        ),
+    )
+)
+n_web_cust = save(web_customers, "silver_web_customers")
+
+# ORDERS FLATTENED TO LINE GRAIN. bronze kept `lines` nested because that is
+# what arrived; a basket is not a row per item. Exploding is a decision, and
+# this is where it is visible.
+web_lines = (
+    read("bronze_web_orders")
+    .withColumn("line", F.explode("lines"))
+    .withColumn("email", F.lower(F.trim(F.col("email"))))
+    # DATE DERIVED IN UTC, never from the first ten characters of the string.
+    # `placed_at` is an instant with an offset; slicing the text would take the
+    # shopper's local date and silently file 2,600 orders under the wrong day —
+    # and, because the storefront's span crosses 30 June, under the wrong
+    # FISCAL QUARTER for some of them.
+    .withColumn("placed_utc", F.to_timestamp("placed_at"))
+    .withColumn(
+        "order_date", F.date_format(F.to_date(F.col("placed_utc")), "yyyy-MM-dd")
+    )
+    .select(
+        F.col("web_order_id"),
+        F.col("email"),
+        F.col("order_date"),
+        F.col("status"),
+        F.col("line.line_no").cast("int").alias("line_no"),
+        F.col("line.product_id").alias("product_id"),
+        # CAST BEFORE THE ARITHMETIC, not after. bronze declares every leaf of
+        # the storefront's JSON as a string on purpose — it records what the
+        # vendor sent rather than interpreting it — so these arrive as text and
+        # `quantity * unit_price` is a multiplication of two strings. The
+        # engine refuses it outright (`Cannot coerce arithmetic expression
+        # Utf8 * Utf8`), which is the good case: an engine that coerced
+        # silently would put a plausible number in a P&L.
+        F.col("line.quantity").cast("int").alias("quantity"),
+        F.col("line.unit_price").cast("double").alias("unit_price"),
+        (
+            F.col("line.quantity").cast("int") * F.col("line.unit_price").cast("double")
+        ).alias("amount"),
+        # The storefront sells in USD. Stated as a column rather than assumed,
+        # so the unified fact has the same shape from both selling systems.
+        F.lit("USD").alias("currency"),
+    )
+)
+n_web_lines = save(web_lines, "silver_web_order_lines")
+web_span = web_lines.selectExpr(
+    "min(order_date) AS lo", "max(order_date) AS hi"
+).collect()[0]
+
+# CELL ********************
+
+# --- silver_party: one row per PERSON, across both selling systems ---------
+#
+# The resolution itself. Three cohorts, and naming all three is the point —
+# a resolution step that reports only its matches is describing its successes.
+#
+#   MATCHED     in both systems, joined on the normalised email
+#   POS-ONLY    bought in a shop and never online. Includes the customers whose
+#               email the vendor never sent, who CANNOT be matched by
+#               construction — they get a party of their own keyed on their POS
+#               id, because a person with no email is still a person, and
+#               dropping them would quietly shrink the customer base.
+#   WEB-ONLY    shopped online and never in a shop
+#
+# THE KEY IS THE EMAIL where there is one, so the same person reached from
+# either system lands on the same party. Where there is none the key falls back
+# to the POS id, which cannot collide with an email and cannot match anything.
+pos = read("silver_customers").select(
+    "customer_id", "email", "country", "marketing_segment", "loyalty_tier"
+)
+pos_keyed = pos.withColumn(
+    "party_key",
+    F.when(
+        F.col("email") == "", F.concat(F.lit("pos:"), F.col("customer_id"))
+    ).otherwise(F.concat(F.lit("email:"), F.col("email"))),
+)
+web_keyed = web_customers.select("email", "country").withColumn(
+    "party_key", F.concat(F.lit("email:"), F.col("email"))
+)
+
+party = (
+    pos_keyed.alias("p")
+    .join(web_keyed.alias("w"), on="party_key", how="full_outer")
+    .select(
+        F.col("party_key"),
+        F.coalesce(F.col("p.email"), F.col("w.email")).alias("email"),
+        F.col("p.customer_id").alias("pos_customer_id"),
+        F.col("p.customer_id").isNotNull().alias("in_pos"),
+        F.col("w.email").isNotNull().alias("in_web"),
+        # POS WINS ON COUNTRY, because it is the system that has met the
+        # person. The storefront records what a shopper typed into a form.
+        F.coalesce(F.col("p.country"), F.col("w.country")).alias("country"),
+        # Only the POS system segments its customers, so a web-only shopper has
+        # no segment. Left NULL rather than bucketed as "unknown": inventing a
+        # segment here would put made-up rows in a P&L pack.
+        F.col("p.marketing_segment").alias("marketing_segment"),
+        F.col("p.loyalty_tier").alias("loyalty_tier"),
+    )
+)
+n_party = save(party, "silver_party")
+
+# What the resolution actually achieved, measured rather than claimed.
+matched = party.filter(F.col("in_pos") & F.col("in_web")).count()
+pos_only = party.filter(F.col("in_pos") & ~F.col("in_web")).count()
+web_only = party.filter(~F.col("in_pos") & F.col("in_web")).count()
+no_email = party.filter(F.col("email") == "").count()
+
+# THE COUNTERFACTUAL, and the reason it is computed at all. Every count above
+# would look perfectly healthy if silver stopped lowercasing emails — there
+# would simply be fewer matches and more web-only shoppers, which is a shape
+# nobody can distinguish from reality by looking at it. So the naive match is
+# run alongside and reported, and silver.py asserts that normalising strictly
+# beats it. This is the one number that fails if the conform is removed.
+# BOTH SIDES RAW, from bronze. Comparing silver's already-lowercased POS email
+# against the storefront's would measure nothing — the storefront sends
+# lowercase, so the normalisation would have silently happened on one side and
+# the "naive" number would come out equal to the real one.
+naive = (
+    read("bronze_customers")
+    .select("email")
+    .filter(F.col("email").isNotNull() & (F.col("email") != ""))
+    .distinct()
+    .join(read("bronze_web_customers").select("email").distinct(), on="email")
+    .count()
+)
+
+# CELL ********************
+
 # What the notebook OBSERVED, handed back for the platform to grade.
 #
 # The assertions live in silver.py, not here, and the split is deliberate. A
@@ -250,6 +412,21 @@ notebook_exit(
             "fx_carried": fx_daily.filter(F.col("rate_is_carried")).count(),
             "fx_currencies": currencies.count(),
             "fx_calendar_days": n_days,
+            "silver_web_customers": n_web_cust,
+            "silver_web_order_lines": n_web_lines,
+            "silver_party": n_party,
+            "party_matched": matched,
+            "party_pos_only": pos_only,
+            "party_web_only": web_only,
+            "party_no_email": no_email,
+            # What a case-sensitive match would have found. Reported so
+            # silver.py can assert that conforming beat it — the only number
+            # here that moves if the normalisation is removed.
+            "naive_case_sensitive_matches": naive,
+            # The UTC span. Reported because it is wider than the naive one —
+            # the storefront's orders reach back to 30 June once their offsets
+            # are applied, which is a different FISCAL QUARTER from July.
+            "web_order_date_span": [web_span["lo"], web_span["hi"]],
         }
     )
 )

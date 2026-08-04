@@ -124,6 +124,7 @@ def await_job(tok: str, workspace: str, notebook: str, job: str) -> dict:
 def main() -> int:
     import reference_data as ref
     import source_system as src
+    import web_store as web
 
     st = state.load()
     tok = token(FABRIC_AUD)
@@ -180,6 +181,59 @@ def main() -> int:
         "so weekend revenue is no longer being converted by a stated rule"
     )
 
+    # --- identity resolution ------------------------------------------------
+    assert got["silver_web_customers"] == web.EXPECTED_WEB_CUSTOMERS, got
+
+    # THE MATCH ITSELF, graded against the storefront's own contract rather
+    # than against whatever the join produced.
+    assert got["party_matched"] == web.EXPECTED_SHARED_EMAIL_COUNT, got
+    assert got["party_web_only"] == web.EXPECTED_WEB_ONLY_EMAIL_COUNT, got
+
+    # Every person is in exactly one cohort, and the cohorts account for the
+    # whole party table. Without this the counts above could each be right
+    # while the table held duplicates of the matched rows.
+    assert (
+        got["party_matched"] + got["party_pos_only"] + got["party_web_only"]
+        == got["silver_party"]
+    ), got
+
+    # The POS customers whose email the vendor never sent SURVIVE, each as a
+    # party of their own. They are unmatchable by construction, which is
+    # exactly why they have to be visible: a resolution step that quietly
+    # dropped them would report a higher match rate against a smaller
+    # population and look better for it.
+    assert got["party_no_email"] > 0, (
+        "the customers with no email vanished from the party table — the "
+        "cohort that can never be resolved is the one that proves the match "
+        "rate is not being computed against a convenient subset"
+    )
+
+    # NORMALISING STRICTLY BEAT MATCHING RAW, and this is the assertion that
+    # fails if the email conform is ever removed. 10% of POS emails carry mixed
+    # case and none of the storefront's do, so a case-sensitive join finds
+    # ~19.8k of the 22k people who are really in both systems. Every other
+    # number here would still look healthy — there would simply be fewer
+    # matches and more web-only shoppers, a shape indistinguishable from a
+    # business whose customers genuinely do not overlap.
+    assert got["naive_case_sensitive_matches"] < got["party_matched"], (
+        f"conforming emails gained nothing: a case-sensitive match found "
+        f"{got['naive_case_sensitive_matches']:,} and the conformed one "
+        f"{got['party_matched']:,}. Either the normalisation was removed or "
+        f"the vendor stopped sending mixed case — and the first is silent."
+    )
+
+    # THE OFFSETS WERE APPLIED. `placed_at` carries a real UTC offset on 15% of
+    # orders, and the span only reaches back to 30 June once they are honoured
+    # — which is a different FISCAL QUARTER from July. A reader that sliced the
+    # first ten characters of the timestamp would produce a 1-28 July span and
+    # file those orders in the wrong period, with nothing to show for it.
+    lo, hi = got["web_order_date_span"]
+    assert lo < "2026-07-01", (
+        f"the storefront's orders start {lo}, so the UTC offsets were not "
+        f"applied — 2,600 orders are filed under the shopper's local date"
+    )
+    assert hi > "2026-07-28", (lo, hi)
+
     state.save(
         silver={
             k: got[k]
@@ -189,6 +243,9 @@ def main() -> int:
                 "silver_quarantine_orders",
                 "silver_product_hierarchy",
                 "silver_fx_daily",
+                "silver_web_customers",
+                "silver_web_order_lines",
+                "silver_party",
             )
         },
         silver_notebook=notebook,
@@ -201,6 +258,17 @@ def main() -> int:
         f"countries {got['countries']} — computed by a Fabric notebook; "
         f"FX densified to {got['silver_fx_daily']} rows over "
         f"{got['fx_calendar_days']} calendar days, {got['fx_carried']} carried"
+    )
+    log(
+        f"identity: {got['silver_party']:,} parties — "
+        f"{got['party_matched']:,} in both systems "
+        f"(a case-sensitive match would have found "
+        f"{got['naive_case_sensitive_matches']:,}), "
+        f"{got['party_pos_only']:,} POS-only of which "
+        f"{got['party_no_email']:,} have no email to match on, "
+        f"{got['party_web_only']:,} web-only; "
+        f"{got['silver_web_order_lines']:,} storefront lines spanning "
+        f"{got['web_order_date_span'][0]}..{got['web_order_date_span'][1]} UTC"
     )
     return 0
 
