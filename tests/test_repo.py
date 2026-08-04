@@ -1102,3 +1102,28 @@ def test_the_schedule_step_does_not_race_its_own_first_occurrence():
     assert quiets[-1] < body.index("advance(ADVANCE_SECONDS)"), (
         "the second await_quiet must come BEFORE the advance, or the two runs race"
     )
+
+
+def test_the_grpc_transport_is_quiet_before_pyspark_loads():
+    """gRPC's C-core logs at INFO, and the order of these lines matters.
+
+    Spark Connect talks gRPC. Every step that holds a session and then spawns a
+    subprocess emits one `ev_poll_posix.cc:593] FD from fork parent still in
+    poll list` per inherited descriptor — 14 lines per `govern.py` run,
+    measured — which buries the step's own output and, in a recorded demo, the
+    whole terminal pane.
+
+    The C-core reads GRPC_VERBOSITY when it initialises, so setting it AFTER
+    pyspark is imported is a no-op that looks like a fix. Hence the ordering
+    assertion rather than a presence one.
+    """
+    src = (ROOT / "platform" / "spark.py").read_text(encoding="utf-8")
+    assert "GRPC_VERBOSITY" in src, "the gRPC transport's INFO chatter is unmuted"
+    assert src.index("GRPC_VERBOSITY") < src.index("from pyspark"), (
+        "GRPC_VERBOSITY must be set BEFORE pyspark is imported — the C-core "
+        "reads it at initialisation, so a later assignment silences nothing"
+    )
+    # ERROR, not NONE: a transport that genuinely fails must still say so.
+    assert '"GRPC_VERBOSITY", "ERROR"' in src, (
+        "silence the INFO chatter, not the diagnostics"
+    )

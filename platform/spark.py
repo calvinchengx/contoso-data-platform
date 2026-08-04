@@ -17,6 +17,24 @@ engine is Sail here and a Fabric Spark pool in production.
 
 from __future__ import annotations
 
+import os
+
+# QUIET THE TRANSPORT, not the engine. Spark Connect talks gRPC, and gRPC's
+# C-core logs at INFO by default — so every step that holds a session and then
+# spawns a subprocess emits a wall of
+# `ev_poll_posix.cc:593] FD from fork parent still in poll list`, one line per
+# inherited descriptor. It is not a warning about anything: the child is being
+# told about file descriptors it will never use.
+#
+# Measured on `govern.py`: 14 lines of it per run, arriving in a block that
+# buries the step's actual output. In a recorded demo it buries the whole
+# terminal pane.
+#
+# ERROR rather than NONE, because a transport that genuinely fails should still
+# say so — the noise worth removing is the INFO chatter, not the diagnostics.
+# Set before pyspark is imported: the C-core reads this when it initialises.
+os.environ.setdefault("GRPC_VERBOSITY", "ERROR")
+
 from fabric import T
 from pyspark.sql import SparkSession
 
