@@ -10,6 +10,7 @@ every run, on every platform.
 """
 
 import hashlib
+import json
 import pathlib
 import shutil
 import sys
@@ -17,8 +18,11 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "sources" / "_data"
 
-# (module, export kwarg, subdirectory). Web/ERP/reference arrive in later waves.
-FEEDS = [("source_system", "contoso-pos")]
+# (module, subdirectory). Reference arrives in the next wave.
+FEEDS = [
+    ("source_system", "contoso-pos"),
+    ("web_store", "contoso-web"),
+]
 
 # WHY THE PAGES ARE FILES ON DISK, not slices computed per request.
 #
@@ -32,6 +36,37 @@ FEEDS = [("source_system", "contoso-pos")]
 # applies to a page instead of the whole export. This is also what a nightly
 # batch export usually looks like in practice: parts, not one enormous file.
 PAGE_BYTES = 8 * 1024 * 1024
+
+
+def paginate_json_array(blob: bytes, page_bytes: int = PAGE_BYTES) -> list[bytes]:
+    """Split a JSON array into pages that are each a valid JSON array.
+
+    The line-based splitter below cannot touch these: the web store sends
+    `[{...},{...}]` on ONE line, so `splitlines()` returns a single 30 MB page
+    and paging becomes decoration. That is the shape the page-size comment
+    above is about — a 95 MB body cost 944 MB resident and killed the
+    container, and 30 MB would carry the same 10x.
+
+    Splitting STRUCTURALLY rather than on bytes is also what the vendor would
+    do: a paged REST endpoint returns a page of records as a JSON array, not a
+    fragment of one. Each page here is independently parseable, which is what
+    lets Spark read the landed directory as one dataset.
+
+    Parsing the whole export is fine HERE and nowhere else — this is a build
+    step that runs once, not a request path that runs per page.
+    """
+    records = json.loads(blob)
+    pages, cur, size = [], [], 0
+    for rec in records:
+        line = json.dumps(rec, separators=(",", ":")).encode()
+        cur.append(line)
+        size += len(line) + 1
+        if size >= page_bytes:
+            pages.append(b"[" + b",".join(cur) + b"]")
+            cur, size = [], 0
+    if cur or not pages:
+        pages.append(b"[" + b",".join(cur) + b"]")
+    return pages
 
 
 def paginate(
@@ -85,7 +120,14 @@ def main():
                 shutil.rmtree(pagedir)
             pagedir.mkdir(parents=True)
 
-            pages = paginate(blob, keep_header=ext == "csv")
+            # JSON arrays page by record, everything else by line. The
+            # extension is the vendor's own statement about its format, so it
+            # is what decides — not a per-feed flag this script would have to
+            # keep in step with the generators.
+            if ext == "json":
+                pages = paginate_json_array(blob)
+            else:
+                pages = paginate(blob, keep_header=ext == "csv")
             for i, page in enumerate(pages, 1):
                 (pagedir / f"page-{i:04d}.{ext}").write_bytes(page)
             # The page count is DATA, not a constant in two places. serve.js

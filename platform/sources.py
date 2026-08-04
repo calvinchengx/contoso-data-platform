@@ -20,6 +20,12 @@ POS_API = os.environ.get("POS_API_URL", "http://localhost:18090")
 # The NAME of the secret, never its value. Resolved from Key Vault at use.
 POS_KEY_SECRET = os.environ.get("POS_KEY_SECRET", "contoso-pos-api-key")
 
+# Contoso Web — the storefront's export API. A SECOND VENDOR with its own
+# endpoint and its own key: the POS credential must not open this door, which
+# is what having two vendors means rather than two routes on one.
+WEB_API = os.environ.get("WEB_API_URL", "http://localhost:18091")
+WEB_KEY_SECRET = os.environ.get("WEB_KEY_SECRET", "contoso-web-api-key")
+
 # Contoso ERP — a relational source, captured by CDC.
 ERP_HOST = os.environ.get("ERP_HOST", "localhost")
 ERP_PORT = os.environ.get("ERP_PORT", "55432")

@@ -21,6 +21,10 @@ STEPS = [
     # already populated and this step does not exist.
     ("seed_secrets", "put the source credentials in Key Vault"),
     ("ingest_pos", "pull Contoso POS over HTTP into Files/landing"),
+    # The second vendor, and the first real test of the pattern: its own key,
+    # its own formats, and a customer list that overlaps the POS one without
+    # either system knowing it.
+    ("ingest_web", "pull Contoso Web over HTTP into Files/landing"),
     # The connector goes BEFORE the replay. Start it after, and the history is
     # captured by a snapshot rather than as a change stream — which would still
     # produce rows, and might even match on count, while testing the wrong
@@ -71,14 +75,21 @@ def preflight() -> None:
     # bad API key", an error naming neither mokapi nor the absent files. The
     # compose healthcheck catches it too; this catches it before the stack is
     # even up, and says which command fixes it.
-    for feed in ("customers", "orders"):
-        pages = HERE.parent / "sources" / "_data" / "contoso-pos" / feed / "pages.txt"
-        if not pages.exists():
-            raise SystemExit(
-                f"the vendor's exports are not materialised ({feed}).\n"
-                f"  run `make sources` — sources/_data/ is gitignored, so a "
-                f"fresh clone has nothing for the source APIs to serve."
-            )
+    # Every vendor, not just the first: a missing contoso-web fixture fails the
+    # same silent way, and checking only POS would let it through.
+    for vendor, feeds in (
+        ("contoso-pos", ("customers", "orders")),
+        ("contoso-web", ("customers", "products", "orders")),
+    ):
+        for feed in feeds:
+            pages = HERE.parent / "sources" / "_data" / vendor / feed / "pages.txt"
+            if not pages.exists():
+                raise SystemExit(
+                    f"the vendor's exports are not materialised "
+                    f"({vendor}/{feed}).\n"
+                    f"  run `make sources` — sources/_data/ is gitignored, so a "
+                    f"fresh clone has nothing for the source APIs to serve."
+                )
 
 
 def main() -> int:

@@ -1,0 +1,183 @@
+# Contoso Web — the storefront's export API, as its docs would describe it.
+#
+# A SECOND VENDOR, not a second endpoint on the first. Contoso Web is a
+# different company's system with its own key, its own shapes and its own
+# release cadence, and modelling it that way is the point: a platform that
+# handles one source handles one source.
+#
+# Like the POS spec, this describes the SOURCE SYSTEM rather than our
+# convenience, and OpenMetadata ingests it to make Contoso Web a node in
+# lineage. Response bodies are served from files by serve.js, never generated
+# from these schemas — mokapi's generation is random per request and random in
+# shape, so it cannot back an exact-count assertion.
+openapi: 3.0.3
+info:
+  title: Contoso Web Storefront Export API
+  version: "2.1.0"
+  description: >-
+    Export from the e-commerce storefront. Everything is JSON — this vendor
+    ships arrays of objects, not the delimited text and JSON Lines the POS
+    system sends. That difference is real and is not smoothed over anywhere
+    before bronze: landing is the record of what each vendor actually sent.
+
+    Orders are NESTED. One order carries a `lines` array, because that is the
+    grain the storefront thinks in — a basket, not a row per item. Flattening
+    it is the platform's job, downstream, where the choice is visible.
+
+    Customers OVERLAP the POS system's by email. Roughly half of these people
+    have bought in a shop as well as online, and neither vendor knows about the
+    other. Resolving them into one customer is the problem this source exists
+    to create.
+
+    Paged like the POS export, and for the same reason: a client reads `page=1`,
+    takes the total from `X-Total-Pages`, and continues until it has them all.
+servers:
+  - url: http://localhost:8091
+    description: mokapi, standing in for the vendor
+paths:
+  /api/v2/export/customers:
+    get:
+      operationId: exportWebCustomers
+      summary: Registered storefront accounts
+      security: [{ApiKey: []}]
+      parameters: [{$ref: "#/components/parameters/Page"}]
+      responses:
+        "200":
+          description: >-
+            A JSON array of accounts. Each page is a complete, independently
+            parseable array rather than a fragment of one, so a page can be
+            read on its own.
+          headers:
+            X-Total-Pages: {$ref: "#/components/headers/TotalPages"}
+            X-Page: {$ref: "#/components/headers/Page"}
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/WebCustomer"}
+        "401":
+          description: Missing or wrong API key.
+        "404":
+          description: No such page — page was below 1 or above X-Total-Pages.
+  /api/v2/export/products:
+    get:
+      operationId: exportWebProducts
+      summary: The storefront catalogue
+      security: [{ApiKey: []}]
+      parameters: [{$ref: "#/components/parameters/Page"}]
+      responses:
+        "200":
+          description: >-
+            The product catalogue. Small and slow-moving, but it is what an
+            order line's `product_id` refers to — and some lines refer to ids
+            that are not in here, which is a real condition the platform has to
+            report rather than drop.
+          headers:
+            X-Total-Pages: {$ref: "#/components/headers/TotalPages"}
+            X-Page: {$ref: "#/components/headers/Page"}
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/WebProduct"}
+        "401":
+          description: Missing or wrong API key.
+        "404":
+          description: No such page — page was below 1 or above X-Total-Pages.
+  /api/v2/export/orders:
+    get:
+      operationId: exportWebOrders
+      summary: Storefront orders, with their lines nested
+      security: [{ApiKey: []}]
+      parameters: [{$ref: "#/components/parameters/Page"}]
+      responses:
+        "200":
+          description: >-
+            A JSON array of orders, each carrying its own `lines`. Cancelled
+            orders are included — the storefront reports what happened, and
+            deciding what counts as revenue is not the vendor's call.
+          headers:
+            X-Total-Pages: {$ref: "#/components/headers/TotalPages"}
+            X-Page: {$ref: "#/components/headers/Page"}
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/WebOrder"}
+        "401":
+          description: Missing or wrong API key.
+        "404":
+          description: No such page — page was below 1 or above X-Total-Pages.
+components:
+  parameters:
+    Page:
+      name: page
+      in: query
+      required: false
+      description: 1-based page number. Omitted means the first page.
+      schema: {type: integer, minimum: 1, default: 1}
+  headers:
+    TotalPages:
+      description: How many pages this export has, in total.
+      schema: {type: integer, minimum: 1}
+    Page:
+      description: Which page this response is — echoed so a client can check.
+      schema: {type: integer, minimum: 1}
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+  schemas:
+    WebCustomer:
+      type: object
+      description: >-
+        No customer id. The storefront keys accounts on email, which is exactly
+        why joining it to the POS system is a resolution problem and not a join.
+      required: [email, full_name, country]
+      properties:
+        email: {type: string, format: email}
+        full_name: {type: string}
+        country:
+          type: string
+          description: >-
+            The country as the shopper typed or picked it — "United States",
+            not "US". Conforming it is silver's job.
+        signup_ts: {type: string, format: date-time}
+    WebProduct:
+      type: object
+      required: [product_id, name, category, list_price]
+      properties:
+        product_id: {type: string, example: "P-100"}
+        name: {type: string}
+        category: {type: string}
+        list_price: {type: number, format: double}
+    WebOrder:
+      type: object
+      required: [web_order_id, email, placed_at, status, lines]
+      properties:
+        web_order_id: {type: string, example: "W-00000000"}
+        email:
+          type: string
+          format: email
+          description: The account that placed it — the only link to a customer.
+        placed_at: {type: string, format: date-time}
+        status:
+          type: string
+          enum: [fulfilled, cancelled]
+        lines:
+          type: array
+          description: One entry per product in the basket.
+          items: {$ref: "#/components/schemas/WebOrderLine"}
+    WebOrderLine:
+      type: object
+      required: [line_no, product_id, quantity, unit_price]
+      properties:
+        line_no: {type: integer, minimum: 1}
+        product_id:
+          type: string
+          description: >-
+            Refers to WebProduct.product_id — but not always successfully. The
+            storefront ships lines for products the catalogue no longer has.
+        quantity: {type: integer}
+        unit_price: {type: number, format: double}

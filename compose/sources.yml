@@ -93,6 +93,50 @@ services:
       - "${POS_API_PORT:-18090}:8090"   # the vendor's API
       - "${POS_UI_PORT:-18081}:8080"    # its mokapi dashboard
 
+  # --- Contoso Web: the storefront's export API -----------------------------
+  # ITS OWN INSTANCE, not another spec on mokapi-pos. Two vendors are two
+  # companies: one process serving both makes a single outage everyone's, puts
+  # both exports under one memory ceiling, and hands each vendor the other's
+  # bytes to serve by a path typo. `test_one_mokapi_instance_per_source`
+  # enforces it.
+  mokapi-web:
+    image: mokapi/mokapi:${MOKAPI_VERSION:?see versions.env}
+    command:
+      - --event-store-default-size=1
+      - /sources/contoso-web/openapi.yaml
+      - /sources/contoso-web/serve.js
+    environment:
+      # Go does not read the cgroup limit; see mokapi-pos for the measurement.
+      # Lower here because this vendor's pages are smaller — its whole export
+      # is 36 MB against the POS system's 170 MB.
+      GOMEMLIMIT: 1GiB
+    volumes:
+      - ../sources/contoso-web:/sources/contoso-web:ro
+      - ../sources/_data/contoso-web:/sources/_data/contoso-web:ro
+    # Sized to THIS vendor's export, as mokapi-pos's comment says each should
+    # be. `read()` holds a page as a UTF-16 JS string, so budget ~2x the 8 MB
+    # page plus mokapi's own footprint — 2g is generous, not tight.
+    mem_limit: 2g
+    restart: unless-stopped
+    # Healthy means the vendor REFUSES a bad key. If serve.js cannot read its
+    # fixture, mokapi silently falls back to generating bodies from the schema
+    # and answers everything 200 — including a wrong key. wget exits non-zero
+    # on 401, which is the healthy case, hence the inverted test.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          wget -q -O /dev/null --header='X-Api-Key: definitely-not-the-key'
+          http://localhost:8091/api/v2/export/customers && exit 1 || exit 0
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # The next pair, per mokapi-pos's rule: 1809x for the API, 1808x for the
+    # dashboard.
+    ports:
+      - "${WEB_API_PORT:-18091}:8091"   # the vendor's API
+      - "${WEB_UI_PORT:-18082}:8080"    # its mokapi dashboard
+
   # --- Contoso ERP: a relational source, captured ---------------------------
   # POS and Web publish file-shaped exports, so a REST endpoint is the honest
   # transport for them. ERP is different in kind: it is a database that changes,

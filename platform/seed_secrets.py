@@ -16,7 +16,7 @@ import state
 import vault
 from fabric import log
 
-from sources import ERP_PASSWORD_SECRET, POS_KEY_SECRET
+from sources import ERP_PASSWORD_SECRET, POS_KEY_SECRET, WEB_KEY_SECRET
 
 # Only for the local family. Against real vendors these are the customer's own
 # credentials and this step does not run at all.
@@ -25,9 +25,15 @@ ERP_PASSWORD = "contoso-erp-dev"
 
 def main() -> int:
     import source_system as src
+    import web_store as web
 
+    # ONE SECRET PER VENDOR. Contoso Web's key is not Contoso POS's, and the
+    # two are seeded separately because in production they are issued by
+    # different companies and rotate on different days. Sharing one here would
+    # make that impossible to represent later without a migration.
     ids = {
         POS_KEY_SECRET: vault.put(POS_KEY_SECRET, src.API_KEY),
+        WEB_KEY_SECRET: vault.put(WEB_KEY_SECRET, web.API_KEY),
         ERP_PASSWORD_SECRET: vault.put(ERP_PASSWORD_SECRET, ERP_PASSWORD),
     }
     # Read every one back. A vault that accepted a write and cannot serve it is
