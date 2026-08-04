@@ -60,14 +60,14 @@ def main() -> int:
     if not SEMVER.match(version):
         sys.exit(f"not a version: {version!r} — expected something like 0.13.1")
 
-    text = VERSIONS.read_text()
+    text = VERSIONS.read_text(encoding="utf-8")
     new, moved = set_version(text, version)
 
     missing = [k for k in TRACKS_THE_RELEASE if k not in moved]
     if missing:
         sys.exit(f"{VERSIONS.name} has no {', '.join(missing)} to set")
 
-    VERSIONS.write_text(new)
+    VERSIONS.write_text(new, encoding="utf-8")
     for key, old in moved.items():
         note = "  (unchanged)" if old == version else ""
         print(f"  {key}: {old} -> {version}{note}")

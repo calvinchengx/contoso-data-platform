@@ -42,7 +42,7 @@ EXTRAS = {"fabric_target": "[real,sessions]"}
 def pins() -> dict[str, str]:
     """Every pinned image version, by the variable name compose uses."""
     out = {}
-    for line in VERSIONS.read_text().splitlines():
+    for line in VERSIONS.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)

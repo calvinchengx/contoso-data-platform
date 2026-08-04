@@ -162,10 +162,10 @@ def main() -> int:
                     f"filming, so stopping rather than running on blind"
                 )
             time.sleep(2)
-        rc = int(marker.read_text().strip() or "1")
+        rc = int(marker.read_text(encoding="utf-8").strip() or "1")
         print(f"==> `{args.command}` finished (exit {rc})", flush=True)
 
-        STOP.write_text("stop")
+        STOP.write_text("stop", encoding="utf-8")
         out, _ = rec.communicate(timeout=300)
         for line in (out or "").splitlines():
             marks = ("RENDERED", "TERMINAL", "VIDEO", "WATCHED", "WATCHING")

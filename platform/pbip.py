@@ -68,8 +68,13 @@ def write(out_dir: pathlib.Path, model_bim: dict) -> pathlib.Path:
             },
             indent=2,
         )
-        + "\n"
+        + "\n",
+        encoding="utf-8",
     )
-    (folder / "definition.pbism").write_text(json.dumps(PBISM, indent=2) + "\n")
-    (folder / "model.bim").write_text(json.dumps(model_bim, indent=2) + "\n")
+    (folder / "definition.pbism").write_text(
+        json.dumps(PBISM, indent=2) + "\n", encoding="utf-8"
+    )
+    (folder / "model.bim").write_text(
+        json.dumps(model_bim, indent=2) + "\n", encoding="utf-8"
+    )
     return folder

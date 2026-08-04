@@ -184,7 +184,7 @@ class TestVocabularyMatchesTheEmulator:
         p = self.EMULATOR / rel
         if not p.exists():
             pytest.skip(f"fabric-emulator not checked out beside this repo ({rel})")
-        return p.read_text()
+        return p.read_text(encoding="utf-8")
 
     @staticmethod
     def _defines(src: str, name: str, value: str) -> bool:
@@ -276,7 +276,7 @@ class TestTheDemoHarness:
     DRIVER = ROOT / "scripts" / "demo.py"
 
     def test_both_panes_are_asserted_and_neither_stands_in_for_the_other(self):
-        src = self.RECORDER.read_text()
+        src = self.RECORDER.read_text(encoding="utf-8")
         assert "RENDERED" in src and "TERMINAL" in src, (
             "the recorder must report each pane; one pass/fail hides which "
             "half of the video is missing"
@@ -291,7 +291,7 @@ class TestTheDemoHarness:
         # xterm.js renders to <canvas>: `.xterm-rows > div` matches nothing and
         # innerText is empty, so an assertion written against the DOM CANNOT
         # pass. The first version reported TERMINAL false on a working pane.
-        src = self.RECORDER.read_text()
+        src = self.RECORDER.read_text(encoding="utf-8")
         assert "window.term?.buffer?.active" in src, (
             "the terminal check must read xterm's buffer — the DOM and the "
             "canvas both report nothing for a working terminal"
@@ -314,14 +314,14 @@ class TestTheDemoHarness:
         # "Press ⏎ to Reconnect" over the pane for the tail of every video —
         # and it deadlocks the driver, which waits for the stop file that is
         # only written after ttyd exits.
-        src = self.DRIVER.read_text()
+        src = self.DRIVER.read_text(encoding="utf-8")
         assert '"-o"' not in src, (
             "ttyd -o is back: it overlays a reconnect prompt on the recording "
             "and deadlocks the wait"
         )
 
     def test_completion_is_a_marker_file_not_the_ttyd_lifetime(self):
-        src = self.DRIVER.read_text()
+        src = self.DRIVER.read_text(encoding="utf-8")
         assert ".demo-exit" in src and "marker.exists()" in src, (
             "the driver must wait on the command's own exit marker; waiting on "
             "ttyd deadlocks"
@@ -330,10 +330,10 @@ class TestTheDemoHarness:
     def test_the_inner_recorder_is_disabled(self):
         # Two Playwright contexts filming the same portal contend, and the
         # second video is the one nobody wanted.
-        assert '"CAPTURE": "0"' in self.DRIVER.read_text()
+        assert '"CAPTURE": "0"' in self.DRIVER.read_text(encoding="utf-8")
 
     def test_the_driver_refuses_rather_than_recording_half_a_frame(self):
-        src = self.DRIVER.read_text()
+        src = self.DRIVER.read_text(encoding="utf-8")
         assert "ttyd is not installed" in src, (
             "without ttyd this would silently record the graph alone"
         )

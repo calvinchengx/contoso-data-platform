@@ -75,7 +75,7 @@ def main():
         # read it. NOT copied into serve.js: two literals of one credential
         # drift the moment either moves — which is exactly what happened when
         # this was invented in two places and only one of them was updated.
-        (dest / ".api-key").write_text(mod.API_KEY)
+        (dest / ".api-key").write_text(mod.API_KEY, encoding="utf-8")
         for filename, blob in mod.export(mod.API_KEY).items():
             stem, _, ext = filename.rpartition(".")
             pagedir = dest / stem
@@ -91,7 +91,7 @@ def main():
             # The page count is DATA, not a constant in two places. serve.js
             # reads it to answer X-Total-Pages, so the API cannot claim a page
             # count the directory does not have.
-            (pagedir / "pages.txt").write_text(str(len(pages)))
+            (pagedir / "pages.txt").write_text(str(len(pages)), encoding="utf-8")
 
             total += len(blob)
             digest = hashlib.sha256(blob).hexdigest()[:12]

@@ -86,7 +86,7 @@ def main() -> int:
             # types demand LiteralString precisely so that dynamic SQL has to
             # be justified rather than assumed. Saying so here is the
             # justification.
-            cur.execute(cast("LiteralString", SCHEMA.read_text()))
+            cur.execute(cast("LiteralString", SCHEMA.read_text(encoding="utf-8")))
             # Start from empty so a re-run is not an append. The platform is a
             # test; a second run that silently doubles the history would still
             # be green on every count that is stated as a minimum.

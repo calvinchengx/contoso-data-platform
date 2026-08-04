@@ -27,7 +27,7 @@ def main():
     if i + 1 >= len(tags):
         sys.exit(f"{current} is the oldest release listed — nothing to compare against")
     previous = tags[i + 1]
-    text = rel.VERSIONS.read_text()
+    text = rel.VERSIONS.read_text(encoding="utf-8")
     rel.VERSIONS.write_text(
         re.sub(
             r"^FABRIC_EMULATOR_VERSION=.*$",
@@ -35,7 +35,8 @@ def main():
             text,
             count=1,
             flags=re.M,
-        )
+        ),
+        encoding="utf-8",
     )
     print(f"re-pinned {current} -> {previous} for attribution")
     return 0

@@ -3,7 +3,9 @@
 import pathlib
 import re
 
-mk = (pathlib.Path(__file__).resolve().parent.parent / "Makefile").read_text()
+mk = (pathlib.Path(__file__).resolve().parent.parent / "Makefile").read_text(
+    encoding="utf-8"
+)
 targets = re.findall(r"^([a-z][a-z0-9-]*):.*?##\s*(.+)$", mk, re.M)
 width = max(len(t) for t, _ in targets)
 print("make <target>\n")

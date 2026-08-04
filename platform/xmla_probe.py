@@ -75,7 +75,7 @@ def main() -> int:
         mounts = []
         if not T.verify_tls:
             pathlib.Path(certdir, "emulator.crt").write_text(
-                server_cert_pem(T.api_root)
+                server_cert_pem(T.api_root), encoding="utf-8"
             )
             mounts = ["-v", f"{certdir}:/certs:ro"]
         r = subprocess.run(

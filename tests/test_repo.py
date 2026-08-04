@@ -11,12 +11,12 @@ import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-MAKEFILE = (ROOT / "Makefile").read_text()
+MAKEFILE = (ROOT / "Makefile").read_text(encoding="utf-8")
 
 
 def _pins():
     out = {}
-    for line in (ROOT / "versions.env").read_text().splitlines():
+    for line in (ROOT / "versions.env").read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
@@ -54,7 +54,9 @@ def test_every_image_is_pinned_to_a_version():
 def test_compose_reads_every_pin():
     """A pin nothing substitutes is a comment. Each variable must appear in a
     compose file, or the image silently falls back to whatever is there."""
-    composed = "".join(p.read_text() for p in (ROOT / "compose").glob("*.yml"))
+    composed = "".join(
+        p.read_text(encoding="utf-8") for p in (ROOT / "compose").glob("*.yml")
+    )
     for k in _pins():
         assert "${" + k in composed, f"{k} is pinned but never used"
 
@@ -62,7 +64,7 @@ def test_compose_reads_every_pin():
 def test_compose_never_uses_latest():
     # `latest` would make a green run unattributable: something worked, but you
     # could not say which release.
-    text = (ROOT / "compose" / "docker-compose.yml").read_text()
+    text = (ROOT / "compose" / "docker-compose.yml").read_text(encoding="utf-8")
     assert ":latest" not in text
     assert "${FABRIC_EMULATOR_VERSION" in text
 
@@ -110,7 +112,7 @@ def test_the_emulator_client_plumbing_is_never_imported():
     for p in ROOT.rglob("*.py"):
         if ".venv" in p.parts or p.name == "test_repo.py":
             continue
-        src = p.read_text()
+        src = p.read_text(encoding="utf-8")
         if re.search(r"^\s*(from common import|import common\b)", src, re.M):
             offenders.append(p.relative_to(ROOT).as_posix())
     assert not offenders, f"must not import the emulator's own plumbing: {offenders}"
@@ -128,7 +130,7 @@ def test_the_toggle_contract_is_installed_not_restated():
     branch wrong and stays green, because the emulator does not care which
     identity showed up.
     """
-    src = (ROOT / "platform" / "target.py").read_text()
+    src = (ROOT / "platform" / "target.py").read_text(encoding="utf-8")
     assert "import fabric_target" in src, (
         "target.py must consume the published contract, not restate it"
     )
@@ -140,7 +142,7 @@ def test_the_toggle_contract_is_installed_not_restated():
     hand_rolled = re.compile(r"""["']grant_type["']|oauth2/v2\.0/token""")
     offenders = []
     for p in sorted((ROOT / "platform").glob("*.py")):
-        for i, line in enumerate(p.read_text().splitlines(), 1):
+        for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
             if hand_rolled.search(line):
                 offenders.append(f"{p.name}:{i}: {line.strip()}")
     assert not offenders, (
@@ -160,7 +162,7 @@ def test_python_is_only_ever_invoked_through_uv():
     bad = []
     files = [ROOT / "Makefile", *sorted((ROOT / ".github/workflows").glob("*.yml"))]
     for f in files:
-        for i, line in enumerate(f.read_text().splitlines(), 1):
+        for i, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
             stripped = line.strip().lstrip("@- ")
             if stripped.startswith("#") or "python-version" in stripped:
                 continue
@@ -173,7 +175,9 @@ def test_the_lockfile_is_committed():
     """Without it, `--frozen` has nothing to be frozen to and three platforms
     resolve three different dependency sets."""
     assert (ROOT / "uv.lock").exists()
-    assert "pytest" in (ROOT / "uv.lock").read_text(), "dev group not locked"
+    assert "pytest" in (ROOT / "uv.lock").read_text(encoding="utf-8"), (
+        "dev group not locked"
+    )
 
 
 def test_the_emulator_appears_only_in_the_target_resolver():
@@ -193,7 +197,7 @@ def test_the_emulator_appears_only_in_the_target_resolver():
     for p in sorted((ROOT / "platform").glob("*.py")):
         if p.name == "target.py":
             continue
-        for i, line in enumerate(p.read_text().splitlines(), 1):
+        for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
             if line.lstrip().startswith("#"):
                 continue
             if emulator_only.search(line):
@@ -210,7 +214,7 @@ def real_branch() -> str:
     credential source, and the point of these assertions is that the value is a
     LITERAL no configuration can reach — which is a property of the text.
     """
-    src = (ROOT / "platform" / "target.py").read_text()
+    src = (ROOT / "platform" / "target.py").read_text(encoding="utf-8")
     return src[
         src.index("if ft.is_real:") : src.index("return Target(\n        name=EMULATOR")
     ]
@@ -230,7 +234,7 @@ def test_the_fabric_client_knows_nothing_about_the_source_systems():
     Fabric. A Fabric client that knows what a vendor's DSN looks like has mixed
     two things that change for different reasons and at different times.
     """
-    src = (ROOT / "platform" / "fabric.py").read_text()
+    src = (ROOT / "platform" / "fabric.py").read_text(encoding="utf-8")
     for leak in ("POS_", "ERP_", "DEBEZIUM", "REDPANDA", "postgresql://"):
         assert leak not in src, f"fabric.py should not mention {leak}"
 
@@ -253,13 +257,54 @@ def test_the_transforms_are_engine_side():
         "silver_notebook.py": "spark.read",
     }
     for name, uses_engine in transforms.items():
-        src = (ROOT / "platform" / name).read_text()
+        src = (ROOT / "platform" / name).read_text(encoding="utf-8")
         assert uses_engine in src, f"{name} does not use the engine"
         for single_node in ("duckdb", "pandas", "deltalake", "pyarrow"):
             assert single_node not in src, (
                 f"{name} pulls data client-side with {single_node} — the "
                 f"transforms must stay in the engine to scale"
             )
+
+
+def test_every_file_read_and_write_names_its_encoding():
+    """`read_text()` uses the LOCALE default, and the locale is not ours.
+
+    On Windows that is cp1252, so the first em dash in a file this repository
+    reads raises `UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f`.
+    Six tests died that way in CI — on a platform none of this was written on,
+    from source that was fine — and the message names an encoding nobody chose.
+
+    Every read here is of a file in THIS repository, all of which are UTF-8, so
+    the encoding is never in doubt; it just has to be said. This guard exists
+    because the failure is invisible on macOS and Linux, which is where the code
+    gets written: the developer cannot reproduce it, and CI reports it as six
+    unrelated tests breaking at once.
+    """
+    # Split, so the needles do not appear literally in this file and make the
+    # guard flag its own source — which is exactly what it did first time.
+    bare_read_needle = ".read_text" + "()"
+    write_needle = ".write_text" + "("
+
+    offenders = []
+    for d in ("tests", "scripts", "platform"):
+        for path in sorted((ROOT / d).rglob("*.py")):
+            for i, line in enumerate(
+                path.read_text(encoding="utf-8").splitlines(), start=1
+            ):
+                bare_read = bare_read_needle in line
+                # Only single-line calls are checkable here; one split across
+                # lines carries its encoding on a later one.
+                bare_write = (
+                    write_needle in line
+                    and line.rstrip().endswith(")")
+                    and "encoding=" not in line
+                )
+                if bare_read or bare_write:
+                    offenders.append(f"{path.relative_to(ROOT)}:{i}: {line.strip()}")
+    assert not offenders, (
+        "these read or write a file without naming an encoding, so they use "
+        "the locale default and break on Windows:\n  " + "\n  ".join(offenders)
+    )
 
 
 def test_every_rule_names_a_test_that_exists():
@@ -269,13 +314,15 @@ def test_every_rule_names_a_test_that_exists():
 
     `judgement` is an honest answer and is allowed. A wrong test name is not.
     """
-    rules = (ROOT / "RULES.md").read_text()
+    rules = (ROOT / "RULES.md").read_text(encoding="utf-8")
     cited = set(re.findall(r"`(test_[a-z0-9_]+)`", rules))
     assert cited, "RULES.md cites no tests at all"
 
     defined = set()
     for p in (ROOT / "tests").glob("test_*.py"):
-        defined |= set(re.findall(r"^def (test_[a-z0-9_]+)", p.read_text(), re.M))
+        defined |= set(
+            re.findall(r"^def (test_[a-z0-9_]+)", p.read_text(encoding="utf-8"), re.M)
+        )
 
     missing = sorted(cited - defined)
     assert not missing, f"RULES.md cites tests that do not exist: {missing}"
@@ -302,7 +349,7 @@ def test_credentials_come_from_key_vault():
     for p in sorted((ROOT / "platform").glob("*.py")):
         if p.name in allowed:
             continue
-        for i, line in enumerate(p.read_text().splitlines(), 1):
+        for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
             stripped = line.strip()
             if stripped.startswith("#") or "_SECRET" in stripped:
                 continue
@@ -326,7 +373,7 @@ def test_set_release_moves_every_version_the_emulator_tags():
     sys.path.insert(0, str(ROOT / "scripts"))
     from set_release import TRACKS_THE_RELEASE, set_version
 
-    text = (ROOT / "versions.env").read_text()
+    text = (ROOT / "versions.env").read_text(encoding="utf-8")
     new, moved = set_version(text, "9.9.9")
     assert set(moved) == set(TRACKS_THE_RELEASE), moved
     for key in TRACKS_THE_RELEASE:
@@ -364,7 +411,9 @@ def test_every_emulator_family_image_tracks_the_release():
     sys.path.insert(0, str(ROOT / "scripts"))
     from set_release import TRACKS_THE_RELEASE
 
-    composed = "".join(p.read_text() for p in sorted((ROOT / "compose").glob("*.yml")))
+    composed = "".join(
+        p.read_text(encoding="utf-8") for p in sorted((ROOT / "compose").glob("*.yml"))
+    )
     family = dict(
         re.findall(
             r"image:\s*ghcr\.io/calvinchengx/(fabric-emulator[\w-]*)"
@@ -406,7 +455,7 @@ def test_the_schedule_step_asserts_the_run_SUCCEEDED():
     across two such failures. A schedule that reliably starts something that
     reliably fails is an alarm nobody wired up.
     """
-    src = (ROOT / "platform" / "schedule.py").read_text()
+    src = (ROOT / "platform" / "schedule.py").read_text(encoding="utf-8")
     assert "await_terminal(" in src, (
         "the fired job is never polled to a terminal state, so its outcome is "
         "unknown and the step passes on a failure"
@@ -427,7 +476,7 @@ def test_the_schedule_step_asserts_the_run_SUCCEEDED():
 def test_the_acceptance_run_uses_the_dispatched_version():
     """A dispatch that triggers a run against the OLD pin is worse than no
     dispatch: it reports success for a release nobody tested."""
-    wf = (ROOT / ".github" / "workflows" / "acceptance.yml").read_text()
+    wf = (ROOT / ".github" / "workflows" / "acceptance.yml").read_text(encoding="utf-8")
     assert "repository_dispatch" in wf
     assert "client_payload.version" in wf, (
         "acceptance is triggered by a release but never reads which one"
@@ -448,7 +497,9 @@ def test_the_pin_moves_only_after_a_green_verify():
     """
     import yaml
 
-    wf = yaml.safe_load((ROOT / ".github" / "workflows" / "acceptance.yml").read_text())
+    wf = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "acceptance.yml").read_text(encoding="utf-8")
+    )
     job = wf["jobs"]["verify"]
     steps = job["steps"]
 
@@ -492,15 +543,17 @@ def test_silver_runs_as_a_fabric_notebook():
     """
     nb = ROOT / "platform" / "silver_notebook.py"
     assert nb.exists(), "the silver transform is not a notebook file"
-    assert nb.read_text().startswith("# Fabric notebook source"), (
+    assert nb.read_text(encoding="utf-8").startswith("# Fabric notebook source"), (
         "a Fabric notebook is identified by its first line; without it the "
         "emulator's parser sees one unmarked cell rather than the cells written"
     )
-    assert "# CELL " in nb.read_text(), "the notebook declares no cells"
+    assert "# CELL " in nb.read_text(encoding="utf-8"), "the notebook declares no cells"
 
-    src = (ROOT / "platform" / "silver.py").read_text()
+    src = (ROOT / "platform" / "silver.py").read_text(encoding="utf-8")
     assert "jobType=RunNotebook" in src, "silver never submits a notebook job"
-    assert "SOURCE.read_text()" in src, (
+    # Matched on the CALL, not its exact signature — this assertion broke the
+    # moment an encoding argument was added, which is not a change it cares about.
+    assert "SOURCE.read_text(" in src, (
         "silver must publish the notebook FILE — a body built inline here is "
         "the thing this test exists to prevent"
     )
@@ -523,13 +576,15 @@ def test_the_platform_does_not_supply_its_own_spark_pool():
         "platform/engine.py is back — the stack should run the notebook"
     )
 
-    resolver = (ROOT / "platform" / "target.py").read_text()
+    resolver = (ROOT / "platform" / "target.py").read_text(encoding="utf-8")
     assert "runs_notebooks_itself=False" not in resolver, (
         "a target that does not run its own notebooks needs an engine from "
         "somewhere, and this platform must not be it"
     )
 
-    composed = "".join(p.read_text() for p in (ROOT / "compose").glob("*.yml"))
+    composed = "".join(
+        p.read_text(encoding="utf-8") for p in (ROOT / "compose").glob("*.yml")
+    )
     assert "spark-agent" in composed, (
         "no spark-agent service; a notebook job would park forever"
     )
@@ -553,7 +608,7 @@ def test_notebook_lineage_is_observed_not_declared():
     set drifts from the code the moment either changes; this one cannot,
     because it is the code.
     """
-    nb = (ROOT / "platform" / "silver_notebook.py").read_text()
+    nb = (ROOT / "platform" / "silver_notebook.py").read_text(encoding="utf-8")
     assert 'LINEAGE.append(("read"' in nb, "the notebook does not record reads"
     assert 'LINEAGE.append(("write"' in nb, "the notebook does not record writes"
 
@@ -562,7 +617,7 @@ def test_notebook_lineage_is_observed_not_declared():
     # must not do is go back to declaring a set, which is what cross-multiplied
     # into phantom edges. The edge COUNT is asserted for real by the govern
     # step in `make verify`, which is where a regression would actually show.
-    src = (ROOT / "platform" / "silver.py").read_text()
+    src = (ROOT / "platform" / "silver.py").read_text(encoding="utf-8")
     for declared in ("READS", "WRITES"):
         assert f"{declared} = [" not in src, (
             f"silver declares {declared} again — the read/write set must be "
@@ -580,7 +635,7 @@ def test_the_platform_proves_it_runs_unattended():
     because a scheduled run and a manual one are otherwise the same job doing
     the same work.
     """
-    src = (ROOT / "platform" / "schedule.py").read_text()
+    src = (ROOT / "platform" / "schedule.py").read_text(encoding="utf-8")
     assert '"Scheduled"' in src, (
         "the step must filter job instances by invokeType — without it the "
         "assertion cannot tell a scheduled run from the manual one that "
@@ -606,7 +661,9 @@ def test_the_schedule_step_runs_last():
     cause nobody would find from the error.
     """
     steps = re.findall(
-        r'^\s*\("([a-z_]+)",', (ROOT / "platform" / "pipeline.py").read_text(), re.M
+        r'^\s*\("([a-z_]+)",',
+        (ROOT / "platform" / "pipeline.py").read_text(encoding="utf-8"),
+        re.M,
     )
     assert steps, "pipeline.py declares no steps"
     assert "schedule" in steps, "the schedule step is not in the pipeline at all"
@@ -628,7 +685,7 @@ def test_the_clock_advance_fits_inside_one_token_lifetime():
     exists to pull. The step asserts it at import; this asserts the assertion,
     so raising the cadence cannot quietly remove the guard.
     """
-    src = (ROOT / "platform" / "schedule.py").read_text()
+    src = (ROOT / "platform" / "schedule.py").read_text(encoding="utf-8")
     m_int = re.search(r"^INTERVAL_MINUTES = (\d+)", src, re.M)
     m_life = re.search(r"^TOKEN_LIFETIME_SECONDS = (\d+)", src, re.M)
     assert m_int and m_life, "the step no longer declares its cadence and lifetime"
@@ -652,7 +709,7 @@ def test_the_schedule_step_puts_the_clock_back():
     assertion minutes earlier. Restoring the offset is part of the step, not
     cleanup someone is trusted to remember.
     """
-    src = (ROOT / "platform" / "schedule.py").read_text()
+    src = (ROOT / "platform" / "schedule.py").read_text(encoding="utf-8")
     assert "def reset_clock()" in src, "the step never restores the clock"
 
     # THE GUARANTEE, NOT THE MECHANISM. This used to assert that reset_clock()
@@ -684,7 +741,7 @@ def test_the_platform_proves_it_reacts_to_a_delivery():
     started a run, evidenced by `invokeType: "EventTriggered"`, not that a
     trigger record exists.
     """
-    src = (ROOT / "platform" / "trigger.py").read_text()
+    src = (ROOT / "platform" / "trigger.py").read_text(encoding="utf-8")
     assert '"EventTriggered"' in src, (
         "the step must filter job instances by invokeType — nothing else can "
         "say the trigger is what started the run"
@@ -708,7 +765,7 @@ def test_the_trigger_watches_a_marker_not_the_landing_zone():
     events, and only the second is worth acting on, which is why the watched
     prefix is a dedicated marker path.
     """
-    src = (ROOT / "platform" / "trigger.py").read_text()
+    src = (ROOT / "platform" / "trigger.py").read_text(encoding="utf-8")
     watched = re.search(r'^WATCHED_PREFIX = "([^"]+)"', src, re.M)
     marker = re.search(r'^MARKER = "([^"]+)"', src, re.M)
     assert watched and marker, "the step no longer declares what it watches"
@@ -740,12 +797,12 @@ def test_the_source_systems_are_named_in_lineage():
         ("ingest_pos.py", "Contoso POS"),
         ("ingest_erp_cdc.py", "Contoso ERP"),
     ):
-        src = (ROOT / "platform" / step).read_text()
+        src = (ROOT / "platform" / step).read_text(encoding="utf-8")
         assert "connections.ensure(" in src, f"{step} names no source system"
         assert vendor in src, f"{step} does not identify {vendor}"
         assert "connections.announce(" in src, f"{step} never reports its lineage"
 
-    helper = (ROOT / "platform" / "connections.py").read_text()
+    helper = (ROOT / "platform" / "connections.py").read_text(encoding="utf-8")
     assert '"connectionId"' in helper, (
         "the read side of a source edge must carry connectionId — a source "
         "system has no workspace and no path inside it"
@@ -760,7 +817,7 @@ def test_lineage_reports_use_the_precise_move_form():
     into this repository's own graph once, each as plausible-looking as the
     real ones. `moves` pairs each derivation explicitly.
     """
-    helper = (ROOT / "platform" / "connections.py").read_text()
+    helper = (ROOT / "platform" / "connections.py").read_text(encoding="utf-8")
     assert '"moves": moves' in helper, (
         "reports must use the precise `moves` form, never flat reads/writes"
     )
@@ -786,11 +843,11 @@ def test_the_landing_hop_is_reported_so_sources_are_not_orphans():
     and bronze reads the same partition; a reported target that merely looks
     right joins the vendor to a node nothing else references.
     """
-    bronze = (ROOT / "platform" / "bronze.py").read_text()
+    bronze = (ROOT / "platform" / "bronze.py").read_text(encoding="utf-8")
     assert "connections.announce(" in bronze, (
         "bronze must report landing->bronze, or the source nodes are orphans"
     )
-    ingest = (ROOT / "platform" / "ingest_pos.py").read_text()
+    ingest = (ROOT / "platform" / "ingest_pos.py").read_text(encoding="utf-8")
     # Both sides key the path on the landing day, which is what makes the
     # vendor edge and the bronze edge meet at the same node.
     assert "contoso_pos/{day}/" in ingest, (
@@ -818,11 +875,11 @@ def test_the_partition_columns_match_the_gold_export():
         candidates = list(ROOT.rglob("export_gold.py"))
         assert candidates, "export_gold.py not found — the mapping has no authority"
         export = candidates[0]
-    src = export.read_text()
+    src = export.read_text(encoding="utf-8")
 
     # Only the pure function is wanted; importing the module would drag in the
     # whole platform (state, fabric, a live target). Compile just the helper.
-    text = (ROOT / "platform" / "semantic_model.py").read_text()
+    text = (ROOT / "platform" / "semantic_model.py").read_text(encoding="utf-8")
     start = text.index("def gold_column")
     end = text.index("def partition")
     ns: dict = {}
@@ -871,23 +928,25 @@ def test_the_pbip_folder_carries_what_a_real_one_requires():
         assert {"definition.pbism", "model.bim", ".platform"} <= names, names
         assert folder.name.endswith(".SemanticModel"), folder.name
 
-        pbism = json.loads((folder / "definition.pbism").read_text())
+        pbism = json.loads((folder / "definition.pbism").read_text(encoding="utf-8"))
         # version 1.0 means "the model is TMSL, in model.bim". Declaring 4.0+
         # would also permit a TMDL folder this platform cannot write.
         assert pbism["version"] == "1.0", pbism
         assert (folder / "model.bim").exists(), "version 1.0 requires model.bim"
 
-        plat = json.loads((folder / ".platform").read_text())
+        plat = json.loads((folder / ".platform").read_text(encoding="utf-8"))
         assert plat["metadata"]["type"] == "SemanticModel", plat
         # The logicalId is what makes a redeploy update the SAME item rather
         # than create a second one, so it must be stable across runs.
         again = pbip.write(tmp, model)
         assert (
-            json.loads((again / ".platform").read_text())["config"]["logicalId"]
+            json.loads((again / ".platform").read_text(encoding="utf-8"))["config"][
+                "logicalId"
+            ]
             == (plat["config"]["logicalId"])
         )
 
         # The definition on disk is the one that was published, byte for byte.
-        assert json.loads((folder / "model.bim").read_text()) == model
+        assert json.loads((folder / "model.bim").read_text(encoding="utf-8")) == model
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

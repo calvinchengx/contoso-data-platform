@@ -271,7 +271,7 @@ def main() -> int:
     log("exporting gold from the warehouse over TDS")
     rc = in_dbt_container("--entrypoint", "python", "dbt", "/tools/export_gold.py")
     assert rc == 0, f"gold export failed: exit {rc}"
-    rows = json.loads(EXPORT.read_text())
+    rows = json.loads(EXPORT.read_text(encoding="utf-8"))
     assert rows["Revenue"] and rows["Customer"], "the export is empty"
 
     tok = token(FABRIC_AUD)

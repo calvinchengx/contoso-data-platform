@@ -3,7 +3,7 @@
 The pin lives in .emulator-version. Reading it from the Makefile would need
 $(shell cat ...) — which is not a thing on cmd.exe, where GNU Make on Windows
 runs its recipes. So the Makefile stays a one-liner and the logic lives here,
-where `pathlib.read_text()` means the same on all three platforms.
+where `pathlib.read_text(encoding="utf-8")` means the same on all three platforms.
 """
 
 import os

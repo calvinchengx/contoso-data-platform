@@ -150,7 +150,7 @@ def stream(portal: str, out_path: pathlib.Path) -> list[dict]:
     except Exception as exc:  # the stream ends when the stack goes down
         print(f"stream ended: {type(exc).__name__}: {exc}", flush=True)
 
-    out_path.write_text("\n".join(json.dumps(e) for e in events))
+    out_path.write_text("\n".join(json.dumps(e) for e in events), encoding="utf-8")
     elapsed = time.time() - started
     print(f"{len(events)} events in {elapsed:.0f}s -> {out_path}", flush=True)
     return events

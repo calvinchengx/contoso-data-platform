@@ -14,11 +14,11 @@ from fabric import STATE
 def load() -> dict:
     if not STATE.exists():
         raise SystemExit(f"{STATE.name} is missing — run `make verify` from the start")
-    return json.loads(STATE.read_text())
+    return json.loads(STATE.read_text(encoding="utf-8"))
 
 
 def save(**kw) -> dict:
-    current = json.loads(STATE.read_text()) if STATE.exists() else {}
+    current = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {}
     current.update(kw)
-    STATE.write_text(json.dumps(current, indent=2))
+    STATE.write_text(json.dumps(current, indent=2), encoding="utf-8")
     return current

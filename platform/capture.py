@@ -78,7 +78,7 @@ def stop_watch(cid: str) -> None:
     A file, not a `docker kill`: killing the container discards the video,
     because Playwright writes it when the context closes.
     """
-    STOP.write_text("stop")
+    STOP.write_text("stop", encoding="utf-8")
     subprocess.run(["docker", "wait", cid], capture_output=True, timeout=180)
     out = subprocess.run(["docker", "logs", cid], capture_output=True, text=True).stdout
     for line in out.splitlines():

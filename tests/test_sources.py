@@ -34,7 +34,7 @@ def test_every_spec_has_a_serve_script():
 
 def test_serve_scripts_read_files_rather_than_inventing_bodies():
     for spec in SPECS:
-        js = (spec.parent / "serve.js").read_text()
+        js = (spec.parent / "serve.js").read_text(encoding="utf-8")
         assert "mokapi/file" in js, f"{spec.parent.name}: serves no file"
         assert "faker" not in js, f"{spec.parent.name}: fabricates data"
 
@@ -43,7 +43,7 @@ def test_every_operation_requires_a_key():
     """The extract steps assert that a wrong key is refused. That assertion is
     only meaningful if the API actually demands one."""
     for spec in SPECS:
-        text = spec.read_text()
+        text = spec.read_text(encoding="utf-8")
         assert "securitySchemes" in text, f"{spec.parent.name}: no auth declared"
         ops = len(re.findall(r"^\s{6}operationId:", text, re.M))
         secured = len(re.findall(r"^\s{6}security:", text, re.M))
@@ -61,7 +61,7 @@ def test_one_mokapi_instance_per_source():
     the only way those three stay false, so the split is checked rather than
     left to whoever edits the compose file next.
     """
-    compose = (ROOT / "compose" / "sources.yml").read_text()
+    compose = (ROOT / "compose" / "sources.yml").read_text(encoding="utf-8")
     for spec in SPECS:
         vendor = spec.parent.name
         short = vendor.removeprefix("contoso-")
@@ -127,7 +127,7 @@ def test_paged_operations_declare_their_paging():
     by getting a partial answer that looks complete.
     """
     for spec in SPECS:
-        text = spec.read_text()
+        text = spec.read_text(encoding="utf-8")
         if "page" not in text:
             continue
         for field in ("X-Total-Pages", "X-Page"):
@@ -146,14 +146,16 @@ def test_serve_scripts_do_not_hardcode_a_page_count():
     """
     for spec in SPECS:
         js = spec.parent / "serve.js"
-        if "X-Total-Pages" not in js.read_text():
+        if "X-Total-Pages" not in js.read_text(encoding="utf-8"):
             continue
-        assert "pages.txt" in js.read_text(), (
+        assert "pages.txt" in js.read_text(encoding="utf-8"), (
             f"{spec.parent.name}: page count is not read from the data"
         )
 
 
 def test_specs_are_pinned_to_no_host_we_do_not_control():
     for spec in SPECS:
-        for url in re.findall(r"^\s*- url:\s*(\S+)", spec.read_text(), re.M):
+        for url in re.findall(
+            r"^\s*- url:\s*(\S+)", spec.read_text(encoding="utf-8"), re.M
+        ):
             assert "localhost" in url, f"{spec.parent.name}: points at {url}"

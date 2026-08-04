@@ -54,9 +54,9 @@ def main() -> int:
     # an absent table, and the connector then starts happily and captures
     # nothing at all.
     with psycopg.connect(erp_dsn(), autocommit=True) as conn:
-        conn.execute(cast("LiteralString", SCHEMA.read_text()))
+        conn.execute(cast("LiteralString", SCHEMA.read_text(encoding="utf-8")))
 
-    cfg = json.loads(CONFIG.read_text())
+    cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
     name = cfg["name"]
 
     # Delete first, so a re-run starts from a clean stream.

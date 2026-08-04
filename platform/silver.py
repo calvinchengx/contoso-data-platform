@@ -51,7 +51,7 @@ def content(workspace: str, lakehouse: str) -> bytes:
     placeholders are shaped so that an unsubstituted notebook cannot silently
     resolve to somewhere real.
     """
-    src = SOURCE.read_text()
+    src = SOURCE.read_text(encoding="utf-8")
     src = src.replace("@@WORKSPACE@@", workspace).replace("@@LAKEHOUSE@@", lakehouse)
     assert "@@" not in src, "a placeholder survived substitution"
     return src.encode()

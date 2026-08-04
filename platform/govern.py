@@ -79,7 +79,7 @@ def put(path: str, body: dict) -> dict:
 
 def register_pos() -> tuple[str, list[str]]:
     """Contoso POS as an API service, from the spec the vendor publishes."""
-    spec = yaml.safe_load(POS_SPEC.read_text())
+    spec = yaml.safe_load(POS_SPEC.read_text(encoding="utf-8"))
     svc = put(
         "services/apiServices",
         {
@@ -151,7 +151,7 @@ def register_erp() -> str:
     )
 
     # Columns from the DDL that created the table — one definition, not two.
-    ddl = ERP_DDL.read_text()
+    ddl = ERP_DDL.read_text(encoding="utf-8")
     marker = "CREATE TABLE IF NOT EXISTS erp.customer ("
     body = ddl.split(marker, 1)[1].split(");", 1)[0]
     columns = []
@@ -392,7 +392,7 @@ def dbt_quality_rules() -> dict[str, list[dict]]:
     path = ROOT / "gold" / "models" / "schema.yml"
     if not path.is_file():
         return {}
-    spec = yaml.safe_load(path.read_text()) or {}
+    spec = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     out: dict[str, list[dict]] = {}
     for model in spec.get("models", []) or []:
         rules = []
@@ -483,7 +483,7 @@ def discover_columns(st: dict) -> tuple[dict, dict]:
 
     rc = in_dbt_container("--entrypoint", "python", "dbt", "/tools/columns.py")
     assert rc == 0, f"warehouse column discovery failed: exit {rc}"
-    raw = json.loads((ROOT / "gold" / "_columns.json").read_text())
+    raw = json.loads((ROOT / "gold" / "_columns.json").read_text(encoding="utf-8"))
     wh = {
         t: [{"name": c["name"], "dataType": _om_type(c["type"])} for c in cols]
         for t, cols in raw.items()
@@ -710,7 +710,9 @@ def main() -> int:
         "erp_table": erp_table,
         "topic": topic,
     }
-    (ROOT / "catalog.json").write_text(json.dumps(catalogued, indent=2))
+    (ROOT / "catalog.json").write_text(
+        json.dumps(catalogued, indent=2), encoding="utf-8"
+    )
     state.save(catalog=sorted(catalogued))
 
     log(
