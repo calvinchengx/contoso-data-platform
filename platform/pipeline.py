@@ -25,6 +25,11 @@ STEPS = [
     # its own formats, and a customer list that overlaps the POS one without
     # either system knowing it.
     ("ingest_web", "pull Contoso Web over HTTP into Files/landing"),
+    # The master-data publisher, and the only vendor that is not an operational
+    # system. Before bronze because gold reports everything against it — but
+    # after the selling systems, because it describes them rather than the
+    # other way round.
+    ("ingest_reference", "pull Contoso Reference over HTTP into Files/landing"),
     # The connector goes BEFORE the replay. Start it after, and the history is
     # captured by a snapshot rather than as a change stream — which would still
     # produce rows, and might even match on count, while testing the wrong
@@ -60,6 +65,7 @@ def preflight() -> None:
     """
     try:
         import erp_system  # noqa: F401
+        import reference_data  # noqa: F401
         import source_system  # noqa: F401
         import web_store  # noqa: F401
     except ModuleNotFoundError as exc:
@@ -77,19 +83,33 @@ def preflight() -> None:
     # even up, and says which command fixes it.
     # Every vendor, not just the first: a missing contoso-web fixture fails the
     # same silent way, and checking only POS would let it through.
+    data = HERE.parent / "sources" / "_data"
+
+    def missing(what: str) -> SystemExit:
+        return SystemExit(
+            f"the vendor's exports are not materialised ({what}).\n"
+            f"  run `make sources` — sources/_data/ is gitignored, so a "
+            f"fresh clone has nothing for the source APIs to serve."
+        )
+
     for vendor, feeds in (
         ("contoso-pos", ("customers", "orders")),
         ("contoso-web", ("customers", "products", "orders")),
     ):
         for feed in feeds:
-            pages = HERE.parent / "sources" / "_data" / vendor / feed / "pages.txt"
-            if not pages.exists():
-                raise SystemExit(
-                    f"the vendor's exports are not materialised "
-                    f"({vendor}/{feed}).\n"
-                    f"  run `make sources` — sources/_data/ is gitignored, so a "
-                    f"fresh clone has nothing for the source APIs to serve."
-                )
+            if not (data / vendor / feed / "pages.txt").exists():
+                raise missing(f"{vendor}/{feed}")
+
+    # Contoso Reference is checked DIFFERENTLY because it is served
+    # differently: it does not page, so it has no pages.txt to look for. Making
+    # it produce one just to satisfy this loop would be a file that exists only
+    # to be checked. The checksum is what its serve.js reads, so the checksum
+    # is what has to be there — and looking for the wrong artifact would report
+    # a materialised vendor as missing.
+    for feed in ("fx_rates", "product_hierarchy"):
+        for suffix in (".parquet", ".sha256"):
+            if not (data / "contoso-reference" / f"{feed}{suffix}").exists():
+                raise missing(f"contoso-reference/{feed}{suffix}")
 
 
 def main() -> int:

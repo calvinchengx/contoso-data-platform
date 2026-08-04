@@ -26,6 +26,15 @@ POS_KEY_SECRET = os.environ.get("POS_KEY_SECRET", "contoso-pos-api-key")
 WEB_API = os.environ.get("WEB_API_URL", "http://localhost:18091")
 WEB_KEY_SECRET = os.environ.get("WEB_KEY_SECRET", "contoso-web-api-key")
 
+# Contoso Reference — the group data office's master-data feed. NOT an
+# operational system: it publishes the definitions the other three are reported
+# against, which is why it is a vendor in its own right rather than a table
+# someone maintains inside the platform. Its own key, like everyone else's.
+REFERENCE_API = os.environ.get("REFERENCE_API_URL", "http://localhost:18092")
+REFERENCE_KEY_SECRET = os.environ.get(
+    "REFERENCE_KEY_SECRET", "contoso-reference-api-key"
+)
+
 # Contoso ERP — a relational source, captured by CDC.
 ERP_HOST = os.environ.get("ERP_HOST", "localhost")
 ERP_PORT = os.environ.get("ERP_PORT", "55432")

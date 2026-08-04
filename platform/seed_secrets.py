@@ -16,7 +16,12 @@ import state
 import vault
 from fabric import log
 
-from sources import ERP_PASSWORD_SECRET, POS_KEY_SECRET, WEB_KEY_SECRET
+from sources import (
+    ERP_PASSWORD_SECRET,
+    POS_KEY_SECRET,
+    REFERENCE_KEY_SECRET,
+    WEB_KEY_SECRET,
+)
 
 # Only for the local family. Against real vendors these are the customer's own
 # credentials and this step does not run at all.
@@ -24,6 +29,7 @@ ERP_PASSWORD = "contoso-erp-dev"
 
 
 def main() -> int:
+    import reference_data as ref
     import source_system as src
     import web_store as web
 
@@ -31,9 +37,14 @@ def main() -> int:
     # two are seeded separately because in production they are issued by
     # different companies and rotate on different days. Sharing one here would
     # make that impossible to represent later without a migration.
+    #
+    # Contoso Reference gets its own for the same reason, and the fact that it
+    # publishes non-transactional data changes nothing: reference data is not
+    # automatically public just because it is not a sales figure.
     ids = {
         POS_KEY_SECRET: vault.put(POS_KEY_SECRET, src.API_KEY),
         WEB_KEY_SECRET: vault.put(WEB_KEY_SECRET, web.API_KEY),
+        REFERENCE_KEY_SECRET: vault.put(REFERENCE_KEY_SECRET, ref.API_KEY),
         ERP_PASSWORD_SECRET: vault.put(ERP_PASSWORD_SECRET, ERP_PASSWORD),
     }
     # Read every one back. A vault that accepted a write and cannot serve it is

@@ -137,6 +137,51 @@ services:
       - "${WEB_API_PORT:-18091}:8091"   # the vendor's API
       - "${WEB_UI_PORT:-18082}:8080"    # its mokapi dashboard
 
+  # --- Contoso Reference: the group data office's master data ---------------
+  # THE FOURTH VENDOR, and the first that is not an operational system. It
+  # publishes what the others are reported against: the product rollup and the
+  # daily FX table. Its own instance for the reasons at the top of this file —
+  # and here the isolation is not theoretical, because this vendor is the only
+  # one serving BINARY, so it is the only one whose handler can be got wrong in
+  # a way that produces a 200 carrying garbage.
+  mokapi-reference:
+    image: mokapi/mokapi:${MOKAPI_VERSION:?see versions.env}
+    command:
+      - --event-store-default-size=1
+      - /sources/contoso-reference/openapi.yaml
+      - /sources/contoso-reference/serve.js
+    environment:
+      # Go does not read the cgroup limit; see mokapi-pos for the measurement.
+      # Far lower here because this vendor's whole export is ~4 KB against the
+      # POS system's 170 MB — reference data is small by nature.
+      GOMEMLIMIT: 256MiB
+    volumes:
+      - ../sources/contoso-reference:/sources/contoso-reference:ro
+      - ../sources/_data/contoso-reference:/sources/_data/contoso-reference:ro
+    # Sized to THIS vendor, as each block's comment says it should be. 512m is
+    # already generous for a 4 KB export plus mokapi's own footprint.
+    mem_limit: 512m
+    restart: unless-stopped
+    # Healthy means the vendor REFUSES a bad key — the inverted test the other
+    # two use, for the same reason: without its fixture mokapi does not fail, it
+    # generates bodies from the schema and answers everything 200.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          wget -q -O /dev/null --header='X-Api-Key: definitely-not-the-key'
+          http://localhost:8092/reference/v1/fx-rates && exit 1 || exit 0
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # The next API port in the sequence, but the dashboard SKIPS 18083 — that
+    # one is Debezium's, published further down this same file. Following the
+    # 1808x convention blindly would collide, and compose reports that as a
+    # bind failure naming neither service.
+    ports:
+      - "${REFERENCE_API_PORT:-18092}:8092"   # the vendor's API
+      - "${REFERENCE_UI_PORT:-18084}:8080"    # its mokapi dashboard
+
   # --- Contoso ERP: a relational source, captured ---------------------------
   # POS and Web publish file-shaped exports, so a REST endpoint is the honest
   # transport for them. ERP is different in kind: it is a database that changes,

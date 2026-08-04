@@ -18,10 +18,11 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "sources" / "_data"
 
-# (module, subdirectory). Reference arrives in the next wave.
+# (module, subdirectory).
 FEEDS = [
     ("source_system", "contoso-pos"),
     ("web_store", "contoso-web"),
+    ("reference_data", "contoso-reference"),
 ]
 
 # WHY THE PAGES ARE FILES ON DISK, not slices computed per request.
@@ -113,6 +114,37 @@ def main():
         (dest / ".api-key").write_text(mod.API_KEY, encoding="utf-8")
         for filename, blob in mod.export(mod.API_KEY).items():
             stem, _, ext = filename.rpartition(".")
+
+            # PARQUET IS NOT PAGEABLE, and the line splitter below would not
+            # refuse it — it would return the file whole today (joining split
+            # lines reconstructs the bytes exactly) and start corrupting it the
+            # day the export crosses PAGE_BYTES. A binary format with a footer
+            # has no line boundaries to split on; half a Parquet file is not a
+            # smaller Parquet file, it is nothing. So it is served whole, and
+            # the size is asserted rather than assumed.
+            #
+            # The checksum is written beside it because this is the one format
+            # where corruption is quiet: Parquet keeps its `PAR1` magic and
+            # footer through byte-level damage, so it passes every cheap check
+            # while being unreadable. serve.js publishes this digest and
+            # ingest_reference verifies it, which turns a silent mangling into
+            # one assertion at the vendor boundary.
+            if ext == "parquet":
+                assert len(blob) <= PAGE_BYTES, (
+                    f"{subdir}/{filename} is {len(blob):,} bytes, past the "
+                    f"{PAGE_BYTES:,} this vendor serves whole — Parquet cannot "
+                    f"be paged, so this needs a real answer, not a bigger number"
+                )
+                (dest / filename).write_bytes(blob)
+                digest = hashlib.sha256(blob).hexdigest()
+                (dest / f"{stem}.sha256").write_text(digest, encoding="utf-8")
+                total += len(blob)
+                print(
+                    f"  {subdir}/{filename:26} {len(blob):>12,} bytes  "
+                    f"sha256:{digest[:12]}  whole"
+                )
+                continue
+
             pagedir = dest / stem
             # Rebuilt, not merged: a stale page from a previous page size would
             # be served as though it belonged to this export.

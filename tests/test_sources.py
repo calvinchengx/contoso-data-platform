@@ -125,16 +125,25 @@ def test_paged_operations_declare_their_paging():
 
     An endpoint that pages without saying so leaves every caller to discover it
     by getting a partial answer that looks complete.
+
+    WHETHER A VENDOR PAGES is decided by the `page` PARAMETER, not by the word
+    appearing somewhere in the file. Contoso Reference does not page and says so
+    in prose — it serves a Parquet file that cannot be split on line boundaries
+    — and matching on the bare word marked it as a paging vendor missing its
+    headers. The check runs both ways so neither half can be declared alone.
     """
     for spec in SPECS:
         text = spec.read_text(encoding="utf-8")
-        if "page" not in text:
+        declares_param = bool(re.search(r"^\s+name: page$", text, re.M))
+        headers = [f for f in ("X-Total-Pages", "X-Page") if f in text]
+        if not declares_param and not headers:
             continue
+        assert declares_param, (
+            f"{spec.parent.name}: advertises {headers} but declares no `page` "
+            f"parameter, so a caller cannot ask for the rest"
+        )
         for field in ("X-Total-Pages", "X-Page"):
             assert field in text, f"{spec.parent.name}: pages but no {field} header"
-        assert re.search(r"^\s+name: page$", text, re.M), (
-            f"{spec.parent.name}: no `page` parameter declared"
-        )
 
 
 def test_serve_scripts_do_not_hardcode_a_page_count():
@@ -218,3 +227,78 @@ def test_the_web_bronze_schema_keeps_every_leaf_a_string():
     ):
         for name, kind in leaves(component):
             assert kind == "string", f"{name} is declared {kind}, not string"
+
+
+def test_the_reference_vendor_serves_binary_through_the_only_path_that_survives():
+    """Parquet must go out on `response.data` as raw bytes, never `response.body`.
+
+    THE FAILURE THIS PREVENTS IS SILENT. mokapi's text path takes a Go string
+    into goja, which decodes it as UTF-8 and replaces every invalid sequence —
+    so binary comes back mangled with a 200 attached. Measured against these
+    exact files: fx_rates.parquet goes 2,268 bytes -> 3,301, a 46% inflation,
+    with the `PAR1` magic AND the `PAR1` footer both still in place. Nothing
+    downstream of a boundary check would notice.
+
+    Only `response.data` holding a byte slice is passed through unmarshalled
+    (providers/openapi/handler.go), and only `open(path, {as: 'binary'})`
+    produces one — `read()` from 'mokapi/file' is the lossy path.
+    """
+    serve = (SOURCES / "contoso-reference" / "serve.js").read_text(encoding="utf-8")
+    assert "{ as: 'binary' }" in serve or '{as: "binary"}' in serve, (
+        "contoso-reference must open its Parquet with {as: 'binary'}; "
+        "read() decodes bytes as UTF-8 and corrupts them"
+    )
+    # The parquet must not be handed to `response.body` under any spelling.
+    body_assignments = re.findall(r"response\.body\s*=\s*(.+)", serve)
+    assert not body_assignments, (
+        f"contoso-reference assigns response.body ({body_assignments}) — that "
+        f"path is a Go string and cannot carry Parquet without corrupting it"
+    )
+
+
+def test_the_reference_spec_documents_the_columns_the_vendor_actually_sends():
+    """The spec's schemas must match the Parquet the generator produces.
+
+    These bodies are binary, so the schemas document COLUMNS rather than being
+    marshalled into a response — which makes them the sort of documentation
+    that rots unwatched. OpenMetadata surfaces them as the vendor's schema, and
+    gold's rollup is written against these names, so a generator that renamed a
+    column would leave the spec describing a table nobody serves.
+    """
+    import yaml
+
+    spec = yaml.safe_load(
+        (SOURCES / "contoso-reference" / "openapi.yaml").read_text(encoding="utf-8")
+    )
+    schemas = spec["components"]["schemas"]
+
+    import reference_data as ref
+
+    fx, hierarchy, _ = ref._built()
+    for component, rows in (("FxRate", fx), ("ProductHierarchy", hierarchy)):
+        published = set(schemas[component]["properties"])
+        actual = set(rows[0])
+        assert published == actual, (
+            f"{component}: the spec documents {sorted(published)} but the "
+            f"vendor sends {sorted(actual)}"
+        )
+
+
+def test_reference_data_is_small_enough_to_serve_whole():
+    """This vendor does not page, and Parquet cannot be paged.
+
+    The line splitter would not refuse a Parquet file — it would return it
+    intact today, because joining split lines reconstructs the bytes, and start
+    corrupting it the day the export crosses PAGE_BYTES. A binary format with a
+    footer has no line boundaries to split on. So the assumption that it fits
+    in one response is checked here rather than left to hold by luck.
+    """
+    import reference_data as ref
+    from materialise_sources import PAGE_BYTES
+
+    for name, blob in ref.export(ref.API_KEY).items():
+        assert blob[:4] == b"PAR1" and blob[-4:] == b"PAR1", name
+        assert len(blob) <= PAGE_BYTES, (
+            f"{name} is {len(blob):,} bytes, past the {PAGE_BYTES:,} served "
+            f"whole — Parquet cannot be paged, so this needs a real answer"
+        )

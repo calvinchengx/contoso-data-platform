@@ -27,6 +27,7 @@ from pyspark.sql import functions as F
 
 def main() -> int:
     import erp_system as erp
+    import reference_data as ref
     import source_system as src
     import web_store as web
 
@@ -108,6 +109,19 @@ def main() -> int:
     )
     n_web_ord = save(web_orders, "bronze_web_orders")
 
+    # --- Contoso Reference -------------------------------------------------
+    # The group data office's master data, and the only vendor here that is not
+    # an operational system. Parquet, so the reader needs no options at all —
+    # the file carries its own schema, which is the whole reason a data office
+    # publishing definitions would choose it.
+    fx = spark.read.parquet(f"{landing}/contoso_reference/{day}/fx_rates.parquet")
+    n_fx = save(fx, "bronze_fx_rates")
+
+    hierarchy = spark.read.parquet(
+        f"{landing}/contoso_reference/{day}/product_hierarchy.parquet"
+    )
+    n_hier = save(hierarchy, "bronze_product_hierarchy")
+
     # --- Contoso ERP -------------------------------------------------------
     changes = spark.read.parquet(f"{landing}/contoso_erp/{day}/changes.parquet")
     n_erp = save(changes, "bronze_erp_changes")
@@ -175,6 +189,35 @@ def main() -> int:
         "makes identity resolution a real problem is missing"
     )
 
+    # --- what the reference vendor must have preserved ---------------------
+    assert n_fx == ref.EXPECTED_FX_ROWS, (n_fx, ref.EXPECTED_FX_ROWS)
+    assert n_hier == ref.EXPECTED_PRODUCTS, (n_hier, ref.EXPECTED_PRODUCTS)
+    n_ccy = fx.select("currency").distinct().count()
+    assert n_ccy == ref.EXPECTED_FX_CURRENCIES, (n_ccy, ref.EXPECTED_FX_CURRENCIES)
+    n_dept = hierarchy.select("department").distinct().count()
+    assert n_dept == ref.EXPECTED_DEPARTMENTS, (n_dept, ref.EXPECTED_DEPARTMENTS)
+
+    # THE GAPS ARE REAL AND MUST SURVIVE. FX is published on trading days only,
+    # so this table is missing every weekend — and that absence is the whole
+    # reason gold has to carry the last rate forward instead of joining on the
+    # date. A vendor that started filling weekends, or a reader that quietly
+    # interpolated, would make the carry-forward look like dead code while
+    # silently changing what revenue means. Asserting the gap keeps the problem
+    # in the data rather than in a comment.
+    fx_days = fx.select("rate_date").distinct().count()
+    assert fx_days == ref.EXPECTED_FX_PUBLISHED_DAYS, (
+        fx_days,
+        ref.EXPECTED_FX_PUBLISHED_DAYS,
+    )
+    span = fx.selectExpr(
+        "datediff(max(rate_date), min(rate_date)) + 1 AS days"
+    ).collect()[0]["days"]
+    assert span > fx_days, (
+        f"FX covers {span} calendar days with {fx_days} published — the "
+        f"non-trading-day gaps are gone, so the carry-forward in gold is no "
+        f"longer being exercised by anything"
+    )
+
     assert n_erp == erp.EXPECTED_ERP_CHANGE_EVENTS, (
         n_erp,
         erp.EXPECTED_ERP_CHANGE_EVENTS,
@@ -205,6 +248,14 @@ def main() -> int:
                 (f"contoso_web/{day}/customers", "bronze_web_customers"),
                 (f"contoso_web/{day}/products", "bronze_web_products"),
                 (f"contoso_web/{day}/orders", "bronze_web_orders"),
+                (
+                    f"contoso_reference/{day}/fx_rates.parquet",
+                    "bronze_fx_rates",
+                ),
+                (
+                    f"contoso_reference/{day}/product_hierarchy.parquet",
+                    "bronze_product_hierarchy",
+                ),
                 (f"contoso_erp/{day}/changes.parquet", "bronze_erp_changes"),
             )
         ],
@@ -217,6 +268,8 @@ def main() -> int:
             "bronze_web_customers": n_web_cust,
             "bronze_web_products": n_web_prod,
             "bronze_web_orders": n_web_ord,
+            "bronze_fx_rates": n_fx,
+            "bronze_product_hierarchy": n_hier,
             "bronze_erp_changes": n_erp,
         }
     )
@@ -225,7 +278,9 @@ def main() -> int:
         f"{len(customers.columns)} cols), {n_ord:,} POS order events "
         f"({distinct_ord:,} distinct), {n_web_cust:,} web accounts "
         f"({shared:,} sharing an email with POS), {n_web_ord:,} web orders "
-        f"nested over {n_web_prod} products, {n_erp:,} ERP change events"
+        f"nested over {n_web_prod} products, {n_erp:,} ERP change events, "
+        f"{n_hier} products over {n_dept} departments, {n_fx} FX rows on "
+        f"{fx_days} of {span} calendar days"
     )
     return 0
 

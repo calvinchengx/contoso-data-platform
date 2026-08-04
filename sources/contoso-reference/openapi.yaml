@@ -1,0 +1,148 @@
+# Contoso Reference — the group data office's master-data feed.
+#
+# THE FOURTH VENDOR, and the first one that is not an operational system. POS,
+# Web and ERP each record things that happened. This publishes the definitions
+# everything else is reported AGAINST: what a product rolls up to, and what a
+# currency was worth on a given day. It moves slowly, it is small, and the whole
+# company is expected to agree with it.
+#
+# WHAT DIFFERS FROM THE OTHER VENDORS, and none of it is smoothed over:
+#
+#   * PARQUET on the wire. POS ships delimited text and JSON Lines, Web ships
+#     JSON arrays, this ships a binary columnar file. Three vendors, three
+#     dialects, no negotiation — which is the point of having more than one.
+#   * NOT PAGED. The other two page because their exports are tens of
+#     megabytes; this one is four kilobytes. Paging it would be decoration, and
+#     a Parquet file cannot be split on line boundaries anyway: it is a binary
+#     format with a footer, so half of one is not a smaller one, it is nothing.
+#   * PUBLISHES ITS OWN CHECKSUM. See X-Content-SHA256 below — this is the one
+#     vendor where a corrupted body would still look valid.
+#
+# Like the other specs this describes the SOURCE SYSTEM rather than our
+# convenience, and OpenMetadata ingests it so Contoso Reference is a node in
+# lineage. Bodies are served from files by serve.js, never generated from these
+# schemas.
+openapi: 3.0.3
+info:
+  title: Contoso Reference Data API
+  version: "1.0.0"
+  description: >-
+    Master and reference data, published by the group data office. Two feeds:
+    the product hierarchy, and the daily FX rate table.
+
+    THE PRODUCT HIERARCHY is what makes management reporting possible. An order
+    line names a `product_id` and nothing else; the rollup from SKU to category
+    to department to reporting segment lives here, and only here. Neither the
+    POS system nor the storefront knows about it — they sell things, they do not
+    decide how the business reports on them.
+
+    FX RATES ARE NOT PUBLISHED EVERY DAY. Rates exist for trading days only, so
+    the table has gaps at weekends. A consumer that inner-joins orders to this
+    table on the date will silently lose every weekend order, which for a
+    month of trading is a material understatement of revenue rather than a
+    rounding error. The correct treatment is to carry the last published rate
+    forward, and it is the consumer's job to do it — this vendor reports what
+    was published, not what someone wishes had been.
+servers:
+  - url: http://localhost:8092
+    description: mokapi, standing in for the group data office
+paths:
+  /reference/v1/product-hierarchy:
+    get:
+      operationId: exportProductHierarchy
+      summary: Product rollup — SKU to category to department to segment
+      security: [{ApiKey: []}]
+      responses:
+        "200":
+          description: >-
+            The whole hierarchy as one Parquet file. Every SKU either sold
+            system carries should appear here; one that does not is a real
+            condition to report, not to drop.
+          headers:
+            X-Content-SHA256: {$ref: "#/components/headers/ContentSha256"}
+          content:
+            application/vnd.apache.parquet:
+              schema: {type: string, format: binary}
+        "401":
+          description: Missing or wrong API key.
+  /reference/v1/fx-rates:
+    get:
+      operationId: exportFxRates
+      summary: Daily FX rates against USD, trading days only
+      security: [{ApiKey: []}]
+      responses:
+        "200":
+          description: >-
+            One row per currency per PUBLISHED day. Non-trading days are absent
+            rather than carried forward or sent as null — the table says what
+            was published, and inventing a weekend rate here would hide the
+            decision rather than record it.
+          headers:
+            X-Content-SHA256: {$ref: "#/components/headers/ContentSha256"}
+          content:
+            application/vnd.apache.parquet:
+              schema: {type: string, format: binary}
+        "401":
+          description: Missing or wrong API key.
+components:
+  headers:
+    ContentSha256:
+      description: >-
+        SHA-256 of the body, hex. THE OTHER VENDORS DO NOT PUBLISH THIS AND DO
+        NOT NEED TO: a truncated CSV or a mangled JSON array fails to parse, so
+        the damage announces itself. Parquet does not. It keeps its `PAR1` magic
+        and its `PAR1` footer through byte-level corruption, so a damaged file
+        still passes every cheap check while the pages between them are
+        unreadable — and the failure surfaces deep inside a Parquet reader,
+        naming neither the transport nor the cause. A checksum the vendor
+        publishes and the client verifies is what turns that into one loud
+        assertion at the boundary.
+      schema: {type: string, pattern: "^[0-9a-f]{64}$"}
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+  schemas:
+    # DOCUMENTED BUT NOT SERVED AS JSON. The bodies above are Parquet, so these
+    # describe the COLUMNS inside those files — which is what a reader of this
+    # spec needs, and what OpenMetadata surfaces as the vendor's schema. A test
+    # asserts the platform's declared column names still match these.
+    FxRate:
+      type: object
+      required: [rate_date, currency, rate_to_usd]
+      properties:
+        rate_date:
+          type: string
+          format: date
+          description: The trading day this rate was published for.
+        currency: {type: string, example: "GBP"}
+        rate_to_usd:
+          type: number
+          format: double
+          description: >-
+            Multiply an amount in this currency by this to get USD. USD itself
+            is present at 1.0 rather than omitted, so a join never has to
+            special-case the reporting currency.
+    ProductHierarchy:
+      type: object
+      required: [product_id, product_name, category, department, segment]
+      properties:
+        product_id: {type: string, example: "P-100"}
+        product_name: {type: string}
+        category:
+          type: string
+          description: What the selling systems call it — "Hardware".
+        department:
+          type: string
+          description: What the P&L calls it — "Devices".
+        segment:
+          type: string
+          description: >-
+            The top of the rollup, and what management reporting slices by —
+            "Core". A PRODUCT segment, not a customer one; the two words mean
+            different things in this business and both appear in the star.
+        list_price_usd:
+          type: number
+          format: double
+          description: Always USD, whatever currency an order was taken in.
