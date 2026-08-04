@@ -90,6 +90,25 @@ def ensure_audience(audience: str, name: str) -> None:
 
 
 def fabric(method: str, path: str, tok: str, **kw):
+    """One Fabric REST call. `path` is relative to `/v1`, which this adds.
+
+    THE ARGUMENT IS CHECKED, because getting it wrong is silent. A caller that
+    passes `/v1/workspaces/...` gets `/v1/v1/workspaces/...`, and the emulator
+    answers 404 `UnknownEndpoint` — a perfectly successful HTTP response that
+    `requests` does not raise on. `govern.py` did exactly this, and every
+    provenance lookup came back empty for as long as the code existed. The
+    platform reported "0 lineage edges the emulator observed", which is a
+    plausible number for a platform that only declares its lineage, so nothing
+    about the output looked wrong. The real answer was four.
+    """
+    if not path.startswith("/"):
+        raise ValueError(f"fabric() path must start with '/': {path!r}")
+    if path == "/v1" or path.startswith("/v1/"):
+        raise ValueError(
+            f"fabric() adds the /v1 prefix; pass {path[3:] or '/'!r} rather than "
+            f"{path!r}, or the request goes to /v1/v1/... and 404s as "
+            f"UnknownEndpoint without raising"
+        )
     r = S.request(
         method,
         f"{FABRIC}/v1{path}",

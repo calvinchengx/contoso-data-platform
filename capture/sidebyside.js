@@ -40,12 +40,12 @@ const PAGE = `
 <div class="wrap">
   <header>
     <div><b>terminal</b> — contoso-data-platform&nbsp; $ make verify</div>
-    <div><b>fabric-emulator portal</b> — Data flow&nbsp; (${PORTAL}/#flow)</div>
+    <div id="right"><b>fabric-emulator portal</b> — Data flow&nbsp; (${PORTAL}/#flow)</div>
   </header>
   <main>
     <iframe class="term" src="${TTYD}"></iframe>
     <div class="divider"></div>
-    <iframe src="${PORTAL}/#flow"></iframe>
+    <iframe id="portal" src="${PORTAL}/#flow"></iframe>
   </main>
 </div>`
 
@@ -132,6 +132,37 @@ const PAGE = `
 
   // One last look, for a run that finishes between samples.
   await sample()
+
+  // THE FINALE. The flow graph shows the data MOVING; it does not show what the
+  // move was for. A viewer who watches nine minutes of bronze and silver fill in
+  // and never sees the star or the semantic model has been shown the plumbing
+  // and not the point.
+  //
+  // So once the pipeline is done — and only then, because these views are empty
+  // until it is — the right pane walks the surfaces the run produced, ending on
+  // the semantic model that a BI client queries. The terminal keeps its final
+  // output on screen throughout (demo.py holds the shell open), so the two
+  // panes stay a matched pair rather than one going stale.
+  const TOUR = [
+    ['#flow', 'Data flow — every hop the emulator observed'],
+    ['#warehouse', 'Warehouse SQL — the TDS endpoint dbt built gold through'],
+    ['#models', 'Semantic models — what Power BI and XMLA query'],
+  ]
+  for (const [hash, label] of TOUR) {
+    await page.evaluate(
+      ([h, l, portal]) => {
+        document.getElementById('portal').src = portal + '/' + h
+        document.getElementById('right').innerHTML =
+          '<b>fabric-emulator portal</b> — ' + l
+      },
+      [hash, label, PORTAL],
+    )
+    // Long enough to read, and long enough for the view to fetch and render.
+    await page.waitForTimeout(7000)
+    await page.screenshot({ path: path.join(OUT, `98-portal-${hash.slice(1)}.png`) })
+    console.log(`TOURED ${hash}`)
+  }
+
   const rendered = maxNodes > 0
   const attached = termLines > 0
   console.log(`RENDERED ${rendered} (max nodes on screen: ${maxNodes})`)

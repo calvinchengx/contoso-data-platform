@@ -366,13 +366,28 @@ def emulator_producers(st: dict) -> dict[tuple[str, str], str]:
     """
     from fabric import FABRIC_AUD, fabric, token
 
+    # NO `/v1` HERE. `fabric()` prefixes it, and this call carried its own — so
+    # every request went to /v1/v1/workspaces/... and 404'd. A 404 is not an
+    # exception, so the guard below never fired; `.get("value", [])` turned it
+    # into an empty dict, and every edge was labelled "the emulator recorded no
+    # edge". The headline provenance number read 0 for as long as this existed,
+    # and 0 is exactly what a working lookup would report for a platform that
+    # only ever declares — which is why nobody questioned it.
     try:
-        path = f"/v1/workspaces/{st['workspace']}/lineage"
+        path = f"/workspaces/{st['workspace']}/lineage"
         r = fabric("GET", path, token(FABRIC_AUD))
-        edges = r.json().get("value", [])
     except Exception as e:  # provenance is a bonus, not a gate
         log(f"  ! emulator lineage unavailable ({type(e).__name__}) — unlabelled")
         return {}
+    # STATUS FIRST. Reading `value` off a failed response is what made a broken
+    # URL indistinguishable from an honest empty graph.
+    if r.status_code != 200:
+        log(
+            f"  ! emulator lineage GET {path} -> {r.status_code} — provenance "
+            f"unlabelled (this is a fault, not an empty graph)"
+        )
+        return {}
+    edges = r.json().get("value", [])
     out = {}
     for e in edges:
         src, dst = e.get("sourcePath", ""), e.get("targetPath", "")

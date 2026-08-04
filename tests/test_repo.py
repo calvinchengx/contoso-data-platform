@@ -307,6 +307,75 @@ def test_every_file_read_and_write_names_its_encoding():
     )
 
 
+def test_fabric_refuses_a_path_that_already_carries_v1():
+    """The helper checks its own argument, not just a lint on call sites.
+
+    `test_no_fabric_call_carries_its_own_v1_prefix` reads source text, so it
+    cannot see a path assembled at runtime. This is the guard that holds either
+    way: `fabric()` raises rather than building `/v1/v1/...` and letting the
+    emulator answer 404 `UnknownEndpoint` — a successful HTTP response that
+    `requests` does not raise on, which is how the original bug stayed silent.
+    """
+    sys.path.insert(0, str(ROOT / "platform"))
+    from fabric import fabric
+
+    def refused(path):
+        try:
+            fabric("GET", path, "token")
+        except ValueError as e:
+            return str(e)
+        return None
+
+    for bad in ("/v1", "/v1/workspaces/abc/lineage"):
+        msg = refused(bad)
+        assert msg, f"fabric() accepted {bad!r} and would request /v1/v1/..."
+        # The message must say what to pass INSTEAD; an error that only says
+        # "no" leaves the reader to rediscover the prefix rule.
+        assert "adds the /v1 prefix" in msg, msg
+
+    assert refused("workspaces/abc"), "a path without a leading slash was accepted"
+
+    # And the correct form is NOT refused — a guard that rejects everything
+    # would pass both assertions above while breaking every call in the repo.
+    # It will fail to connect, which is fine; what matters is that it got past
+    # the argument check rather than being rejected out of hand.
+    try:
+        fabric("GET", "/workspaces", "token")
+    except ValueError as e:  # pragma: no cover - only on a regression
+        raise AssertionError(f"a correct path was refused: {e}") from e
+    except Exception:
+        pass  # any transport failure means the argument check let it through
+
+
+def test_no_fabric_call_carries_its_own_v1_prefix():
+    """`fabric()` adds `/v1`; a caller that adds one too gets `/v1/v1/...`.
+
+    That is not hypothetical. `emulator_producers` did it, so every provenance
+    lookup 404'd — and because a 404 is not an exception, the `except` never
+    fired and `.get("value", [])` turned the failure into an empty graph. The
+    platform then labelled every edge "the emulator recorded no edge" and
+    printed `0 carrying a producer the emulator observed`.
+
+    Zero is exactly what a correct lookup reports for a platform that only ever
+    declares its lineage, which is why the number survived so long unquestioned.
+    The real answer was four.
+    """
+    offenders = []
+    for path in sorted((ROOT / "platform").rglob("*.py")):
+        for i, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            if 'fabric("' in line and '"/v1' in line:
+                offenders.append(f"{path.relative_to(ROOT)}:{i}: {line.strip()}")
+            # The two-line form: path built above, passed below.
+            if 'path = f"/v1/' in line or 'path = "/v1/' in line:
+                offenders.append(f"{path.relative_to(ROOT)}:{i}: {line.strip()}")
+    assert not offenders, (
+        "fabric() already prefixes /v1; these add a second one and 404:\n  "
+        + "\n  ".join(offenders)
+    )
+
+
 def test_every_rule_names_a_test_that_exists():
     """RULES.md is the codebase's rules. A rule citing a test that does not
     exist is prose asserting a guarantee nothing enforces — the failure this
