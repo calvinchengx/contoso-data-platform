@@ -40,7 +40,12 @@ unpublished as (
         'Unallocated'              as category,
         'Unallocated'              as department,
         'Unallocated'              as product_segment,
-        cast(null as float)        as list_price_usd
+        -- DECIMAL, matching the published side. A `float` here would win the
+        -- UNION and quietly demote every published price back to binary
+        -- floating point — the column would still hold the right numbers and
+        -- would no longer be money. Caught by reading the reflected type, not
+        -- by any row being wrong.
+        cast(null as decimal(19,4)) as list_price_usd
     from {{ ref('fct_sales') }} s
     where s.product_id not in (select product_id from published)
 )

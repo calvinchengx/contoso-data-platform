@@ -22,6 +22,10 @@ select
     summary.total as summary_total
 from detail
 cross join summary
--- A cent, not zero: these are floating-point sums over half a million rows, so
--- demanding bit equality would fail on arithmetic rather than on loss.
-where abs(detail.total - summary.total) > 0.01
+-- EXACTLY EQUAL, with no tolerance at all. This used to allow a cent, because
+-- the sums were binary floats over half a million rows and demanding bit
+-- equality would have failed on arithmetic rather than on loss. Money is
+-- decimal(19,4) now, so both sides are exact and any difference is real —
+-- which makes this the strictest form of the test and the whole point of the
+-- type change.
+where detail.total <> summary.total

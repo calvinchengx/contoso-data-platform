@@ -190,8 +190,9 @@ def definition(rows: dict, server: str = "", database: str = "") -> dict:
                         },
                         {"name": "Units", "dataType": "int64", "sourceColumn": "Units"},
                         {
+                            # Currency, like every other money column here.
                             "name": "Revenue",
-                            "dataType": "double",
+                            "dataType": "decimal",
                             "sourceColumn": "Revenue",
                         },
                     ],
@@ -241,9 +242,14 @@ def definition(rows: dict, server: str = "", database: str = "") -> dict:
                             ("ChannelSystem", "string"),
                             ("SaleLines", "int64"),
                             ("Units", "int64"),
-                            ("RevenueUsd", "double"),
-                            ("CancelledRevenueUsd", "double"),
-                            ("RevenueAtCarriedRate", "double"),
+                            # `decimal` in TMSL is Currency — fixed at four
+                            # decimal places, the same width the Warehouse
+                            # stores. So money keeps one type from Spark through
+                            # gold to a Power BI measure instead of becoming a
+                            # float at the last hop.
+                            ("RevenueUsd", "decimal"),
+                            ("CancelledRevenueUsd", "decimal"),
+                            ("RevenueAtCarriedRate", "decimal"),
                         )
                     ],
                     "measures": [

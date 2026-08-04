@@ -46,7 +46,11 @@ select
     -- still an assumption, so it stays visible per row instead of dissolving
     -- into the total.
     fx.rate_is_carried,
-    o.amount * fx.rate_to_usd as amount_usd
+    -- CAST BACK TO MONEY after the multiply. `decimal(19,4) * decimal(19,6)`
+    -- widens to a scale of 10, and carrying ten decimal places through every
+    -- downstream sum would be false precision dressed as rigour — the amount is
+    -- money again the moment the conversion is done.
+    cast(o.amount * fx.rate_to_usd as decimal(19,4)) as amount_usd
 from {{ source('silver', 'silver_orders') }} o
 -- JOINED AS TEXT, both sides. Every date in this platform travels as ISO text
 -- because bronze keeps what the vendor sent, and silver_fx_daily formats its

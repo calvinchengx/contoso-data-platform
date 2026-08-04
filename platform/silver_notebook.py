@@ -38,6 +38,26 @@ LAKEHOUSE = "@@LAKEHOUSE@@"
 # client, and Sail is configured against the emulator's storage endpoint.
 TABLES = f"abfs://{WORKSPACE}@onelake.dfs.fabric.microsoft.com/{LAKEHOUSE}/Tables"
 
+# MONEY IS DECIMAL, NEVER FLOAT — and this is a correctness rule, not taste.
+#
+# A binary float cannot represent 0.10, so every amount is already slightly
+# wrong before anything is added to it, and summing a quarter of a million of
+# them accumulates that error. It stays small, which is the problem: the total
+# looks right, reconciles to within a rounding error, and is not the number the
+# business earned. A P&L that is "close" is not a P&L.
+#
+# 19,4 is the width T-SQL's MONEY uses and what Fabric's tabular models call
+# Currency, so the same value keeps its type from Spark through the Warehouse to
+# a Power BI measure. RATE carries more scale than MONEY because an FX rate is
+# not an amount: rounding the rate first would push error into every conversion
+# that used it.
+#
+# Measured on the pinned build before being relied on: Sail computes
+# 3 x 24.50 x 1.27 as exactly 93.3450, the endpoint reflects decimal(19,4) and
+# decimal(19,6) with precision and scale intact, and SUM over them is exact.
+MONEY = "decimal(19,4)"
+RATE = "decimal(19,6)"
+
 # Silver's own business rule, written out rather than derived from the
 # generator's COUNTRY_VARIANTS. Importing that mapping would make the
 # conformance assertion agree with itself, and a new variant appearing upstream
@@ -129,7 +149,15 @@ o = (
 )
 
 bad = (F.col("quantity") <= 0) | F.col("unit_price").isNull()
-clean = o.filter(~bad).withColumn("amount", F.col("quantity") * F.col("unit_price"))
+# The vendor's JSON gives a float; it becomes decimal HERE, at the point money
+# enters the platform, so nothing downstream ever has to remember to convert.
+# `unit_price` is replaced before `amount` is derived, so the multiplication is
+# already exact rather than being rounded after the fact.
+clean = (
+    o.filter(~bad)
+    .withColumn("unit_price", F.col("unit_price").cast(MONEY))
+    .withColumn("amount", (F.col("quantity") * F.col("unit_price")).cast(MONEY))
+)
 quarantine = o.filter(bad)
 
 n_ord = save(clean, "silver_orders")
@@ -143,7 +171,11 @@ n_quar = save(quarantine, "silver_quarantine_orders")
 # is not a system leaking transactions. It is here because gold reads silver and
 # only silver, so a passthrough is the honest way to say "nothing was required"
 # rather than letting gold reach past the layer.
-hierarchy = read("bronze_product_hierarchy")
+# One thing IS required: the list price is money, and the vendor's Parquet
+# carries it as a double. Everything else passes through untouched.
+hierarchy = read("bronze_product_hierarchy").withColumn(
+    "list_price_usd", F.col("list_price_usd").cast(MONEY)
+)
 n_hier = save(hierarchy, "silver_product_hierarchy")
 
 # FX IS THE OPPOSITE, and this is the one real transform in this cell.
@@ -223,7 +255,10 @@ fx_daily = (
         # can go and gold can join date to date instead of nvarchar to nvarchar.
         F.date_format(F.col("e.rate_date"), "yyyy-MM-dd").alias("rate_date"),
         F.col("e.currency").alias("currency"),
-        F.col("q.rate_to_usd").alias("rate_to_usd"),
+        # RATE, not MONEY: a rate is a ratio, and rounding it to four places
+        # before it multiplies an amount would push that rounding into every
+        # converted figure downstream.
+        F.col("q.rate_to_usd").cast(RATE).alias("rate_to_usd"),
         # Which day's rate this actually is. Equal to rate_date on a trading
         # day, the preceding trading day otherwise.
         F.date_format(F.col("e._quoted_on"), "yyyy-MM-dd").alias("quoted_on"),
@@ -303,10 +338,10 @@ web_lines = (
         # Utf8 * Utf8`), which is the good case: an engine that coerced
         # silently would put a plausible number in a P&L.
         F.col("line.quantity").cast("int").alias("quantity"),
-        F.col("line.unit_price").cast("double").alias("unit_price"),
-        (
-            F.col("line.quantity").cast("int") * F.col("line.unit_price").cast("double")
-        ).alias("amount"),
+        F.col("line.unit_price").cast(MONEY).alias("unit_price"),
+        (F.col("line.quantity").cast("int") * F.col("line.unit_price").cast(MONEY))
+        .cast(MONEY)
+        .alias("amount"),
         # The storefront sells in USD. Stated as a column rather than assumed,
         # so the unified fact has the same shape from both selling systems.
         F.lit("USD").alias("currency"),

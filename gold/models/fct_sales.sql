@@ -72,7 +72,9 @@ select
     u.currency,
     fx.rate_to_usd,
     fx.rate_is_carried,
-    u.amount * fx.rate_to_usd as amount_usd
+    -- Back to money after the multiply; see fct_orders.sql for why the widened
+    -- intermediate scale is not kept.
+    cast(u.amount * fx.rate_to_usd as decimal(19,4)) as amount_usd
 from united u
 -- LEFT, so an unpriceable sale is kept and caught by the not_null test on
 -- amount_usd rather than silently removed from revenue. Silver's carry-forward
