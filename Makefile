@@ -36,7 +36,7 @@
 # keeps a step from reconciling the environment out from under them.
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor fixtures sources up down config lint fmt capture govern verify test clean
+.PHONY: help doctor fixtures sources up down config lint fmt capture demo govern verify test clean
 
 help:  ## Show the targets
 	@uv run --no-project python scripts/help.py
@@ -67,6 +67,9 @@ govern:  ## Catalog the platform in OpenMetadata (also runs inside `make verify`
 
 verify:  ## Run the platform end to end against the pinned release
 	@uv run --frozen --no-sync python platform/pipeline.py
+
+demo:  ## Record the run: terminal and flow graph side by side (needs ttyd)
+	@uv run --frozen --no-sync python scripts/demo.py
 
 lint:  ## ruff (lint + format check) and ty (types)
 	@uv run --frozen ruff check .
