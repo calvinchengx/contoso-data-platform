@@ -11,3 +11,12 @@ sources:
     tables:
       - name: silver_customers
       - name: silver_orders
+      # The group data office's feeds, conformed. gold reads silver and only
+      # silver, so these are here rather than gold reaching back into bronze
+      # for them — see silver_notebook.py for what each layer actually did.
+      - name: silver_product_hierarchy
+      # DENSE: one row per currency per CALENDAR day, where the vendor
+      # publishes only trading days. The carry-forward that fills the weekend
+      # gaps is silver's, applied once and recorded per row in
+      # `rate_is_carried`, so gold joins on the date without having to know.
+      - name: silver_fx_daily

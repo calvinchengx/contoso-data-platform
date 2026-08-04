@@ -137,6 +137,89 @@ n_quar = save(quarantine, "silver_quarantine_orders")
 
 # CELL ********************
 
+# --- reference: the product rollup, and FX with the gaps filled -------------
+# WHY THESE ARE IN SILVER AT ALL. The hierarchy needs nothing done to it — it
+# arrives clean, typed, and small, because a data office publishing definitions
+# is not a system leaking transactions. It is here because gold reads silver and
+# only silver, so a passthrough is the honest way to say "nothing was required"
+# rather than letting gold reach past the layer.
+hierarchy = read("bronze_product_hierarchy")
+n_hier = save(hierarchy, "silver_product_hierarchy")
+
+# FX IS THE OPPOSITE, and this is the one real transform in this cell.
+#
+# Rates are published on TRADING DAYS ONLY, so the table has a hole every
+# weekend. Orders do not stop at the weekend. Join revenue to this table on the
+# date and every Saturday and Sunday silently vanishes — for a month of trading
+# that is roughly a quarter of the rows, which is a material misstatement of
+# revenue rather than a rounding error, and one that leaves no trace: the join
+# succeeds, the numbers look plausible, and nothing reports a loss.
+#
+# So the rule is applied ONCE, here, where it can be named: carry the last
+# published rate forward. That is what a finance team does and what the vendor
+# explicitly declines to do for us. `rate_is_carried` records which rows were
+# invented by this rule, so a report can distinguish a quoted rate from an
+# assumed one instead of the assumption disappearing into an average.
+fx = read("bronze_fx_rates").withColumn("rate_date", F.to_date("rate_date"))
+
+# The calendar spine, built from the vendor's own span. Two scalars come to the
+# driver, not a dataset — the frame itself is still built by the engine.
+bounds = fx.selectExpr("min(rate_date) AS lo", "max(rate_date) AS hi").collect()[0]
+n_days = (bounds["hi"] - bounds["lo"]).days + 1
+calendar = spark.range(n_days).select(
+    F.date_add(F.lit(bounds["lo"]), F.col("id").cast("int")).alias("rate_date")
+)
+currencies = fx.select("currency").distinct()
+dense = calendar.crossJoin(currencies)
+
+# CARRIED FORWARD BY A RANGE JOIN rather than a windowed `last(ignoreNulls)`.
+# The window form is the idiomatic Spark answer and depends on the engine
+# honouring `ignoreNulls` over an unbounded preceding frame — and this session
+# has already been bitten twice by options an engine accepts and ignores, in a
+# way that produces plausible numbers rather than an error. Joins and a max()
+# are the primitives every engine actually has. The cost is irrelevant here:
+# this is 4 currencies over ~45 days against 132 published rows.
+effective = (
+    dense.alias("d")
+    .join(
+        fx.alias("p"),
+        (F.col("d.currency") == F.col("p.currency"))
+        & (F.col("p.rate_date") <= F.col("d.rate_date")),
+    )
+    .groupBy("d.rate_date", "d.currency")
+    .agg(F.max("p.rate_date").alias("_quoted_on"))
+)
+fx_daily = (
+    effective.alias("e")
+    .join(
+        fx.alias("q"),
+        (F.col("e.currency") == F.col("q.currency"))
+        & (F.col("e._quoted_on") == F.col("q.rate_date")),
+    )
+    .select(
+        # BACK TO STRINGS, and this is not cosmetic. A Spark DateType written
+        # to Delta surfaces through the SQL analytics endpoint as BIGINT —
+        # days since epoch — while `silver_orders.order_date` is nvarchar,
+        # because bronze keeps every vendor field as text. Gold joining the two
+        # fails with `Operand type clash: date is incompatible with bigint`,
+        # which names the symptom and not the cause. Measured on this stack;
+        # real Fabric surfaces the same column as `date`.
+        #
+        # So dates leave silver the way they entered it: ISO text. The date
+        # arithmetic above still happened in date space, where it belongs.
+        F.date_format(F.col("e.rate_date"), "yyyy-MM-dd").alias("rate_date"),
+        F.col("e.currency").alias("currency"),
+        F.col("q.rate_to_usd").alias("rate_to_usd"),
+        # Which day's rate this actually is. Equal to rate_date on a trading
+        # day, the preceding trading day otherwise.
+        F.date_format(F.col("e._quoted_on"), "yyyy-MM-dd").alias("quoted_on"),
+        (F.col("e._quoted_on") != F.col("e.rate_date")).alias("rate_is_carried"),
+    )
+)
+n_fx = save(fx_daily, "silver_fx_daily")
+
+# CELL ********************
+
 # What the notebook OBSERVED, handed back for the platform to grade.
 #
 # The assertions live in silver.py, not here, and the split is deliberate. A
@@ -158,6 +241,15 @@ notebook_exit(
             "customer_columns": len(customers.columns),
             "countries": countries,
             "missing_email": customers.filter(F.col("email") == "").count(),
+            "silver_product_hierarchy": n_hier,
+            "silver_fx_daily": n_fx,
+            # HOW MANY RATES WERE ASSUMED rather than quoted. Reported because
+            # it is the number that says the weekend gaps were really filled —
+            # a carry-forward that silently did nothing would leave this at
+            # zero while every count above still agreed.
+            "fx_carried": fx_daily.filter(F.col("rate_is_carried")).count(),
+            "fx_currencies": currencies.count(),
+            "fx_calendar_days": n_days,
         }
     )
 )

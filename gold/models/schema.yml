@@ -9,6 +9,48 @@ models:
         tests:
           - not_null
           - accepted_values: {values: ["US", "GB", "SG"], quote: true}
+      # The reporting axis management asks for first. Tested for values rather
+      # than only for presence: a segment that arrived as a column of nulls
+      # would still let every join and count succeed while making the P&L pack
+      # a single undifferentiated row.
+      - name: marketing_segment
+        tests:
+          - not_null
+          - accepted_values:
+              quote: true
+              values: ["value", "mainstream", "premium", "lapsed", "new"]
+      - name: loyalty_tier
+        tests: [not_null]
+
+  - name: dim_date
+    columns:
+      - name: date_key
+        tests: [unique, not_null]
+      - name: fiscal_year
+        tests: [not_null]
+      # CONTOSO'S FINANCIAL YEAR STARTS 1 APRIL, so a date in July belongs to
+      # fiscal Q2 and calendar Q3. Pinning the allowed values is what stops the
+      # convention being quietly changed to the calendar year — which would
+      # still produce four quarters and be wrong for nine months of them.
+      - name: fiscal_quarter
+        tests:
+          - not_null
+          - accepted_values: {values: [1, 2, 3, 4]}
+
+  - name: dim_product
+    columns:
+      - name: product_id
+        tests: [unique, not_null]
+      # The rollup is the whole reason Contoso Reference is a vendor. A null
+      # here means an SKU no department owns, which is a real condition to
+      # report rather than a row to aggregate over.
+      - name: department
+        tests: [not_null]
+      - name: product_segment
+        tests:
+          - not_null
+          - accepted_values: {values: ["Core", "Peripheral"], quote: true}
+
   - name: fct_orders
     columns:
       - name: order_id
@@ -20,9 +62,36 @@ models:
         tests:
           - not_null
           - relationships: {to: ref('dim_customer'), field: customer_id}
+      - name: product_id
+        # Same claim, for the rollup. An order naming a product the group data
+        # office does not publish cannot be reported by department at all.
+        tests:
+          - not_null
+          - relationships: {to: ref('dim_product'), field: product_id}
       - name: amount
         tests: [not_null]
+      - name: currency
+        tests: [not_null]
+      # THE FX JOIN GUARD. fct_orders joins the rate table with a LEFT JOIN so
+      # an unpriceable order is kept rather than silently dropped — which means
+      # this is the assertion that catches it. A missing rate lands here as a
+      # null and fails the build, naming the column; an inner join would have
+      # removed the row and reported less revenue with no error at all.
+      - name: amount_usd
+        tests: [not_null]
+
   - name: fct_daily_revenue
     columns:
       - name: revenue
+        tests: [not_null]
+
+  - name: fct_revenue_summary
+    columns:
+      - name: revenue_usd
+        tests: [not_null]
+      - name: fiscal_year_label
+        tests: [not_null]
+      - name: customer_segment
+        tests: [not_null]
+      - name: product_segment
         tests: [not_null]

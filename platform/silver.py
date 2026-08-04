@@ -122,6 +122,7 @@ def await_job(tok: str, workspace: str, notebook: str, job: str) -> dict:
 
 
 def main() -> int:
+    import reference_data as ref
     import source_system as src
 
     st = state.load()
@@ -157,10 +158,38 @@ def main() -> int:
     # claims 100% is lying, and dropping it here would erase the evidence.
     assert got["missing_email"] > 0, "the missing-email cohort vanished"
 
+    # --- the reference feeds, and the rule applied to one of them -----------
+    assert got["silver_product_hierarchy"] == ref.EXPECTED_PRODUCTS, got
+    assert got["fx_currencies"] == ref.EXPECTED_FX_CURRENCIES, got
+
+    # DENSE, which is the whole point: one row per currency per CALENDAR day,
+    # where the vendor published one per currency per TRADING day. Deriving the
+    # expected count here rather than trusting the notebook's own arithmetic —
+    # a carry-forward that quietly produced the sparse table again would report
+    # a consistent set of numbers and be wrong.
+    assert got["silver_fx_daily"] == got["fx_currencies"] * got["fx_calendar_days"], got
+
+    # Every dense row that is not one of the vendor's published rows was
+    # carried, so the two must account for the table exactly. This is the
+    # assertion that fails if the gaps stop being filled — or if they stop
+    # existing, which would make the rule dead code while everything still
+    # passed.
+    assert got["fx_carried"] == got["silver_fx_daily"] - ref.EXPECTED_FX_ROWS, got
+    assert got["fx_carried"] > 0, (
+        "no FX rate was carried forward — the non-trading-day gaps are gone, "
+        "so weekend revenue is no longer being converted by a stated rule"
+    )
+
     state.save(
         silver={
             k: got[k]
-            for k in ("silver_customers", "silver_orders", "silver_quarantine_orders")
+            for k in (
+                "silver_customers",
+                "silver_orders",
+                "silver_quarantine_orders",
+                "silver_product_hierarchy",
+                "silver_fx_daily",
+            )
         },
         silver_notebook=notebook,
         silver_job=job,
@@ -169,7 +198,9 @@ def main() -> int:
         f"silver: {got['silver_customers']:,} customers x "
         f"{got['customer_columns']} cols, {got['silver_orders']:,} orders, "
         f"{got['silver_quarantine_orders']:,} quarantined, "
-        f"countries {got['countries']} — computed by a Fabric notebook"
+        f"countries {got['countries']} — computed by a Fabric notebook; "
+        f"FX densified to {got['silver_fx_daily']} rows over "
+        f"{got['fx_calendar_days']} calendar days, {got['fx_carried']} carried"
     )
     return 0
 
