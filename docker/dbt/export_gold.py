@@ -59,6 +59,15 @@ def main() -> int:
             .execute("SELECT customer_id, name, country FROM dim_customer")
             .fetchall()
         ]
+        # The conformed geography dimension. Small, and load-bearing: it is the
+        # "one" side of the three relationships that replaced this model's
+        # many-to-many between Revenue and Customer.
+        country = [
+            {"Country": r[0], "CountryName": r[1]}
+            for r in c.cursor()
+            .execute("SELECT country, country_name FROM dim_country")
+            .fetchall()
+        ]
         # THE MANAGEMENT REPORTING AGGREGATE, and the reason it needs no
         # dimension tables beside it: fct_revenue_summary already carries its
         # own attributes. A report writer slices it directly, so the model does
@@ -89,13 +98,25 @@ def main() -> int:
             .fetchall()
         ]
 
-    assert fact and dim and reporting, (len(fact), len(dim), len(reporting))
+    assert fact and dim and reporting and country, (
+        len(fact),
+        len(dim),
+        len(reporting),
+        len(country),
+    )
     OUT.write_text(
-        json.dumps({"Revenue": fact, "Customer": dim, "Reporting": reporting})
+        json.dumps(
+            {
+                "Revenue": fact,
+                "Customer": dim,
+                "Country": country,
+                "Reporting": reporting,
+            }
+        )
     )
     print(
         f"==> exported gold: {len(fact):,} revenue rows, {len(dim):,} customers, "
-        f"{len(reporting):,} reporting rows",
+        f"{len(reporting):,} reporting rows, {len(country)} countries",
         flush=True,
     )
     return 0

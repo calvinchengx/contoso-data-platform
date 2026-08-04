@@ -41,15 +41,23 @@ MODEL = "ContosoRevenue"
 # for the report writer's benefit — which is the whole point of a semantic layer.
 GOLD_TABLE = {
     "Customer": "dim_customer",
+    "Country": "dim_country",
     "Revenue": "fct_daily_revenue",
     "Reporting": "fct_revenue_summary",
 }
 
 # One query, asked over two surfaces. xmla_probe.py runs this same DAX through
 # ADOMD.NET, so if both answer they must agree — which is a stronger statement
-# than either surface makes alone.
+# than either surface makes alone. THE CONSTANT IS THE QUERY: main() used to
+# re-declare an identical copy for the REST call, which meant the two surfaces
+# were only running "the same DAX" for as long as nobody edited one of them.
+#
+# GROUPED BY Country[Country], not Customer[Country]. Country is now a real
+# dimension that Customer and Revenue both point at, so this asks the question
+# from the shared key rather than leaning on a many-to-many between two tables
+# that have no key in common.
 DAX = (
-    "EVALUATE SUMMARIZECOLUMNS(Customer[Country], "
+    "EVALUATE SUMMARIZECOLUMNS(Country[Country], "
     '"Revenue", [Total Revenue], "PerUnit", [Revenue per Unit])'
 )
 
@@ -146,6 +154,20 @@ def definition(rows: dict, server: str = "", database: str = "") -> dict:
                     "columns": [
                         {"name": c, "dataType": "string", "sourceColumn": c}
                         for c in ("CustomerId", "Name", "Country")
+                    ],
+                },
+                # THE CONFORMED GEOGRAPHY DIMENSION, and the fix for this
+                # model's one bad relationship. `Country` used to be a column on
+                # two unrelated tables joined to each other on it — three values
+                # across 100,000 customers, which is a many-to-many that answers
+                # a country total and nothing finer. Now it is a table with one
+                # row per country, and everything that has a country points at
+                # it. See gold/models/dim_country.sql for the full argument.
+                {
+                    "name": "Country",
+                    "columns": [
+                        {"name": c, "dataType": "string", "sourceColumn": c}
+                        for c in ("Country", "CountryName")
                     ],
                 },
                 {
@@ -270,21 +292,32 @@ def definition(rows: dict, server: str = "", database: str = "") -> dict:
                     ],
                 },
             ],
+            # EVERY RELATIONSHIP IS MANY-TO-ONE, pointing at a unique key.
+            #
+            # What was here before was `Revenue[Country] -> Customer[Country]`:
+            # a join between two tables that share no key, on a column with
+            # three distinct values. Tabular models do not reject that, they
+            # resolve it as many-to-many and return a number — which is why it
+            # survived. It could answer "revenue by country" and could not
+            # answer anything below country, because there is no path from an
+            # aggregated revenue row to a customer.
+            #
+            # The replacement is the ordinary star shape: `Country` is the one
+            # side, everything that carries a country is the many side. A single
+            # country selection now filters Customer, Revenue and Reporting
+            # consistently, which is the thing a conformed dimension buys and
+            # the thing the old edge could not do.
             "relationships": [
-                # LEFT AS IT WAS, and it is the weak one. Country is a
-                # three-value column, so this is many-to-many: it can answer a
-                # country total and cannot slice revenue by anything finer.
-                # Replacing it means regrading the DAX that semantic_model.py
-                # and xmla_probe.py both assert against, which is a change of
-                # its own rather than a rider on this one. `Reporting` above is
-                # the surface that does not need it.
                 {
-                    "name": "Revenue_Customer",
-                    "fromTable": "Revenue",
+                    "name": f"{table}_Country",
+                    "fromTable": table,
                     "fromColumn": "Country",
-                    "toTable": "Customer",
+                    "toTable": "Country",
                     "toColumn": "Country",
+                    "fromCardinality": "many",
+                    "toCardinality": "one",
                 }
+                for table in ("Customer", "Revenue", "Reporting")
             ],
         },
     }
@@ -364,9 +397,9 @@ def main() -> int:
     rc = in_dbt_container("--entrypoint", "python", "dbt", "/tools/export_gold.py")
     assert rc == 0, f"gold export failed: exit {rc}"
     rows = json.loads(EXPORT.read_text(encoding="utf-8"))
-    assert rows["Revenue"] and rows["Customer"] and rows["Reporting"], (
-        "the export is empty"
-    )
+    assert (
+        rows["Revenue"] and rows["Customer"] and rows["Reporting"] and rows["Country"]
+    ), "the export is empty"
 
     tok = token(FABRIC_AUD)
     # The database name is the one thing the Warehouse differs about across
@@ -388,10 +421,12 @@ def main() -> int:
 
     # Queried exactly as a Power BI REST client would.
     ensure_audience(PBI_AUD, "Power BI Service")
-    dax = (
-        "EVALUATE SUMMARIZECOLUMNS(Customer[Country], "
-        '"Revenue", [Total Revenue], "PerUnit", [Revenue per Unit])'
-    )
+    # THE CONSTANT, not a copy of it. xmla_probe.py imports `DAX` and runs it
+    # through ADOMD.NET; this used to re-declare the same string locally, so the
+    # claim that both surfaces answer the same question held only until someone
+    # edited one of them — and the two would then have disagreed silently while
+    # both still returning plausible totals.
+    dax = DAX
     url = (
         f"{FABRIC}/v1.0/myorg/groups/{st['workspace']}"
         f"/datasets/{dataset}/executeQueries"
@@ -409,7 +444,7 @@ def main() -> int:
     # The measure has to agree with the fixture, not merely return something.
     total = sum(row["[Revenue]"] for row in result)
     assert abs(total - src.EXPECTED_REVENUE) < 0.01, (total, src.EXPECTED_REVENUE)
-    countries = {row["Customer[Country]"] for row in result}
+    countries = {row["Country[Country]"] for row in result}
     assert countries == src.EXPECTED_COUNTRIES, (
         sorted(countries),
         src.EXPECTED_COUNTRIES,

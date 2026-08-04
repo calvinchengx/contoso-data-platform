@@ -91,6 +91,20 @@ models:
       - name: revenue
         tests: [not_null]
 
+  - name: dim_country
+    columns:
+      # UNIQUE IS THE WHOLE POINT of this model. It is the "one" side of three
+      # relationships, and a duplicate would turn each of them back into the
+      # many-to-many this dimension was added to replace — silently, since the
+      # totals would still add up.
+      - name: country
+        tests:
+          - unique
+          - not_null
+          - accepted_values: {values: ["US", "GB", "SG"], quote: true}
+      - name: country_name
+        tests: [not_null]
+
   - name: dim_party
     columns:
       - name: party_key
