@@ -207,6 +207,20 @@ fx_daily = (
         #
         # So dates leave silver the way they entered it: ISO text. The date
         # arithmetic above still happened in date space, where it belongs.
+        #
+        # THIS IS TEMPORARY, AND HERE IS THE CONDITION FOR REMOVING IT. The
+        # emulator's Delta type map has been fixed upstream (f26c182) — the
+        # reader was discarding the Parquet logical annotation, so date,
+        # timestamp AND int all arrived as int64 and reflected as BIGINT, and
+        # binary arrived as a string. The fix is NOT RELEASED: the newest tag is
+        # still v0.15.3, which is what versions.env pins, so this workaround is
+        # still load-bearing today.
+        #
+        # When the pin moves past v0.15.3: re-run the INFORMATION_SCHEMA.COLUMNS
+        # probe FIRST — it is what caught this, and it now has to clear
+        # timestamp, int, binary and decimal as well, none of which this
+        # platform had tested when it hit the date case. Then this formatting
+        # can go and gold can join date to date instead of nvarchar to nvarchar.
         F.date_format(F.col("e.rate_date"), "yyyy-MM-dd").alias("rate_date"),
         F.col("e.currency").alias("currency"),
         F.col("q.rate_to_usd").alias("rate_to_usd"),

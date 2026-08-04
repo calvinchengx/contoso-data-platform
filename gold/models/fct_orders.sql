@@ -54,6 +54,9 @@ from {{ source('silver', 'silver_orders') }} o
 -- other, which is exactly what it did: a Spark DateType surfaces through the
 -- SQL analytics endpoint as bigint, and the build failed with `Operand type
 -- clash: date is incompatible with bigint`.
+--
+-- Fixed upstream and not yet released — silver_notebook.py carries the removal
+-- condition, and both sides have to change together.
 left join {{ source('silver', 'silver_fx_daily') }} fx
   on fx.currency = o.currency
  and fx.rate_date = o.order_date
