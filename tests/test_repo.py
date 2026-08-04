@@ -1127,3 +1127,66 @@ def test_the_grpc_transport_is_quiet_before_pyspark_loads():
     assert '"GRPC_VERBOSITY", "ERROR"' in src, (
         "silence the INFO chatter, not the diagnostics"
     )
+
+
+def test_no_table_with_a_nested_column_is_read_over_tds():
+    """A nested column corrupts its whole table through the SQL endpoint.
+
+    The emulator's reflection walks Parquet LEAF columns POSITIONALLY and hands
+    each top-level column whatever leaf shares its index. A `struct`/`array`/`map`
+    contributes several leaves, so it does not merely reflect wrong itself — it
+    SHIFTS EVERY COLUMN AFTER IT, and their real values are dropped. Nothing
+    raises: the types look ordinary and the values are plausible.
+
+    `bronze_web_orders.lines` is this platform's only nested column, and it is
+    currently the LAST column of that table, so nothing sits after it to be
+    displaced. That is luck, not design — and it is exactly the kind of luck
+    that a reordered schema silently spends.
+
+    So the invariant is the one that does not depend on column order: a table
+    with a nested column must never be read through TDS. Spark reads Delta
+    directly and is unaffected, which is why bronze_web_orders is fine today.
+    """
+    govern = (ROOT / "platform" / "govern.py").read_text(encoding="utf-8")
+    start = govern.index("MEDALLION = [")
+    catalogued = set(re.findall(r'"(bronze_\w+|silver_\w+)"', govern[start:]))
+
+    sources = (ROOT / "gold" / "models" / "sources.yml").read_text(encoding="utf-8")
+    dbt_sources = set(re.findall(r"^\s+- name: (\w+)$", sources, re.M))
+
+    # Declared in web_schema.py as a map, which is how that module says "array
+    # of struct". Any future nested column has to be added here.
+    nested_tables = {"bronze_web_orders"}
+
+    over_tds = catalogued | dbt_sources
+    leaked = nested_tables & over_tds
+    assert not leaked, (
+        f"{sorted(leaked)} carries a nested column and is read over TDS — every "
+        f"column at or after the nested one reflects another column's value, "
+        f"silently. Read it with Spark, or flatten it in silver first."
+    )
+
+
+def test_the_web_order_schema_keeps_its_nested_field_last():
+    """Belt and braces for the table above, while nested reflection is broken.
+
+    Even though nothing reads `bronze_web_orders` over TDS today, `lines` being
+    the final column is what keeps the damage to one column if anything ever
+    does. Adding a field after it would silently corrupt that field instead —
+    a change nobody would connect to this.
+
+    Delete this test once the emulator maps nested types; it guards someone
+    else's bug, and it should not outlive it.
+    """
+    sys.path.insert(0, str(ROOT / "platform"))
+    import web_schema
+
+    fields = list(web_schema.WEB_ORDER)
+    nested = [
+        name for name, kind in web_schema.WEB_ORDER.items() if isinstance(kind, dict)
+    ]
+    assert nested == ["lines"], nested
+    assert fields[-1] == "lines", (
+        f"`lines` is no longer the last field of WEB_ORDER ({fields}) — anything "
+        f"after a nested column reflects the wrong value through the SQL endpoint"
+    )
