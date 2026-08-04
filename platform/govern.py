@@ -511,14 +511,35 @@ def _om_type(native: str) -> str:
     n = native.lower()
     if n.startswith(("int", "bigint", "smallint", "long")):
         return "INT"
-    if n.startswith(("double", "float", "decimal", "numeric", "real")):
+    # DECIMAL BEFORE DOUBLE, and the order is the whole point. Money is stored
+    # as decimal(19,4) precisely so it is not a binary float; a catalog that
+    # published it as DOUBLE would tell every consumer the opposite of what the
+    # warehouse actually guarantees. This branch used to be folded into the one
+    # below, which was harmless while money was a float and became wrong the
+    # moment it stopped being one.
+    if n.startswith(("decimal", "numeric")):
+        return "DECIMAL"
+    if n.startswith(("double", "float", "real")):
         return "DOUBLE"
-    if n.startswith(("date",)):
-        return "DATE"
+    # TIMESTAMP BEFORE DATE, for the same reason DECIMAL comes before DOUBLE:
+    # `datetime2` starts with "date", so the date branch swallowed it and the
+    # timestamp branch below was unreachable. Every datetime2 column was
+    # catalogued as a DATE — a real type, plausibly wrong, and silent. Found by
+    # the test that pins this mapping rather than by anything failing.
     if n.startswith(("timestamp", "datetime")):
         return "TIMESTAMP"
-    if n.startswith(("bool",)):
+    if n.startswith(("date",)):
+        return "DATE"
+    # BOTH SPELLINGS. Spark says `boolean` and T-SQL says `bit`, and this
+    # function is fed by both — Delta schemas for the lakehouse, and
+    # INFORMATION_SCHEMA for the warehouse. Matching only "bool" meant every
+    # warehouse boolean fell through to the STRING default: `is_cancelled`,
+    # `rate_is_carried`, `in_pos` and `in_web` were all catalogued as text.
+    if n.startswith(("bool", "bit")):
         return "BOOLEAN"
+    # LAST RESORT, and worth knowing it is a guess. Anything unrecognised is
+    # published as STRING, which is why a missing branch above shows up as a
+    # plausible catalog entry rather than as an error.
     return "STRING"
 
 

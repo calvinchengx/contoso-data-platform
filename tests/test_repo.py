@@ -1190,3 +1190,44 @@ def test_the_web_order_schema_keeps_its_nested_field_last():
         f"`lines` is no longer the last field of WEB_ORDER ({fields}) — anything "
         f"after a nested column reflects the wrong value through the SQL endpoint"
     )
+
+
+def test_money_is_catalogued_as_decimal_not_double():
+    """The catalog must not describe money as a binary float.
+
+    Money is stored as `decimal(19,4)` so that a P&L is exact rather than close.
+    A catalog publishing it as DOUBLE tells every downstream consumer the
+    opposite of what the warehouse guarantees — and a catalog is believed
+    precisely because nobody re-derives it.
+
+    ORDER IS THE ASSERTION. `decimal` has to be matched before the float branch;
+    folded together, as it was, `decimal` fell through to DOUBLE. That was
+    harmless while money was a float and wrong the moment it stopped being one.
+
+    Compiled rather than imported, like
+    `test_the_partition_columns_match_the_gold_export` does: govern.py reaches a
+    live target at import, and this is a pure function.
+    """
+    text = (ROOT / "platform" / "govern.py").read_text(encoding="utf-8")
+    start = text.index("def _om_type")
+    end = text.index("def _pbi_service")
+    ns: dict = {}
+    exec(compile(text[start:end], "govern._om_type", "exec"), ns)
+    om = ns["_om_type"]
+
+    assert om("decimal(19,4)") == "DECIMAL"
+    assert om("decimal") == "DECIMAL"
+    assert om("numeric(10,2)") == "DECIMAL"
+    # The float family must still be DOUBLE — this is a split, not a rename.
+    assert om("float") == "DOUBLE"
+    assert om("double") == "DOUBLE"
+    assert om("real") == "DOUBLE"
+    # And the rest of the vocabulary is unmoved.
+    assert om("bigint") == "INT"
+    assert om("date") == "DATE"
+    assert om("datetime2") == "TIMESTAMP"
+    assert om("bit") == "BOOLEAN"
+    # Both spellings of a Delta string land on STRING, so the emulator's
+    # nvarchar -> varchar change does not move anything here.
+    assert om("nvarchar") == "STRING"
+    assert om("varchar") == "STRING"
