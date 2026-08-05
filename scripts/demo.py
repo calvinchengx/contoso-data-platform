@@ -185,7 +185,7 @@ def main() -> int:
         STOP.write_text("stop", encoding="utf-8")
         out, _ = rec.communicate(timeout=300)
         for line in (out or "").splitlines():
-            marks = ("RENDERED", "TERMINAL", "VIDEO", "WATCHED", "WATCHING", "TOURED")
+            marks = ("RENDERED", "TERMINAL", "VIDEO", "WATCHED", "WATCHING", "TOURED", "NON2XX")
             if line.startswith(marks):
                 print(f"    {line}", flush=True)
         if rec.returncode != 0:

@@ -45,6 +45,17 @@ const H = Number(process.env.HEIGHT || 900)
     recordVideo: { dir: OUT, size: { width: W, height: H } },
   })
   const page = await ctx.newPage()
+  // Every non-2xx THIS page sees, in the recorder's own log. The 404 banner
+  // has appeared only on the recorder's page — never on a plain observer of
+  // the same portal — so the recorder is the only client that can name it.
+  page.on('response', async (r) => {
+    if (r.status() < 400) return
+    let body = ''
+    try {
+      body = (await r.text()).slice(0, 120)
+    } catch {}
+    console.log(`NON2XX ${r.status()} ${r.request().method()} ${r.url()}  body=${JSON.stringify(body)}`)
+  })
   await page.goto(`${PORTAL}/#flow`, { waitUntil: 'domcontentloaded' })
 
   // Fold the sidebar first. The whole point of the in-pane recording is the
