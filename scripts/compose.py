@@ -20,6 +20,13 @@ FILES = [
     "compose/governance.yml",
 ]
 
+# TERMINAL=1 films the run inside the portal's own terminal pane rather than
+# beside a separately launched ttyd. Opt-in because it points the emulator at a
+# shell: the overlay sets FABRIC_TERMINAL_URL, and without it the emulator does
+# not mount the terminal routes at all.
+if os.environ.get("TERMINAL") == "1":
+    FILES.append("compose/terminal.yml")
+
 
 def main():
     if len(sys.argv) < 2:

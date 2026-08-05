@@ -483,22 +483,44 @@ def test_every_emulator_family_image_tracks_the_release():
     composed = "".join(
         p.read_text(encoding="utf-8") for p in sorted((ROOT / "compose").glob("*.yml"))
     )
-    family = dict(
+    # A SET of pairs, not a dict keyed by image. A dict lets the LAST file win,
+    # so an overlay naming the same image erases the base pin from what this
+    # guard witnesses — it would then be checking the overlay and reporting on
+    # the release. Found when compose/terminal.yml pinned the family to
+    # unreleased builds and the base FABRIC_EMULATOR_VERSION vanished from the
+    # evidence entirely.
+    pins = set(
         re.findall(
             r"image:\s*ghcr\.io/calvinchengx/(fabric-emulator[\w-]*)"
             r":\$\{([A-Z_]+)",
             composed,
         )
     )
-    assert family, (
+    assert pins, (
         "no ghcr.io/calvinchengx/fabric-emulator* images found in compose — "
         "this guard is reading the wrong thing and would pass on anything"
     )
-    missing = {img: var for img, var in family.items() if var not in TRACKS_THE_RELEASE}
+    # An overlay may deliberately pin an image to something the release does not
+    # move — that is what running an unreleased build MEANS, and refusing it
+    # would make the guard forbid the one job overlays exist for.
+    #
+    # It is exempt only while the image ALSO carries a tracked pin somewhere, so
+    # the override can add a way to escape the release but never become the only
+    # pin. Drop the base and this fails, which is the case worth catching: a
+    # stack that has quietly stopped following releases at all.
+    tracked = {img for img, var in pins if var in TRACKS_THE_RELEASE}
+    missing = {
+        img: var
+        for img, var in pins
+        if var not in TRACKS_THE_RELEASE
+        and not (var.endswith("_OVERRIDE") and img in tracked)
+    }
     assert not missing, (
         f"published by the emulator's release but NOT in TRACKS_THE_RELEASE: "
         f"{missing}. A release would move the emulator and leave these behind, "
-        f"silently — add them to scripts/set_release.py."
+        f"silently — add them to scripts/set_release.py. (A deliberate "
+        f"unreleased pin must be named <VAR>_OVERRIDE and the image must keep "
+        f"its tracked pin in the base compose.)"
     )
 
 

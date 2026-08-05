@@ -52,6 +52,9 @@ def in_dbt_container(*args: str) -> int:
         "WAREHOUSE_TOKEN": token(SQL_AUD),
         "LAKEHOUSE_ID": st["lakehouse"],
     }
+    overlay = []
+    if os.environ.get("TERMINAL") == "1":
+        overlay = ["-f", "compose/terminal.yml"]
     return subprocess.run(
         [
             "docker",
@@ -62,6 +65,12 @@ def in_dbt_container(*args: str) -> int:
             "compose/docker-compose.yml",
             "-f",
             "compose/sources.yml",
+            # The SAME file set every other caller uses. Compose decides whether
+            # a running container matches by hashing the config it is given, so
+            # a `run` with a shorter -f list recreates fabric-emulator to match
+            # — which reverted the image and dropped the terminal overlay in the
+            # middle of a recording, and read as the pipeline failing.
+            *overlay,
             "--profile",
             "gold",
             "run",

@@ -1,0 +1,36 @@
+# Terminal overlay: film the run inside the portal's own pane.
+#
+#   docker compose -f compose/docker-compose.yml -f compose/terminal.yml up -d
+#
+# WHY THE TERMINAL RUNS ON THE HOST, not in a container. `platform/gold.py`
+# shells out to `docker compose`, so the filmed shell has to drive Docker, hold
+# this repo, and have `uv` — a container could only do that with the host's
+# Docker socket mounted, and a socket behind a portal-proxied pane is root on
+# the host. Running ttyd on the host and PROXYING it keeps the recording in one
+# browser context without that trade.
+#
+# The emulator reaches back out through host.docker.internal, which resolves on
+# Docker Desktop and OrbStack. On plain Linux Docker add:
+#   extra_hosts: ["host.docker.internal:host-gateway"]
+#
+# FABRIC_TERMINAL_TOKEN is pinned here ON PURPOSE: the recorder needs to know it
+# to open the pane, and a generated one would have to be scraped from the
+# emulator's stdout mid-run. It is a fixed value in a local demo stack that
+# publishes nothing — do not copy this into anything shared, where the token is
+# the only thing between a reachable portal and a shell.
+# THE SIDECARS MOVE TOGETHER. Upgrading only the emulator left Sail on 0.16.1,
+# whose launcher mints a storage token once at container start — a fix that
+# landed on main as "a token minted at container start expired an hour into a
+# run". On a stack that had been up ten hours, every OneLake list came back
+# `401 invalid token: expired` and the pipeline died at bronze. Version skew
+# across a family that ships in lockstep is its own bug.
+services:
+  sail:
+    image: ghcr.io/calvinchengx/fabric-emulator-sail:${SAIL_VERSION_OVERRIDE:-dev}
+  spark-agent:
+    image: ghcr.io/calvinchengx/fabric-emulator-spark-agent:${SPARK_AGENT_VERSION_OVERRIDE:-dev}
+  fabric-emulator:
+    image: ghcr.io/calvinchengx/fabric-emulator:${FABRIC_EMULATOR_VERSION_OVERRIDE:-dev}
+    environment:
+      FABRIC_TERMINAL_URL: "http://host.docker.internal:${TTYD_PORT:-7681}"
+      FABRIC_TERMINAL_TOKEN: "contoso-demo-token"
