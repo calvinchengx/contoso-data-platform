@@ -158,41 +158,54 @@ const H = Number(process.env.HEIGHT || 900)
   // recording — but TOURED false is printed so a silent shrink is visible.
   // Budget: demo.py allows the recorder 300s after the stop marker.
   let toured = 0
-  const dwell = async (ms) => page.waitForTimeout(ms)
-  try {
-    // The semantic model: list, then the model itself.
-    await page.goto(`${PORTAL}/#models`, { waitUntil: 'domcontentloaded' })
-    await dwell(4000)
-    const model = page.locator('text=ContosoRevenue').first()
-    if (await model.count()) {
-      await model.click()
-      await dwell(6000)
+  const dwell = (ms) => page.waitForTimeout(ms)
+  // One scene, one try: a slow page costs its own scene, never the rest of the
+  // tour. Every URL here is a pattern om_verify.js asserts — nothing in this
+  // tour films a page that is not proven to exist.
+  const scene = async (what, ms, go) => {
+    try {
+      await go()
+      await dwell(ms)
+      toured++
+    } catch (e) {
+      console.error(`scene "${what}" skipped: ${String(e).slice(0, 160)}`)
     }
-    toured++
+  }
+  const om = (p) => page.goto(OM + p, { waitUntil: 'domcontentloaded' })
 
-    // The catalog. Same login dance as om_verify.js, same admin bootstrap.
+  // The semantic model: list, then the model itself.
+  await scene('models', 4000, () => page.goto(`${PORTAL}/#models`, { waitUntil: 'domcontentloaded' }))
+  await scene('ContosoRevenue', 6000, async () => {
+    const model = page.locator('text=ContosoRevenue').first()
+    if (await model.count()) await model.click()
+  })
+
+  // The catalog. Same login dance as om_verify.js, same admin bootstrap.
+  await scene('catalog login', 2500, async () => {
     await page.goto(OM, { waitUntil: 'domcontentloaded' })
     await page.fill('#email', 'admin@open-metadata.org', { timeout: 15000 })
     await page.fill('#password', 'admin')
     await page.click('button[type="submit"]')
     await page.waitForLoadState('networkidle').catch(() => {})
-    await dwell(3000)
+  })
 
-    // The vendor as a catalog entity, then the lineage that reaches it —
-    // the two shots that say "governed", in motion this time.
-    await page.goto(`${OM}/service/apiServices/contoso-pos`, { waitUntil: 'domcontentloaded' })
-    await dwell(5000)
-    toured++
-    await page.goto(
-      `${OM}/table/${encodeURIComponent('contoso-erp.erp.erp.customer')}/lineage`,
-      { waitUntil: 'domcontentloaded' },
-    )
-    await dwell(8000)
-    toured++
-  } catch (e) {
-    console.error(`tour stopped early: ${String(e).slice(0, 200)}`)
-  }
-  console.log(`TOURED ${toured}/3 scenes (models, catalog service, lineage)`)
+  // The vendors as catalog entities: the REST source and its endpoints, the
+  // relational source and its table, the stream between them.
+  await scene('contoso-pos service', 5000, () => om('/service/apiServices/contoso-pos'))
+  await scene('pos endpoints', 6000, () => om('/apiCollection/' + encodeURIComponent('contoso-pos.export')))
+  await scene('contoso-erp service', 4000, () => om('/service/databaseServices/contoso-erp'))
+  await scene('erp customer table', 5000, () => om('/table/' + encodeURIComponent('contoso-erp.erp.erp.customer')))
+  await scene('source-to-topic lineage', 9000, () =>
+    om('/table/' + encodeURIComponent('contoso-erp.erp.erp.customer') + '/lineage'))
+  await scene('redpanda service', 4000, () => om('/service/messagingServices/contoso-redpanda'))
+
+  // The star itself, and the lineage that walks it back to the vendors — the
+  // frame the whole platform exists to earn.
+  const star = 'contoso-fabric.contoso-analytics.warehouse.fct_revenue_summary'
+  await scene('fct_revenue_summary', 6000, () => om('/table/' + encodeURIComponent(star)))
+  await scene('star lineage', 10000, () => om('/table/' + encodeURIComponent(star) + '/lineage'))
+
+  console.log(`TOURED ${toured}/11 scenes`)
 
   // Claim this run's video by name before the context closes: Playwright names
   // them randomly, so a directory scan afterwards can return the PREVIOUS run's
