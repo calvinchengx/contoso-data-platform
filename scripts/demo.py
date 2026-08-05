@@ -189,8 +189,13 @@ def main() -> int:
             # own page sees, and a filter that dropped those lines is how a
             # 404 got hunted blind for five runs.
             marks = (
-                "RENDERED", "TERMINAL", "VIDEO",
-                "WATCHED", "WATCHING", "TOURED", "NON2XX",
+                "RENDERED",
+                "TERMINAL",
+                "VIDEO",
+                "WATCHED",
+                "WATCHING",
+                "TOURED",
+                "NON2XX",
             )
             if line.startswith(marks):
                 print(f"    {line}", flush=True)
