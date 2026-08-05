@@ -68,6 +68,14 @@ def main() -> int:
     ap.add_argument(
         "--command", default="make verify", help="what the filmed terminal runs"
     )
+    # ADDITIVE, not a replacement. The composited recorder still works and is
+    # what runs against an emulator without the terminal routes; --in-pane needs
+    # one that has them (compose/terminal.yml) and films the portal alone.
+    ap.add_argument(
+        "--in-pane",
+        action="store_true",
+        help="film the portal's own terminal pane instead of compositing two panes",
+    )
     args = ap.parse_args()
 
     if not shutil.which("ttyd"):
@@ -100,13 +108,20 @@ def main() -> int:
     # The command writes its exit code to a marker file. That, not ttyd's own
     # lifetime, is how this script knows the run ended: see the module docstring
     # for why waiting on ttyd deadlocks.
+    # Matches compose/terminal.yml's pinned token; the pane needs it to connect.
+    token = os.environ.get("TERMINAL_TOKEN", "contoso-demo-token")
     marker = SHOTS / ".demo-exit"
     marker.unlink(missing_ok=True)
     # Hold the shell open after the marker so the final output stays on screen
     # while the recorder flushes. Without it the pane goes blank at exactly the
     # moment a viewer wants to read the summary.
     shell = f"cd {ROOT} && {args.command}; echo $? > {marker}; sleep 600"
+    # TERMINAL=1 travels INTO the filmed shell: the pipeline runs its own
+    # `docker compose`, and without the same overlay it recreates the
+    # emulator out from under the pane it is being filmed in.
     env = {**os.environ, "CAPTURE": "0"}
+    if args.in_pane:
+        env["TERMINAL"] = "1"
     ttyd = subprocess.Popen(
         [
             "ttyd",
@@ -142,8 +157,10 @@ def main() -> int:
                 f"TTYD_URL=http://localhost:{TTYD_PORT}",
                 "-e",
                 f"PORTAL_URL={os.environ.get('PORTAL_URL', 'https://localhost:9443')}",
+                "-e",
+                f"TERMINAL_TOKEN={token}",
                 IMAGE,
-                "/capture/sidebyside.js",
+                "/capture/inpane.js" if args.in_pane else "/capture/sidebyside.js",
             ],
             cwd=ROOT,
             stdout=subprocess.PIPE,
@@ -168,7 +185,7 @@ def main() -> int:
         STOP.write_text("stop", encoding="utf-8")
         out, _ = rec.communicate(timeout=300)
         for line in (out or "").splitlines():
-            marks = ("RENDERED", "TERMINAL", "VIDEO", "WATCHED", "WATCHING")
+            marks = ("RENDERED", "TERMINAL", "VIDEO", "WATCHED", "WATCHING", "TOURED")
             if line.startswith(marks):
                 print(f"    {line}", flush=True)
         if rec.returncode != 0:
@@ -182,7 +199,8 @@ def main() -> int:
         if ttyd.poll() is None:
             ttyd.terminate()
 
-    video = SHOTS / "99-side-by-side.webm"
+    name = "99-in-pane.webm" if args.in_pane else "99-side-by-side.webm"
+    video = SHOTS / name
     print(f"==> {video.relative_to(ROOT)} ({video.stat().st_size:,} bytes)", flush=True)
     return 0
 
