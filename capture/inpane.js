@@ -211,6 +211,20 @@ const H = Number(process.env.HEIGHT || 900)
     await page.locator('.query-result').waitFor({ state: 'visible', timeout: 15000 })
   })
 
+  // The new portal chrome, shown rather than claimed: the shadcn rebuild's
+  // theme toggle, cycled to dark and back. Two clicks forward land on dark
+  // (light -> dark), one more returns to system — the tour leaves the portal
+  // the way it found it.
+  await scene('theme toggle', 5000, async () => {
+    const toggle = page.locator('button[aria-label^="Theme:"]').first()
+    await toggle.waitFor({ state: 'visible', timeout: 5000 })
+    await toggle.click()
+    await dwell(2500)
+    await toggle.click()
+    await dwell(1500)
+    await toggle.click()
+  })
+
   // The catalog. Same login dance as om_verify.js, same admin bootstrap.
   await scene('catalog login', 2500, async () => {
     await page.goto(OM, { waitUntil: 'domcontentloaded' })
