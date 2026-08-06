@@ -274,18 +274,81 @@ DBT_TO_ODCS = {
 }
 
 MEDALLION = [
+    # Bronze: one entry per landed table. No upstreams here — what feeds bronze
+    # is a VENDOR, and the vendor edges are registered from the connections the
+    # ingest steps announced, not restated in this list.
     ("lakehouse", "bronze_customers", []),
     ("lakehouse", "bronze_orders", []),
+    ("lakehouse", "bronze_web_customers", []),
+    ("lakehouse", "bronze_web_products", []),
+    ("lakehouse", "bronze_web_orders", []),
+    ("lakehouse", "bronze_fx_rates", []),
+    ("lakehouse", "bronze_product_hierarchy", []),
     ("lakehouse", "bronze_erp_changes", []),
+    # Silver: upstreams are what the notebook actually reads for each table.
     ("lakehouse", "silver_customers", ["lakehouse.bronze_customers"]),
     ("lakehouse", "silver_orders", ["lakehouse.bronze_orders"]),
     ("lakehouse", "silver_quarantine_orders", ["lakehouse.bronze_orders"]),
+    ("lakehouse", "silver_web_customers", ["lakehouse.bronze_web_customers"]),
+    ("lakehouse", "silver_web_order_lines", ["lakehouse.bronze_web_orders"]),
+    # The resolution: one row per PERSON, joined across both selling systems.
+    (
+        "lakehouse",
+        "silver_party",
+        ["lakehouse.silver_customers", "lakehouse.silver_web_customers"],
+    ),
+    ("lakehouse", "silver_fx_daily", ["lakehouse.bronze_fx_rates"]),
+    (
+        "lakehouse",
+        "silver_product_hierarchy",
+        ["lakehouse.bronze_product_hierarchy"],
+    ),
+    # Warehouse: upstreams mirror each dbt model's ref()/source() list — the
+    # FROM clauses, not a diagram. `dim_product` really does read `fct_sales`
+    # (its Unallocated members are derived from what actually sold), and
+    # `dim_date` really is built from the fact's dates; stating anything
+    # tidier would be the drawing, not the pipeline.
     ("warehouse", "dim_customer", ["lakehouse.silver_customers"]),
-    ("warehouse", "fct_orders", ["lakehouse.silver_orders"]),
+    ("warehouse", "dim_party", ["lakehouse.silver_party"]),
+    ("warehouse", "dim_country", ["warehouse.dim_party"]),
+    (
+        "warehouse",
+        "fct_orders",
+        ["lakehouse.silver_orders", "lakehouse.silver_fx_daily"],
+    ),
+    (
+        "warehouse",
+        "fct_sales",
+        [
+            "warehouse.fct_orders",
+            "lakehouse.silver_web_order_lines",
+            "warehouse.dim_party",
+            "lakehouse.silver_fx_daily",
+        ],
+    ),
+    (
+        "warehouse",
+        "dim_product",
+        ["lakehouse.silver_product_hierarchy", "warehouse.fct_sales"],
+    ),
+    ("warehouse", "dim_date", ["warehouse.fct_sales"]),
     (
         "warehouse",
         "fct_daily_revenue",
         ["warehouse.dim_customer", "warehouse.fct_orders"],
+    ),
+    # THE REPORTING STAR — the table the whole platform exists to serve, and
+    # until this entry the catalog's one empty page: the demo toured a
+    # `fct_revenue_summary` the catalog had never heard of.
+    (
+        "warehouse",
+        "fct_revenue_summary",
+        [
+            "warehouse.fct_sales",
+            "warehouse.dim_date",
+            "warehouse.dim_product",
+            "warehouse.dim_party",
+        ],
     ),
 ]
 

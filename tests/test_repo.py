@@ -1183,9 +1183,19 @@ def test_no_table_with_a_nested_column_is_read_over_tds():
     directly and gets the real thing, which is why bronze_web_orders is read by
     the notebook and never by dbt or the catalog.
     """
+    # WHAT ACTUALLY GOES OVER TDS, and only that. govern reads MEDALLION's
+    # LAKEHOUSE entries through Spark — Delta directly, immune to reflection —
+    # so listing a nested-bearing table there is fine and the catalog should
+    # carry it. The TDS readers are dbt (its declared sources) and govern's
+    # WAREHOUSE column discovery. An earlier version of this test swept all of
+    # MEDALLION into the TDS set and fired on a safe lakehouse entry — an
+    # over-broad guard is how a true invariant gets deleted in annoyance.
     govern = (ROOT / "platform" / "govern.py").read_text(encoding="utf-8")
     start = govern.index("MEDALLION = [")
-    catalogued = set(re.findall(r'"(bronze_\w+|silver_\w+)"', govern[start:]))
+    end = govern.index("]", govern.index("fct_revenue_summary", start))
+    warehouse_entries = set(
+        re.findall(r'\(\s*"warehouse",\s*"(\w+)"', govern[start:end])
+    )
 
     sources = (ROOT / "gold" / "models" / "sources.yml").read_text(encoding="utf-8")
     dbt_sources = set(re.findall(r"^\s+- name: (\w+)$", sources, re.M))
@@ -1194,7 +1204,7 @@ def test_no_table_with_a_nested_column_is_read_over_tds():
     # of struct". Any future nested column has to be added here.
     nested_tables = {"bronze_web_orders"}
 
-    over_tds = catalogued | dbt_sources
+    over_tds = warehouse_entries | dbt_sources
     leaked = nested_tables & over_tds
     assert not leaked, (
         f"{sorted(leaked)} carries a nested column and is read over TDS — every "

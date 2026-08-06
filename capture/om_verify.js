@@ -90,6 +90,24 @@ function check(name, ok, detail) {
   check('lineage graph has more than one node', nodes > 1, `${nodes} node(s)`)
   await shot('lineage-source-to-topic')
 
+  // 5. The reporting star. THE DEMO TOURS THIS PAGE, and for one release the
+  //    tour filmed a 404: the catalog stopped at the pre-star medallion, so
+  //    `fct_revenue_summary` did not exist in it and rendered as an empty
+  //    entity — beside a pipeline proudly printing 16/16. A page the demo
+  //    shows is a page this file asserts, or the tour's own promise
+  //    ("every URL here is a pattern om_verify.js asserts") is a lie.
+  const star = 'contoso-fabric.contoso-analytics.warehouse.fct_revenue_summary'
+  t = await visit('/table/' + encodeURIComponent(star))
+  check('the star is catalogued with its reporting axes',
+        /revenue_usd/i.test(t) && /customer_segment/i.test(t) && /fiscal_year_label/i.test(t))
+  await shot('star-fct-revenue-summary')
+
+  t = await visit('/table/' + encodeURIComponent(star) + '/lineage',
+                  '[data-testid="lineage-details"], .react-flow')
+  const starNodes = await page.locator('.react-flow__node').count().catch(() => 0)
+  check('the star lineage walks back to its inputs', starNodes > 3, `${starNodes} node(s)`)
+  await shot('star-lineage')
+
   await browser.close()
 
   const failed = checks.filter((c) => !c.ok)
