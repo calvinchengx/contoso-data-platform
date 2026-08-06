@@ -13,6 +13,9 @@ CLAUDE.local.md
 gold/_export.json
 catalog.json
 gold/_columns.json
+# What `make reconcile` read back from the Warehouse — an observation of a
+# particular run, not a fact about the repository.
+gold/_reconcile_sql.json
 
 # dbt writes these on every run: the compiled SQL it just built, the manifest
 # describing it, and its own log. They are OUTPUTS of gold/models/*.sql, so
