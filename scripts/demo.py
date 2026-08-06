@@ -196,6 +196,11 @@ def main() -> int:
                 "WATCHING",
                 "TOURED",
                 "NON2XX",
+                # BANNER/BANNERS: what the recorder's own page had on screen.
+                # THEME: which palette it painted — a dark recording that
+                # quietly came out light is a silent regression otherwise.
+                "BANNER",
+                "THEME",
             )
             if line.startswith(marks):
                 print(f"    {line}", flush=True)

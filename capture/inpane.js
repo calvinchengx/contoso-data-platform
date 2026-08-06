@@ -42,7 +42,20 @@ const H = Number(process.env.HEIGHT || 900)
     viewport: { width: W, height: H },
     // Self-signed, as the whole stack is; a user on a laptop clicks through it.
     ignoreHTTPSErrors: true,
+    // Dark, and dark from the FIRST FRAME. `colorScheme` is what the portal's
+    // 'system' preference resolves against, and it also darkens scrollbars and
+    // form controls — a light scrollbar down the side of a dark recording is
+    // the kind of detail that reads as a mistake.
+    colorScheme: 'dark',
     recordVideo: { dir: OUT, size: { width: W, height: H } },
+  })
+  // Set the preference BEFORE the page's own scripts run. index.html stamps
+  // `data-theme` on <html> before the bundle loads precisely so the first paint
+  // is correct; clicking the toggle after load would film a white flash first.
+  await ctx.addInitScript(() => {
+    try {
+      localStorage.setItem('fe.theme', 'dark')
+    } catch {}
   })
   const page = await ctx.newPage()
   // Every non-2xx THIS page sees, in the recorder's own log. The 404 banner
@@ -56,6 +69,35 @@ const H = Number(process.env.HEIGHT || 900)
     } catch {}
     console.log(`NON2XX ${r.status()} ${r.request().method()} ${r.url()}  body=${JSON.stringify(body)}`)
   })
+  // The banner probe, and its PROOF THAT IT CAN SEE.
+  //
+  // The 404 banner was hunted for five runs with a pixel detector calibrated on
+  // the light palette's pink (#fde7e9). In dark mode that banner is #3b1417 —
+  // near-black — so a colour detector carried over unchanged would report a
+  // clean recording no matter what appeared on screen. This reads the DOM
+  // instead, which is the same in both themes.
+  const bannerProbe = () =>
+    Array.from(document.querySelectorAll('.error, .banner-error'))
+      .filter((el) => el.offsetParent !== null)
+      .map((el) => el.textContent.trim().slice(0, 120))
+      .filter(Boolean)
+
+  // Calibrated off-camera in a context that records nothing: a detector that
+  // has never been shown a positive is indistinguishable from one that is
+  // broken, and this whole file exists because of a check that could not fail.
+  {
+    const scratch = await browser.newContext()
+    const probePage = await scratch.newPage()
+    await probePage.setContent('<p class="error">CALIBRATION</p>')
+    const seen = await probePage.evaluate(bannerProbe)
+    await scratch.close()
+    if (seen.length !== 1 || !seen[0].includes('CALIBRATION')) {
+      console.error(`banner probe cannot see a banner it was handed: ${JSON.stringify(seen)}`)
+      process.exit(2)
+    }
+    console.log('BANNERPROBE calibrated — a visible .error is detected')
+  }
+
   await page.goto(`${PORTAL}/#flow`, { waitUntil: 'domcontentloaded' })
 
   // Fold the sidebar first. The whole point of the in-pane recording is the
@@ -98,6 +140,7 @@ const H = Number(process.env.HEIGHT || 900)
   let maxNodes = 0
   let termLines = 0
   let lastLine = ''
+  const banners = []
 
   // The terminal is read from xterm's own BUFFER. xterm.js renders to <canvas>,
   // so DOM queries match nothing and a pixel sample reads back one flat colour —
@@ -129,6 +172,15 @@ const H = Number(process.env.HEIGHT || 900)
     // Same page, not a frame: the graph is the portal's own DOM here.
     const n = await page.locator('svg g.node').count().catch(() => 0)
     if (n > maxNodes) maxNodes = n
+    // Any banner that appears between two samples is named here and now, while
+    // its text still says what failed — a frame scanned afterwards can only say
+    // that something red was there.
+    for (const b of await page.evaluate(bannerProbe).catch(() => [])) {
+      if (!banners.includes(b)) {
+        banners.push(b)
+        console.log(`BANNER ${b}`)
+      }
+    }
   }
 
   await sample()
@@ -151,8 +203,16 @@ const H = Number(process.env.HEIGHT || 900)
   // thumbnail.
   const rendered = maxNodes > 0
   const attached = termLines > 0
+  // What the portal actually painted, not what was asked for: `data-theme` is
+  // the attribute every dark rule keys off, so reading it back is the one
+  // statement that the recording IS dark.
+  const themeShown = await page
+    .evaluate(() => document.documentElement.dataset.theme)
+    .catch(() => 'unknown')
   console.log(`RENDERED ${rendered} (max nodes on screen: ${maxNodes})`)
   console.log(`TERMINAL ${attached} (max non-empty buffer lines: ${termLines})`)
+  console.log(`THEME ${themeShown}`)
+  console.log(`BANNERS ${banners.length}`)
   console.log(`LASTLINE ${lastLine.slice(0, 120)}`)
 
   await page.screenshot({ path: path.join(OUT, '99-in-pane-final.png') })
@@ -211,18 +271,21 @@ const H = Number(process.env.HEIGHT || 900)
     await page.locator('.query-result').waitFor({ state: 'visible', timeout: 15000 })
   })
 
-  // The new portal chrome, shown rather than claimed: the shadcn rebuild's
-  // theme toggle, cycled to dark and back. Two clicks forward land on dark
-  // (light -> dark), one more returns to system — the tour leaves the portal
-  // the way it found it.
+  // The theme control, shown rather than claimed — and shown from where this
+  // recording sits. The cycle is system -> light -> dark, so from DARK three
+  // clicks are: dark -> system (still dark, the OS is dark here), system ->
+  // light (the palette this recording is not in), light -> dark. The portal
+  // ends the tour the way the recording started it.
   await scene('theme toggle', 5000, async () => {
     const toggle = page.locator('button[aria-label^="Theme:"]').first()
     await toggle.waitFor({ state: 'visible', timeout: 5000 })
     await toggle.click()
-    await dwell(2500)
-    await toggle.click()
     await dwell(1500)
     await toggle.click()
+    await dwell(3000) // the light palette, held long enough to read
+    await toggle.click()
+    const back = await page.evaluate(() => document.documentElement.dataset.theme)
+    if (back !== 'dark') throw new Error(`theme left as ${back}, not dark`)
   })
 
   // The catalog. Same login dance as om_verify.js, same admin bootstrap.
