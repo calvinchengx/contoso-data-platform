@@ -169,11 +169,13 @@ const H = Number(process.env.HEIGHT || 900)
   // recording — but TOURED false is printed so a silent shrink is visible.
   // Budget: demo.py allows the recorder 300s after the stop marker.
   let toured = 0
+  let attempted = 0
   const dwell = (ms) => page.waitForTimeout(ms)
   // One scene, one try: a slow page costs its own scene, never the rest of the
   // tour. Every URL here is a pattern om_verify.js asserts — nothing in this
   // tour films a page that is not proven to exist.
   const scene = async (what, ms, go) => {
+    attempted++
     try {
       await go()
       await dwell(ms)
@@ -184,11 +186,29 @@ const H = Number(process.env.HEIGHT || 900)
   }
   const om = (p) => page.goto(OM + p, { waitUntil: 'domcontentloaded' })
 
-  // The semantic model: list, then the model itself.
+  // The semantic model: list, the model itself, then MAKE IT ANSWER — a DAX
+  // query typed and run on camera, through the same evaluator as
+  // executeQueries. This is the closest honest stand-in for "querying from a
+  // Power BI dashboard" the stack can film: the wire is the Power BI wire,
+  // the UI is the emulator's own and says so.
   await scene('models', 4000, () => page.goto(`${PORTAL}/#models`, { waitUntil: 'domcontentloaded' }))
-  await scene('ContosoRevenue', 6000, async () => {
+  await scene('ContosoRevenue', 5000, async () => {
     const model = page.locator('text=ContosoRevenue').first()
     if (await model.count()) await model.click()
+  })
+  await scene('DAX query', 12000, async () => {
+    const box = page.getByLabel('DAX query')
+    await box.waitFor({ state: 'visible', timeout: 10000 })
+    await box.click()
+    await box.fill('')
+    // Typed, not filled: the point of the scene is watching the query happen.
+    await box.pressSequentially(
+      'EVALUATE SUMMARIZECOLUMNS(Reporting[FiscalQuarterLabel], ' +
+        '"Revenue USD", [Revenue USD], "Cancelled", [Cancelled Revenue])',
+      { delay: 25 },
+    )
+    await page.getByRole('button', { name: 'Run' }).click()
+    await page.locator('.query-result').waitFor({ state: 'visible', timeout: 15000 })
   })
 
   // The catalog. Same login dance as om_verify.js, same admin bootstrap.
@@ -216,7 +236,7 @@ const H = Number(process.env.HEIGHT || 900)
   await scene('fct_revenue_summary', 6000, () => om('/table/' + encodeURIComponent(star)))
   await scene('star lineage', 10000, () => om('/table/' + encodeURIComponent(star) + '/lineage'))
 
-  console.log(`TOURED ${toured}/11 scenes`)
+  console.log(`TOURED ${toured}/${attempted} scenes`)
 
   // Claim this run's video by name before the context closes: Playwright names
   // them randomly, so a directory scan afterwards can return the PREVIOUS run's
