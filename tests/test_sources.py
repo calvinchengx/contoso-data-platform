@@ -8,6 +8,8 @@ import pathlib
 import re
 import sys
 
+import pytest
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SOURCES = ROOT / "sources"
 SPECS = sorted(SOURCES.glob("*/openapi.yaml"))
@@ -256,6 +258,7 @@ def test_the_reference_vendor_serves_binary_through_the_only_path_that_survives(
     )
 
 
+@pytest.mark.fixtures
 def test_the_reference_spec_documents_the_columns_the_vendor_actually_sends():
     """The spec's schemas must match the Parquet the generator produces.
 
@@ -284,6 +287,7 @@ def test_the_reference_spec_documents_the_columns_the_vendor_actually_sends():
         )
 
 
+@pytest.mark.fixtures
 def test_reference_data_is_small_enough_to_serve_whole():
     """This vendor does not page, and Parquet cannot be paged.
 

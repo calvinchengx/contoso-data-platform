@@ -90,3 +90,13 @@ include = ["platform/silver_notebook.py"]
 
 [tool.ty.overrides.rules]
 unresolved-reference = "ignore"
+
+[tool.pytest.ini_options]
+# `make test` promises no emulator, no Docker and no fixture wheels, so the few
+# tests that genuinely need a wheel are marked rather than skipped. `make test`
+# deselects them and `make test-fixtures` runs them in the acceptance workflow,
+# where `make fixtures` has installed the pinned release. A deselection is
+# counted and named; a skip reads like success.
+markers = [
+    "fixtures: needs the published fixture wheels (`make fixtures`)",
+]

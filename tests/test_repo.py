@@ -13,9 +13,21 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 MAKEFILE = (ROOT / "Makefile").read_text(encoding="utf-8")
-# The published client `make fixtures` installs from a pinned release, kept out
-# of uv.lock on purpose. Nothing `make test` touches may reach it.
-WHEEL = "fabric_target"
+# Every top-level module the fixture wheels provide, kept out of uv.lock on
+# purpose: which release they came from is the thing under test. Read off the
+# wheels' own RECORD files (contoso_fixtures, contoso_fixtures_advanced,
+# fabric-target) rather than guessed, and listed here because a clean checkout
+# — the case this guard exists for — has no wheel to ask.
+WHEELS = frozenset(
+    {
+        "fabric_target",
+        "common",
+        "source_system",
+        "erp_system",
+        "reference_data",
+        "web_store",
+    }
+)
 
 
 def _pins():
@@ -1072,13 +1084,26 @@ def test_the_repo_tests_need_no_fixture_wheels():
     """
     plat = ROOT / "platform"
 
-    def module_scope_imports(path):
-        """The repo's own modules this file imports, at module scope only.
+    def interesting(name):
+        return name in WHEELS or (plat / f"{name}.py").exists()
 
-        Module scope is the whole point: an import inside a function runs when
-        that function is called, which is how `reconcile` keeps `compare`
-        reachable while `dax_side` still talks to a live stack. `ast.walk`
-        descends into function bodies, so those are dropped before walking.
+    def imports_in(node):
+        """Top-level module names imported anywhere under `node`."""
+        names = set()
+        for n in ast.walk(node):
+            if isinstance(n, ast.Import):
+                names |= {a.name.split(".")[0] for a in n.names}
+            elif isinstance(n, ast.ImportFrom) and n.level == 0 and n.module:
+                names.add(n.module.split(".")[0])
+        return {n for n in names if interesting(n)}
+
+    def module_scope_imports(path):
+        """What importing this file executes, so function bodies are dropped.
+
+        Deferring an import into the function that needs a running stack is the
+        sanctioned fix — it is how `reconcile` keeps `compare` reachable — so a
+        function-scoped import is not a module-scope dependency. `ast.walk`
+        descends into functions, hence the strip.
         """
         tree = ast.parse(path.read_text(encoding="utf-8"))
         tree.body = [
@@ -1086,16 +1111,10 @@ def test_the_repo_tests_need_no_fixture_wheels():
             for n in tree.body
             if not isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef)
         ]
-        names = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                names |= {a.name.split(".")[0] for a in node.names}
-            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
-                names.add(node.module.split(".")[0])
-        return {n for n in names if n == WHEEL or (plat / f"{n}.py").exists()}
+        return imports_in(tree)
 
-    # Which of our own modules reach the wheel, following imports to a fixpoint.
-    tainted = {WHEEL}
+    # Which of our own modules reach a wheel, following imports to a fixpoint.
+    tainted = set(WHEELS)
     graph = {p.stem: module_scope_imports(p) for p in plat.glob("*.py")}
     changed = True
     while changed:
@@ -1107,14 +1126,30 @@ def test_the_repo_tests_need_no_fixture_wheels():
 
     offenders = {}
     for test in sorted((ROOT / "tests").glob("test_*.py")):
-        hits = module_scope_imports(test) & tainted
-        if hits:
-            offenders[test.name] = sorted(hits)
+        tree = ast.parse(test.read_text(encoding="utf-8"))
+        # Importing the module runs these, so they are unconditional.
+        for hit in sorted(module_scope_imports(test) & tainted):
+            offenders.setdefault(test.name, []).append(hit)
+        # Inside a test body the import still runs when the test does, so
+        # deferring buys nothing here — it only earns the right to be marked.
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+                continue
+            marked = any(
+                isinstance(d, ast.Attribute) and d.attr == "fixtures"
+                for d in node.decorator_list
+            )
+            if marked:
+                continue
+            for hit in sorted(imports_in(node) & tainted):
+                offenders.setdefault(test.name, []).append(f"{node.name} -> {hit}")
+
     assert not offenders, (
-        f"these test modules import code that needs `make fixtures`, which "
-        f"`make test` promises not to require: {offenders}. Put the part under "
-        f"test in a dependency-free module, or defer the heavy import into the "
-        f"function that needs a running stack."
+        f"these tests reach code that needs `make fixtures`, which `make test` "
+        f"promises not to require: {offenders}. Put the part under test in a "
+        f"dependency-free module, defer the heavy import into the function that "
+        f"needs a running stack, or mark the test `@pytest.mark.fixtures` so "
+        f"`make test-fixtures` runs it where the wheels exist."
     )
 
 

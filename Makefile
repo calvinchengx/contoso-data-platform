@@ -36,7 +36,7 @@
 # keeps a step from reconciling the environment out from under them.
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor fixtures sources up down config lint fmt capture demo govern verify reconcile test clean
+.PHONY: help doctor fixtures sources up down config lint fmt capture demo govern verify reconcile test test-fixtures clean
 
 help:  ## Show the targets
 	@uv run --no-project python scripts/help.py
@@ -84,7 +84,10 @@ fmt:  ## Apply ruff's formatting and safe fixes
 	@uv run --frozen ruff format .
 
 test:  ## The repo's own tests — version lockstep, boundaries, config
-	@uv run --frozen pytest -q tests
+	@uv run --frozen pytest -q tests -m "not fixtures"
+
+test-fixtures:  ## The tests that need the published wheels — after `make fixtures`
+	@uv run --frozen pytest -q tests -m fixtures
 
 clean:  ## Remove build and run artifacts
 	@uv run --no-project python scripts/clean.py
