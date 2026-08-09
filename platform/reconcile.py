@@ -30,10 +30,15 @@ import json
 import pathlib
 import sys
 
-import state
-from fabric import FABRIC, S, ensure_audience, log, token
+from say import log
 
-from gold import in_dbt_container
+# `state`, `fabric` and `gold` resolve a target, which needs the `fabric-target`
+# wheel that `make fixtures` installs from a pinned release. Imported inside the
+# functions that talk to a running stack rather than at module scope, so that
+# `compare` — a pure comparison over two dicts, and the part of this gate that
+# decides pass or fail — stays importable on a clean checkout and stays tested
+# in CI. It was not: this module's import chain turned `make test` red on all
+# three platforms.
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SQL_OUT = ROOT / "gold" / "_reconcile_sql.json"
@@ -56,6 +61,8 @@ CENTS = decimal.Decimal("0.01")
 
 def dax_side(dataset: str, workspace: str) -> dict[str, dict[str, decimal.Decimal]]:
     """The model's answer, through the Power BI wire."""
+    from fabric import FABRIC, S, ensure_audience, token
+
     ensure_audience(PBI_AUD, "Power BI Service")
     url = f"{FABRIC}/v1.0/myorg/groups/{workspace}/datasets/{dataset}/executeQueries"
     r = S.post(
@@ -81,6 +88,8 @@ def dax_side(dataset: str, workspace: str) -> dict[str, dict[str, decimal.Decima
 
 def sql_side() -> dict[str, dict[str, decimal.Decimal]]:
     """The warehouse's answer, with no semantic layer in the way."""
+    from gold import in_dbt_container
+
     SQL_OUT.unlink(missing_ok=True)
     rc = in_dbt_container("--entrypoint", "python", "dbt", "/tools/reconcile_sql.py")
     assert rc == 0, f"warehouse reconciliation query failed: exit {rc}"
@@ -135,6 +144,8 @@ def compare(
 
 
 def main() -> int:
+    import state
+
     st = state.load()
     dataset = st.get("dataset")
     assert dataset, "no semantic model published yet — run `make verify` first"

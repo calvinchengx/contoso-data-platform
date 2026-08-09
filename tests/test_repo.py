@@ -5,6 +5,7 @@ the repository itself, so they are the part of CI that is green from day one and
 runs identically on all three platforms.
 """
 
+import ast
 import pathlib
 import re
 import subprocess
@@ -12,6 +13,9 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 MAKEFILE = (ROOT / "Makefile").read_text(encoding="utf-8")
+# The published client `make fixtures` installs from a pinned release, kept out
+# of uv.lock on purpose. Nothing `make test` touches may reach it.
+WHEEL = "fabric_target"
 
 
 def _pins():
@@ -1058,17 +1062,59 @@ def test_the_repo_tests_need_no_fixture_wheels():
     the day a runtime guard was tested by importing the client that carries it.
     The guard moved to `platform/apipath.py`, which has no dependencies, and
     this test stops the next one going the same way.
+
+    It did not. It checked only THIS file, and only DIRECT imports, so
+    `tests/test_reconcile.py` walked straight past it importing `reconcile`,
+    which reached the wheel three hops later through `state` and `fabric`. CI
+    was red for three days. Both holes are closed below: every test module is
+    read, and the taint is followed through the import graph rather than
+    guessed at from a list of names.
     """
-    src = (ROOT / "tests" / "test_repo.py").read_text(encoding="utf-8")
-    # The modules that transitively resolve a target, and so need the wheel.
-    forbidden = re.compile(
-        r"^\s*(?:from (fabric|target) import|import (fabric|target))\b", re.M
-    )
-    hits = [m.group(0).strip() for m in forbidden.finditer(src)]
-    assert not hits, (
-        f"these imports need `make fixtures`, which this file promises not to "
-        f"require: {hits}. Put the rule in a dependency-free module and test "
-        f"that instead."
+    plat = ROOT / "platform"
+
+    def module_scope_imports(path):
+        """The repo's own modules this file imports, at module scope only.
+
+        Module scope is the whole point: an import inside a function runs when
+        that function is called, which is how `reconcile` keeps `compare`
+        reachable while `dax_side` still talks to a live stack. `ast.walk`
+        descends into function bodies, so those are dropped before walking.
+        """
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        tree.body = [
+            n
+            for n in tree.body
+            if not isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef)
+        ]
+        names = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names |= {a.name.split(".")[0] for a in node.names}
+            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                names.add(node.module.split(".")[0])
+        return {n for n in names if n == WHEEL or (plat / f"{n}.py").exists()}
+
+    # Which of our own modules reach the wheel, following imports to a fixpoint.
+    tainted = {WHEEL}
+    graph = {p.stem: module_scope_imports(p) for p in plat.glob("*.py")}
+    changed = True
+    while changed:
+        changed = False
+        for mod, deps in graph.items():
+            if mod not in tainted and deps & tainted:
+                tainted.add(mod)
+                changed = True
+
+    offenders = {}
+    for test in sorted((ROOT / "tests").glob("test_*.py")):
+        hits = module_scope_imports(test) & tainted
+        if hits:
+            offenders[test.name] = sorted(hits)
+    assert not offenders, (
+        f"these test modules import code that needs `make fixtures`, which "
+        f"`make test` promises not to require: {offenders}. Put the part under "
+        f"test in a dependency-free module, or defer the heavy import into the "
+        f"function that needs a running stack."
     )
 
 
