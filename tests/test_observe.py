@@ -16,6 +16,7 @@ the emulator's constants move, instead of leaving this quietly wrong.
 """
 
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -178,7 +179,21 @@ class TestVocabularyMatchesTheEmulator:
     than turning a rule into a no-op nobody notices.
     """
 
-    EMULATOR = pathlib.Path("/Users/calvin/calvinchengx/fabric-emulator")
+    # RELATIVE TO THIS REPO, not a machine path. This was hardcoded to one
+    # absolute location, so the day the family moved to ~/calvinchengx/emulators
+    # every check below turned into a skip — and a skip is the one outcome that
+    # looks like success. The rule these tests enforce (the emulator's own
+    # vocabulary, read from its source) went unenforced and nothing said so.
+    #
+    # A sibling checkout is the assumption, which survives moving the pair
+    # anywhere as long as they move together. FABRIC_EMULATOR_REPO overrides it
+    # for a layout that separates them.
+    EMULATOR = pathlib.Path(
+        os.environ.get(
+            "FABRIC_EMULATOR_REPO",
+            pathlib.Path(__file__).resolve().parents[1].parent / "fabric-emulator",
+        )
+    )
 
     def _emulator_source(self, rel: str) -> str:
         p = self.EMULATOR / rel
