@@ -27,6 +27,10 @@ import requests
 import target
 import urllib3
 
+# Re-exported: `log` now lives in a module with no dependencies, so callers that
+# only want to print a line need not resolve a target. See say.py.
+from say import log as log
+
 T = target.resolve()
 
 # Real Fabric audiences, on both targets — the emulator validates the same ones.
@@ -45,10 +49,6 @@ S = requests.Session()
 S.verify = T.verify_tls
 if not T.verify_tls:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-
-def log(msg: str) -> None:
-    print(f"==> {msg}", flush=True)
 
 
 def token(audience: str) -> str:
