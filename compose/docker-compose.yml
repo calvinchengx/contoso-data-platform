@@ -33,7 +33,7 @@ services:
       entra-emulator: {condition: service_healthy}
     ports: ["8444:8444"]
     environment:
-      KV_ENTRA_ISSUER: "https://entra-emulator:8443/11111111-1111-1111-1111-111111111111/v2.0"
+      KV_ENTRA_ISSUER: "https://entra-emulator:8443/6f89cf12-978b-4d23-ac18-9ef0c127cf87/v2.0"
       KV_ENTRA_TLS_INSECURE: "true"
       # The image bakes KV_DATA_DIR=/data for volume users; no volume here, so
       # this must be emptied or the store fails to open a path that is not there.
@@ -54,8 +54,8 @@ services:
       # dials lazily on first query and an emulated amd64 image is slow to boot.
       FABRIC_SQL_TDS_ADDR: ":1433"
       FABRIC_WAREHOUSE_SQL_URL: "server=sqlserver;user id=sa;password=${MSSQL_SA_PASSWORD:-Str0ng!Passw0rd};encrypt=disable;dial timeout=90;connection timeout=90"
-      FABRIC_ENTRA_ISSUER: "https://entra-emulator:8443/11111111-1111-1111-1111-111111111111/v2.0"
-      FABRIC_ENTRA_JWKS_URL: "https://entra-emulator:8443/11111111-1111-1111-1111-111111111111/discovery/v2.0/keys"
+      FABRIC_ENTRA_ISSUER: "https://entra-emulator:8443/6f89cf12-978b-4d23-ac18-9ef0c127cf87/v2.0"
+      FABRIC_ENTRA_JWKS_URL: "https://entra-emulator:8443/6f89cf12-978b-4d23-ac18-9ef0c127cf87/discovery/v2.0/keys"
       FABRIC_ENTRA_TLS_INSECURE: "true"
       # Notebook execution. With this set the emulator drives the spark-agent
       # itself, so a RunNotebook job runs and completes; without it the job
@@ -86,8 +86,8 @@ services:
       # Sail mints its own storage token before starting: Rust object_store
       # reads credentials from the process environment at startup only, so a
       # Connect client cannot hand it one later.
-      ENTRA_TOKEN_URL: "https://entra-emulator:8443/11111111-1111-1111-1111-111111111111/oauth2/v2.0/token"
-      ENTRA_CLIENT_ID: "cccccccc-0000-0000-0000-000000000002"
+      ENTRA_TOKEN_URL: "https://entra-emulator:8443/6f89cf12-978b-4d23-ac18-9ef0c127cf87/oauth2/v2.0/token"
+      ENTRA_CLIENT_ID: "00d88624-f0d7-46f6-a641-6232c2608928"
       ENTRA_CLIENT_SECRET: "daemon-app-secret"
       AZURE_STORAGE_ACCOUNT_NAME: "onelake"
       AZURE_STORAGE_ENDPOINT: "https://fabric-emulator:9443/onelake"
@@ -114,9 +114,9 @@ services:
       # delta-rs reaches OneLake on its own account: a Connect client cannot
       # read back the bearer sail holds, so the agent mints its own from the
       # same issuer with the same Storage audience.
-      ENTRA_TOKEN_URL: "https://entra-emulator:8443/11111111-1111-1111-1111-111111111111/oauth2/v2.0/token"
+      ENTRA_TOKEN_URL: "https://entra-emulator:8443/6f89cf12-978b-4d23-ac18-9ef0c127cf87/oauth2/v2.0/token"
       ENTRA_FORGE_URL: "https://entra-emulator:8443/admin/api/tokens"
-      ENTRA_CLIENT_ID: "cccccccc-0000-0000-0000-000000000002"
+      ENTRA_CLIENT_ID: "00d88624-f0d7-46f6-a641-6232c2608928"
       ENTRA_CLIENT_SECRET: "daemon-app-secret"
       AZURE_STORAGE_ACCOUNT_NAME: "onelake"
       AZURE_STORAGE_ENDPOINT: "https://fabric-emulator:9443/onelake"

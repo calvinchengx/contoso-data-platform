@@ -206,8 +206,8 @@ def test_the_emulator_appears_only_in_the_target_resolver():
     passing.
     """
     emulator_only = re.compile(
-        r"localhost:9443|localhost:8443|daemon-app-secret|cccccccc-0000|"
-        r"11111111-1111|allow_invalid_certificates|verify\s*=\s*False"
+        r"localhost:9443|localhost:8443|daemon-app-secret|00d88624|"
+        r"6f89cf12|allow_invalid_certificates|verify\s*=\s*False"
     )
     offenders = []
     for p in sorted((ROOT / "platform").glob("*.py")):
