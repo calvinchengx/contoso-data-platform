@@ -184,6 +184,38 @@ def main() -> int:
         f"{got['distinct_customers']:,} customers — the vendor's redeliveries "
         f"are missing, so silver's dedupe has nothing to do"
     )
+    # WHICH COLUMNS, not how many. This asserted the count alone and the first run
+    # it ever completed reported `(102, 101)` — a column had appeared and nothing
+    # said which, so the two available fixes ("the reader is adding one" and "the
+    # expectation is stale") were indistinguishable from the failure. They are not
+    # equivalent: all three published fixture wheels declare 101, so 101 is the
+    # vendor's own figure and an edit to 102 would have gone green over a column
+    # nobody had identified. Silver carries the same assertion and would have been
+    # edited twice.
+    landed_cols = got["customer_column_names"].split(",")
+    expected_cols = [name for name, _kind in src.CUSTOMER_COLUMNS]
+    extra = [c for c in landed_cols if c not in set(expected_cols)]
+    absent = [c for c in expected_cols if c not in set(landed_cols)]
+    # DUPLICATES SEPARATELY, because the two set differences above are both empty
+    # when the surplus column repeats a name that belongs — and "a duplicate means
+    # two part files were unioned" would then be a cause this check names and
+    # cannot detect.
+    seen: dict[str, int] = {}
+    for c in landed_cols:
+        seen[c] = seen.get(c, 0) + 1
+    repeated = sorted(c for c, n in seen.items() if n > 1)
+    assert not extra and not absent and not repeated, (
+        f"bronze_customers has {len(landed_cols)} columns, the vendor declares "
+        f"{len(expected_cols)}.\n"
+        f"  appeared:  {extra}\n"
+        f"  missing:   {absent}\n"
+        f"  duplicated: {repeated}\n"
+        f"An empty or `_c<N>` name means a trailing delimiter in the vendor's "
+        f"header; a duplicate means two part files with different headers were "
+        f"unioned by the reader."
+    )
+    # Kept as its own check: the count is what silver and gold size themselves
+    # against, and a rename that swapped two names would satisfy the sets above.
     assert got["customer_columns"] == src.EXPECTED_CUSTOMER_COLUMNS, (
         got["customer_columns"],
         src.EXPECTED_CUSTOMER_COLUMNS,
