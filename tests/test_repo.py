@@ -1055,12 +1055,28 @@ def test_the_partition_columns_match_the_gold_export():
     src = export.read_text(encoding="utf-8")
 
     # Only the pure function is wanted; importing the module would drag in the
-    # whole platform (state, fabric, a live target). Compile just the helper.
+    # whole platform (state, fabric, a live target). So the function is located by
+    # PARSING rather than by slicing between two string landmarks: this read
+    # `text.index("def partition")` and broke the moment that function was deleted
+    # in the Direct Lake conversion — failing with `ValueError: substring not
+    # found`, which says nothing about the mapping it exists to check.
+    import ast as _ast
+
     text = (ROOT / "platform" / "semantic_model.py").read_text(encoding="utf-8")
-    start = text.index("def gold_column")
-    end = text.index("def partition")
+    tree = _ast.parse(text)
+    fn = next(
+        (
+            n
+            for n in tree.body
+            if isinstance(n, _ast.FunctionDef) and n.name == "gold_column"
+        ),
+        None,
+    )
+    assert fn is not None, "gold_column is gone — the mapping has no derivation"
+    segment = _ast.get_source_segment(text, fn)
+    assert segment, "gold_column's source could not be extracted"
     ns: dict = {}
-    exec(compile(text[start:end], "semantic_model.py", "exec"), ns)
+    exec(compile(segment, "semantic_model.py", "exec"), ns)
     gold_column = ns["gold_column"]
 
     # Every `SELECT a, b, c FROM <table>` the exporter issues.
@@ -1075,7 +1091,8 @@ def test_the_partition_columns_match_the_gold_export():
             model_col = "".join(p.capitalize() for p in wc.split("_"))
             assert gold_column(model_col) == wc, (
                 f"{table}.{wc} -> model {model_col} -> {gold_column(model_col)}; "
-                f"the partition would SELECT a column that does not exist"
+                f"the Direct Lake partition's sourceColumn would name a column "
+                f"gold does not have"
             )
 
 
