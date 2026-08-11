@@ -1,6 +1,7 @@
 """Bronze → silver, as a Fabric NOTEBOOK.
 
-The transform is `silver_notebook.py` and it is not imported here — it is
+The transform is `definitions/silver-conform.Notebook/notebook-content.py` and
+it is not imported here — it is
 published as the `notebook-content.py` of a Notebook item and executed by a
 Spark engine. This module is the operator: publish, submit, wait, grade.
 
@@ -38,7 +39,22 @@ import state
 from fabric import FABRIC_AUD, await_operation, fabric, log, token
 
 NOTEBOOK = "silver-conform"
-SOURCE = pathlib.Path(__file__).resolve().parent / "silver_notebook.py"
+
+# The notebook lives in Fabric's own SOURCE FORMAT: a `{display name}.{Type}/`
+# directory holding the definition files plus `.platform`. That is exactly what
+# Fabric's Git integration writes when a workspace is connected to Azure DevOps
+# or GitHub, and what fabric-cicd deploys — so what this repository commits is
+# what a real repository holds, rather than a loose .py the publisher happens to
+# know the destination path of.
+#
+# `.platform` is not decoration: it carries the `logicalId`, the cross-workspace
+# identity that survives a rename and a directory move. Publishing without one
+# produces an item this emulator accepts (it stores parts verbatim) and that no
+# CI/CD tool round-trips.
+DEFINITION = (
+    pathlib.Path(__file__).resolve().parent / "definitions" / f"{NOTEBOOK}.Notebook"
+)
+SOURCE = DEFINITION / "notebook-content.py"
 
 
 def content(workspace: str, lakehouse: str) -> bytes:
@@ -64,15 +80,28 @@ def publish(tok: str, workspace: str, body: bytes) -> str:
     cannot match across targets, and a step that only works on a fresh
     workspace is not one anybody can operate.
     """
-    definition = {
-        "parts": [
+    # Every file in the definition directory becomes a part, keyed by its path
+    # relative to that directory — the same mapping Git integration uses. The
+    # notebook body is passed in because its parameters cell is substituted
+    # first; everything else (`.platform`) ships as committed.
+    parts = [
+        {
+            "path": "notebook-content.py",
+            "payload": base64.b64encode(body).decode(),
+            "payloadType": "InlineBase64",
+        }
+    ]
+    for extra in sorted(DEFINITION.iterdir()):
+        if extra.name == "notebook-content.py" or not extra.is_file():
+            continue
+        parts.append(
             {
-                "path": "notebook-content.py",
-                "payload": base64.b64encode(body).decode(),
+                "path": extra.name,
+                "payload": base64.b64encode(extra.read_bytes()).decode(),
                 "payloadType": "InlineBase64",
             }
-        ]
-    }
+        )
+    definition = {"parts": parts}
 
     found = provision.find_item(tok, workspace, NOTEBOOK, "Notebook")
     if found:
