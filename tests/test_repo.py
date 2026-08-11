@@ -648,8 +648,13 @@ def test_silver_runs_as_a_fabric_notebook():
     not check it, and a syntax error in the transform surfaces as a failed cell
     on a remote engine instead of at `make lint`.
     """
-    nb = (ROOT / "platform" / "definitions"
-          / "silver-conform.Notebook" / "notebook-content.py")
+    nb = (
+        ROOT
+        / "platform"
+        / "definitions"
+        / "silver-conform.Notebook"
+        / "notebook-content.py"
+    )
     assert nb.exists(), "the silver transform is not a notebook file"
     assert nb.read_text(encoding="utf-8").startswith("# Fabric notebook source"), (
         "a Fabric notebook is identified by its first line; without it the "
@@ -716,8 +721,13 @@ def test_notebook_lineage_is_observed_not_declared():
     set drifts from the code the moment either changes; this one cannot,
     because it is the code.
     """
-    nb = (ROOT / "platform" / "definitions" / "silver-conform.Notebook"
-          / "notebook-content.py").read_text(encoding="utf-8")
+    nb = (
+        ROOT
+        / "platform"
+        / "definitions"
+        / "silver-conform.Notebook"
+        / "notebook-content.py"
+    ).read_text(encoding="utf-8")
     assert 'LINEAGE.append(("read"' in nb, "the notebook does not record reads"
     assert 'LINEAGE.append(("write"' in nb, "the notebook does not record writes"
 

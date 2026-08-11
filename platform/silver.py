@@ -51,8 +51,9 @@ NOTEBOOK = "silver-conform"
 # identity that survives a rename and a directory move. Publishing without one
 # produces an item this emulator accepts (it stores parts verbatim) and that no
 # CI/CD tool round-trips.
-DEFINITION = (pathlib.Path(__file__).resolve().parent
-              / "definitions" / f"{NOTEBOOK}.Notebook")
+DEFINITION = (
+    pathlib.Path(__file__).resolve().parent / "definitions" / f"{NOTEBOOK}.Notebook"
+)
 SOURCE = DEFINITION / "notebook-content.py"
 
 
@@ -93,11 +94,13 @@ def publish(tok: str, workspace: str, body: bytes) -> str:
     for extra in sorted(DEFINITION.iterdir()):
         if extra.name == "notebook-content.py" or not extra.is_file():
             continue
-        parts.append({
-            "path": extra.name,
-            "payload": base64.b64encode(extra.read_bytes()).decode(),
-            "payloadType": "InlineBase64",
-        })
+        parts.append(
+            {
+                "path": extra.name,
+                "payload": base64.b64encode(extra.read_bytes()).decode(),
+                "payloadType": "InlineBase64",
+            }
+        )
     definition = {"parts": parts}
 
     found = provision.find_item(tok, workspace, NOTEBOOK, "Notebook")
