@@ -116,14 +116,14 @@ Run `make` for the target list.
 
 ## How it is pinned
 
-`versions.env` pins every image — and there are **four**, not one:
+`versions.env` pins every image, and the file itself is the list — this section
+used to restate four of them and had drifted seven minor versions behind before
+anyone noticed. A README that copies a pinned version is a second source of
+truth with no check keeping it honest, so it names none.
 
-```
-FABRIC_EMULATOR_VERSION=0.15.3
-ENTRA_EMULATOR_VERSION=0.3.0
-KEYVAULT_EMULATOR_VERSION=0.3.0
-MOKAPI_VERSION=0.50.0
-```
+Read [`versions.env`](versions.env) for the current pins. The family's own
+defaults live in [**azure-emulators**](https://github.com/calvinchengx/azure-emulators), which is the bill of materials these
+are expected to agree with.
 
 `versions.env` pins more than these four — Sail and the Spark agent move in
 lockstep with the emulator, the ERP stack (Postgres, Redpanda, Debezium) is
@@ -165,8 +165,18 @@ Scaffold. It runs end to end today and still grows in phases — what it covers:
 | governance | OpenMetadata: API, database and messaging services, lineage from source |
 | capture | the Data flow graph recorded *while* it runs; the catalog after |
 
-Working today, against **fabric-emulator 0.15.3**: `make verify` runs **16 of 16
-steps** from a cold `make down`. The four vendors serve ~194 MB of seeded export,
+Working today, against the release pinned in [`versions.env`](versions.env):
+`make verify` runs the platform **end to end from a cold `make down`** — 16
+steps, no manual intervention.
+
+> **Currently red on `main` (2026-08-11).** `platform/bronze.py` imports `T` from
+> a module that never exported it, so it raises at load and `make verify` stops
+> at step 9. It reached main because `acceptance.yml` runs on a schedule and
+> `workflow_dispatch`, never on `pull_request` — so no PR check executes a
+> platform step. The import is fixed in the 0.22.0 bump; the step then fails on
+> a column count (the notebook produces 102, the vendor's fixture declares 101),
+> which is still open. Stated here rather than left for a reader to discover,
+> because "16 of 16" is the claim this README exists to make. The four vendors serve ~194 MB of seeded export,
 it lands in OneLake byte-identical, bronze and silver are computed by a **Fabric
 notebook** on Spark, gold builds in the Warehouse via **dbt-fabric** with 60
 data tests, and the semantic model answers DAX over the Power BI
