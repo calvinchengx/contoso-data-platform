@@ -432,7 +432,20 @@ countries = sorted(
     {r["country"] for r in customers.select("country").distinct().collect()}
 )
 
-notebook_exit(
+# `notebookutils.notebook.exit` is FABRIC'S API, and the reason to spell it out
+# rather than call the bare `notebook_exit` this used to call: that bare name is
+# not a Fabric global. fabric-emulator injects it into every notebook session
+# alongside the real spellings, so the old call ran here and would have died on
+# a tenant with `NameError: name 'notebook_exit' is not defined` — after the
+# transform had run and written, at the last line, where the failure costs the
+# most and explains the least.
+#
+# Checked against Microsoft's own reference, not inferred: the documented
+# spellings are `notebookutils.notebook.exit(value)` and the older
+# `mssparkutils.notebook.exit(value)`. Both resolve on the emulator too, so this
+# is strictly portable — there is no target where the bare name is the right
+# call and this one is not.
+notebookutils.notebook.exit(
     json.dumps(
         {
             "silver_customers": n_cust,
