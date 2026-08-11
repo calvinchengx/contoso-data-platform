@@ -28,7 +28,6 @@ from fabric import FABRIC_AUD, STORAGE_AUD, log, token, upload
 from sources import (
     ERP_DB,
     ERP_HOST,
-    ERP_PASSWORD_SECRET,
     ERP_PORT,
     ERP_TOPIC,
     REDPANDA,
@@ -151,11 +150,10 @@ def main() -> int:
         "Contoso ERP",
         "OnPremisesGateway",
         connections.details(
-            kind="PostgreSqlCdc",
+            "PostgreSql",
+            "PostgreSql",
             server=f"{ERP_HOST}:{ERP_PORT}",
             database=ERP_DB,
-            topic=ERP_TOPIC,
-            secretName=ERP_PASSWORD_SECRET,
         ),
     )
     connections.announce(

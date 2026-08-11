@@ -120,8 +120,34 @@ def announce(tok: str, workspace: str, step: str, name: str, moves: list[dict]) 
         )
 
 
-def details(**kw) -> dict:
-    """connectionDetails as Fabric wants it: a JSON object describing where the
-    source lives. Kept a helper so each vendor's shape is written once, beside
-    the values it is built from."""
-    return json.loads(json.dumps(kw))
+def details(conn_type: str, creation_method: str, **parameters) -> dict:
+    """`connectionDetails` in the shape Fabric's Create Connection API defines.
+
+    THIS USED TO BE AN INVENTED SHAPE — `{kind, endpoint, secretName}` — and the
+    emulator stored it verbatim, so it round-tripped and nothing complained. No
+    tenant would have accepted it: the request shape is
+    `{type, creationMethod, parameters[]}`, and `path` (the field a reader
+    reaches for) belongs to the RESPONSE. fabric-emulator 0.22.0 began enforcing
+    that and answered `InvalidConnectionDetails: The Type field is required.`
+
+    The type and creation-method names are not guesses. They come from a real
+    tenant's `GET /v1/connections/supportedConnectionTypes` — `Web` takes `url`,
+    `PostgreSql` takes `server` and `database`.
+
+    `secretName` is gone rather than relocated: which vault secret backs a
+    connection is a CREDENTIAL fact, and Fabric carries it as a
+    `KeyVaultSecretReference` inside `credentialDetails`, not as connection
+    metadata. Recording it here described nothing the service would honour.
+    """
+    return json.loads(
+        json.dumps(
+            {
+                "type": conn_type,
+                "creationMethod": creation_method,
+                "parameters": [
+                    {"dataType": "Text", "name": name, "value": value}
+                    for name, value in parameters.items()
+                ],
+            }
+        )
+    )
