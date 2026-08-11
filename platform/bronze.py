@@ -30,7 +30,7 @@ import connections
 import notebookjob
 import state
 import web_schema
-from fabric import FABRIC_AUD, log, token
+from fabric import FABRIC_AUD, STORAGE_AUD, log, token
 from target import T
 
 NOTEBOOK = "bronze-ingest"
@@ -89,6 +89,32 @@ def metrics_row(tok: str, workspace: str, lakehouse: str) -> dict:
     return rows[0]
 
 
+def landed_at(tok: str, workspace: str, lakehouse: str, table: str) -> int:
+    """Open `Tables/{table}` and count it, or fail naming the path.
+
+    WHERE, not just how many. A Copy activity fed a dataset whose empty column
+    list rendered as a path segment ran, reported `Succeeded`, and wrote to
+    `Tables/[]/bronze_customers` — every row count agreed and the bytes were in
+    the wrong place. So each table is opened at the path this platform claims it
+    wrote, and a table that is not there fails here rather than in whatever reads
+    it next.
+    """
+    from deltalake import DeltaTable, exceptions
+
+    uri = f"az://{workspace}/{lakehouse}/Tables/{table}"
+    try:
+        return (
+            DeltaTable(uri, storage_options=T.delta_storage_options(tok))
+            .to_pyarrow_table()
+            .num_rows
+        )
+    except exceptions.TableNotFoundError as err:
+        raise SystemExit(
+            f"nothing at {uri} — bronze reported writing {table}, so either the "
+            f"engine wrote somewhere else or the write did not happen"
+        ) from err
+
+
 def main() -> int:
     import erp_system as erp
     import reference_data as ref
@@ -104,6 +130,12 @@ def main() -> int:
         NOTEBOOK,
         WORKSPACE=ws,
         LAKEHOUSE=lake,
+        # DAY IS STANDING IN FOR A JOB PARAMETER. Real Fabric would pass the
+        # landing day through the RunNotebook job's `executionData.parameters`
+        # and leave the file untouched; the emulator implements no parameter
+        # override, so it is substituted instead. **When the override lands, this
+        # is the call site to change** — the notebook's own cell says the same, so
+        # whoever implements it finds both ends rather than grepping for `@@`.
         DAY=day,
         # The page schemas, rendered from the module a test pins to the vendor's
         # own OpenAPI. See the notebook's parameters cell for why they travel as
@@ -119,7 +151,19 @@ def main() -> int:
     job = notebookjob.submit(tok, ws, item)
     notebookjob.await_job(tok, ws, item, job)
 
-    got = metrics_row(token("https://storage.azure.com"), ws, lake)
+    stok = token(STORAGE_AUD)
+    got = metrics_row(stok, ws, lake)
+
+    # EVERY TABLE IS WHERE IT SAYS IT IS, and holds what the notebook counted.
+    # Read from OneLake at the declared path rather than trusting the run's own
+    # report: a job that says Succeeded having written to the wrong prefix is a
+    # measured failure mode here, not a hypothetical.
+    for _, table in FEEDS:
+        at_path = landed_at(stok, ws, lake, table)
+        assert at_path == got[table], (
+            f"Tables/{table} holds {at_path:,} rows and the run counted "
+            f"{got[table]:,} — the notebook and the store disagree"
+        )
 
     # --- what bronze must have preserved -----------------------------------
     # The vendor repeats a share of its rows. Bronze holding MORE rows than

@@ -712,14 +712,22 @@ def test_silver_runs_as_a_fabric_notebook():
     )
     assert "# CELL " in nb.read_text(encoding="utf-8"), "the notebook declares no cells"
 
-    src = (ROOT / "platform" / "silver.py").read_text(encoding="utf-8")
-    assert "jobType=RunNotebook" in src, "silver never submits a notebook job"
-    # Matched on the CALL, not its exact signature — this assertion broke the
-    # moment an encoding argument was added, which is not a change it cares about.
-    assert "SOURCE.read_text(" in src, (
-        "silver must publish the notebook FILE — a body built inline here is "
-        "the thing this test exists to prevent"
-    )
+    # The job is submitted through the shared operator, so the literal lives
+    # there. Asserted in BOTH places on purpose: that silver delegates, and that
+    # what it delegates to really submits a RunNotebook job. Checking only the
+    # first would pass against a `notebookjob` that did nothing at all.
+    runner = (ROOT / "platform" / "notebookjob.py").read_text(encoding="utf-8")
+    assert "jobType=RunNotebook" in runner, "notebookjob never submits a notebook job"
+    for step in ("silver.py", "bronze.py"):
+        src = (ROOT / "platform" / step).read_text(encoding="utf-8")
+        assert "notebookjob.submit(" in src, f"{step} never submits a notebook job"
+        # Matched on the CALL, not its exact signature — the earlier form of this
+        # assertion broke the moment an encoding argument was added, which is not
+        # a change it cares about.
+        assert "notebookjob.content(" in src, (
+            f"{step} must publish the notebook FILE — a body built inline is the "
+            f"thing this test exists to prevent"
+        )
 
 
 def test_the_platform_does_not_supply_its_own_spark_pool():
