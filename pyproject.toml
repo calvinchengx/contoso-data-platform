@@ -62,9 +62,12 @@ select = [
 #         needs them — a notebook whose imports are all hoisted to the top is
 #         no longer a notebook.
 #
-# Scoped to this one file rather than relaxed globally: every other module in
-# platform/ is ordinary Python and must keep both rules.
-"platform/silver_notebook.py" = ["F821", "E402"]
+# Scoped by FILENAME rather than by path, because the notebook now lives where
+# Fabric's Git integration puts it — `definitions/{name}.{Type}/notebook-content.py`
+# — and a path-scoped ignore would have to be re-edited for every notebook this
+# platform grows. Every other module in platform/ is ordinary Python and keeps
+# both rules.
+"**/notebook-content.py" = ["F821", "E402"]
 
 [tool.ty.environment]
 # The steps import each other as top-level modules because each one also runs
