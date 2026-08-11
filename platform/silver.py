@@ -29,14 +29,11 @@ can price is still a row someone has to reconcile.
 
 from __future__ import annotations
 
-import base64
 import json
-import pathlib
-import time
 
-import provision
+import notebookjob
 import state
-from fabric import FABRIC_AUD, await_operation, fabric, log, token
+from fabric import FABRIC_AUD, log, token
 
 NOTEBOOK = "silver-conform"
 
@@ -51,103 +48,11 @@ NOTEBOOK = "silver-conform"
 # identity that survives a rename and a directory move. Publishing without one
 # produces an item this emulator accepts (it stores parts verbatim) and that no
 # CI/CD tool round-trips.
-DEFINITION = (
-    pathlib.Path(__file__).resolve().parent / "definitions" / f"{NOTEBOOK}.Notebook"
-)
-SOURCE = DEFINITION / "notebook-content.py"
-
-
-def content(workspace: str, lakehouse: str) -> bytes:
-    """The notebook's bytes, with its parameters cell filled in.
-
-    Real Fabric would pass these through the job's `executionData.parameters`
-    and leave the file untouched. The emulator implements no parameter
-    override, so the ids are substituted before publishing — the one place this
-    platform edits code rather than configuring it, and the reason the
-    placeholders are shaped so that an unsubstituted notebook cannot silently
-    resolve to somewhere real.
-    """
-    src = SOURCE.read_text(encoding="utf-8")
-    src = src.replace("@@WORKSPACE@@", workspace).replace("@@LAKEHOUSE@@", lakehouse)
-    assert "@@" not in src, "a placeholder survived substitution"
-    return src.encode()
-
-
-def publish(tok: str, workspace: str, body: bytes) -> str:
-    """Create the Notebook item, or update the definition of the existing one.
-
-    Resolve-or-create by NAME, like every other item in this platform: ids
-    cannot match across targets, and a step that only works on a fresh
-    workspace is not one anybody can operate.
-    """
-    # Every file in the definition directory becomes a part, keyed by its path
-    # relative to that directory — the same mapping Git integration uses. The
-    # notebook body is passed in because its parameters cell is substituted
-    # first; everything else (`.platform`) ships as committed.
-    parts = [
-        {
-            "path": "notebook-content.py",
-            "payload": base64.b64encode(body).decode(),
-            "payloadType": "InlineBase64",
-        }
-    ]
-    for extra in sorted(DEFINITION.iterdir()):
-        if extra.name == "notebook-content.py" or not extra.is_file():
-            continue
-        parts.append(
-            {
-                "path": extra.name,
-                "payload": base64.b64encode(extra.read_bytes()).decode(),
-                "payloadType": "InlineBase64",
-            }
-        )
-    definition = {"parts": parts}
-
-    found = provision.find_item(tok, workspace, NOTEBOOK, "Notebook")
-    if found:
-        r = fabric(
-            "POST",
-            f"/workspaces/{workspace}/items/{found['id']}/updateDefinition",
-            tok,
-            json={"definition": definition},
-        )
-        await_operation(r, tok, "updateDefinition")
-        log(f"updated notebook {NOTEBOOK}")
-        return found["id"]
-
-    r = fabric(
-        "POST",
-        f"/workspaces/{workspace}/items",
-        tok,
-        json={"displayName": NOTEBOOK, "type": "Notebook", "definition": definition},
-    )
-    created = await_operation(r, tok, "create notebook")
-    assert created.get("id"), created
-    log(f"created notebook {NOTEBOOK}")
-    return created["id"]
-
-
-def await_job(tok: str, workspace: str, notebook: str, job: str) -> dict:
-    """Poll the RunNotebook job to a terminal state, and return the run detail.
-
-    THE STATUS IS EVIDENCE, not decoration. A RunNotebook job whose cells are
-    still outstanding has no completion time at all, so reaching a terminal
-    state here means an engine really executed and reported. It did not always:
-    the job used to complete on a clock, reading `Completed` with every cell
-    Pending and no engine having run a line.
-    """
-    base = f"/workspaces/{workspace}/items/{notebook}/jobs/instances/{job}"
-    for _ in range(180):
-        r = fabric("GET", base, tok)
-        assert r.status_code == 200, (r.status_code, r.text[:200])
-        status = r.json().get("status")
-        if status in ("Completed", "Failed", "Cancelled", "Deduped"):
-            assert status == "Completed", r.json()
-            detail = fabric("GET", f"{base}/notebookRun", tok)
-            assert detail.status_code == 200, (detail.status_code, detail.text[:200])
-            return detail.json()
-        time.sleep(1)
-    raise SystemExit("the RunNotebook job never reached a terminal state")
+#
+# The publish/submit/poll half lives in `notebookjob.py`, shared with bronze.
+# Two steps hand code to Fabric now and the operator work is identical for both;
+# two implementations of one protocol is the defect, not the duplication of a few
+# lines. See that module for the format mapping and the polling contract.
 
 
 def main() -> int:
@@ -159,18 +64,12 @@ def main() -> int:
     tok = token(FABRIC_AUD)
     ws, lake = st["workspace"], st["lakehouse"]
 
-    notebook = publish(tok, ws, content(ws, lake))
-
-    r = fabric(
-        "POST",
-        f"/workspaces/{ws}/items/{notebook}/jobs/instances?jobType=RunNotebook",
-        tok,
+    notebook = notebookjob.publish(
+        tok, ws, NOTEBOOK, notebookjob.content(NOTEBOOK, WORKSPACE=ws, LAKEHOUSE=lake)
     )
-    assert r.status_code in (200, 202), (r.status_code, r.text[:300])
-    job = r.headers["Location"].rstrip("/").rsplit("/", 1)[-1]
-    log(f"submitted RunNotebook job {job}")
 
-    detail = await_job(tok, ws, notebook, job)
+    job = notebookjob.submit(tok, ws, notebook)
+    detail = notebookjob.await_job(tok, ws, notebook, job)
     assert detail.get("exitValue"), f"the notebook exited with no value: {detail}"
     got = json.loads(detail["exitValue"])
 
