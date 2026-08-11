@@ -126,9 +126,7 @@ def main() -> int:
         ftok,
         "Contoso Web",
         "ShareableCloud",
-        connections.details(
-            kind="RestApi", endpoint=WEB_API, secretName=WEB_KEY_SECRET
-        ),
+        connections.details("Web", "Web", url=WEB_API),
     )
     connections.announce(
         ftok,

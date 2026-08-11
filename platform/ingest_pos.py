@@ -106,9 +106,7 @@ def main() -> int:
         ftok,
         "Contoso POS",
         "ShareableCloud",
-        connections.details(
-            kind="RestApi", endpoint=POS_API, secretName=POS_KEY_SECRET
-        ),
+        connections.details("Web", "Web", url=POS_API),
     )
     # One move per feed: the customers export did not produce the orders file.
     connections.announce(

@@ -35,7 +35,25 @@ VERSIONS = ROOT / "versions.env"
 #
 # The extras are not optional here: the package is stdlib-only at its core and
 # lazily imports azure-identity (real credentials) and requests (sessions).
-WHEELS = ["contoso_fixtures", "contoso_fixtures_advanced", "fabric_target"]
+# `fabric_emulator_notebookutils` is here because contoso-fixtures REQUIRES it,
+# not because this repo imports it directly. Omitting it made `uv pip install`
+# of the other three unresolvable against the published release:
+#
+#   x No solution found when resolving dependencies:
+#   ╰─▶ Because fabric-emulator-notebookutils was not found ...
+#       And because only contoso-fixtures==0.22.0 is available ...
+#
+# It went unnoticed until 0.22.0 because 0.21.0 shipped NO wheels at all — its
+# release job failed its own smoke install — so this list was never resolved
+# against a complete release. The emulator side was fixed by shipping the shim
+# wheel; this is the consumer half of the same defect, and neither fix works
+# without the other.
+WHEELS = [
+    "contoso_fixtures",
+    "contoso_fixtures_advanced",
+    "fabric_target",
+    "fabric_emulator_notebookutils",
+]
 EXTRAS = {"fabric_target": "[real,sessions]"}
 
 

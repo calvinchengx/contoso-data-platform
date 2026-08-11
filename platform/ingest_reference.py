@@ -130,9 +130,7 @@ def main() -> int:
         ftok,
         "Contoso Reference",
         "ShareableCloud",
-        connections.details(
-            kind="RestApi", endpoint=REFERENCE_API, secretName=REFERENCE_KEY_SECRET
-        ),
+        connections.details("Web", "Web", url=REFERENCE_API),
     )
     connections.announce(
         ftok,

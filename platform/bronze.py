@@ -30,8 +30,13 @@ import connections
 import notebookjob
 import state
 import web_schema
-from fabric import FABRIC_AUD, STORAGE_AUD, log, token
-from target import T
+
+# T comes from `fabric`, as it does in every other step. `target` has never
+# exported it, so this import raised at module load and `make verify` has been
+# broken on main since it landed — invisible because acceptance.yml runs on a
+# SCHEDULE and workflow_dispatch, never on pull_request, so no PR check ever
+# executes this file.
+from fabric import FABRIC_AUD, STORAGE_AUD, T, log, token
 
 NOTEBOOK = "bronze-ingest"
 METRICS = "bronze_ingest_metrics"
