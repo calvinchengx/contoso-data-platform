@@ -56,6 +56,22 @@ def ensure(tok: str, display_name: str, connectivity: str, details: dict) -> str
             "displayName": display_name,
             "connectivityType": connectivity,
             "connectionDetails": details,
+            # REQUIRED, and not by the emulator. Posting this body to a real
+            # tenant without it answers `The CredentialDetails field is
+            # required.` alongside the Type and CreationMethod complaints —
+            # measured 2026-08-11. The emulator treats credentialDetails as
+            # optional (a git-provider connection legitimately has none), so
+            # omitting it round-tripped here and could never have worked there.
+            #
+            # Anonymous because these are fixture HTTP endpoints and `Web`
+            # accepts it. A vault-backed credential would be
+            # `credentialType: "Key"` with `keyReference: {connectionId,
+            # secretName}` — but connectionId must name an AzureKeyVault
+            # connection, and that connector takes only OAuth2 or
+            # ServicePrincipal, so it cannot be created non-interactively.
+            # Conformant is not the same as runnable-on-real; this is the
+            # former.
+            "credentialDetails": {"credentials": {"credentialType": "Anonymous"}},
         },
     )
     assert r.status_code in (200, 201), (r.status_code, r.text[:300])
