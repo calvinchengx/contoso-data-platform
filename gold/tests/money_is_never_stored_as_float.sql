@@ -32,16 +32,27 @@ with built as (
     union all select 1 from {{ ref('fct_daily_revenue') }} where 1 = 0
 )
 
+-- UPPERCASE, because a Warehouse is case-sensitive. Fabric reports
+-- `Latin1_General_100_BIN2_UTF8`, Microsoft's "default - case-sensitive (CS)
+-- collation", so `information_schema.columns` is a different name from the view
+-- that exists and the tenant answers `Invalid object name`. This read lowercase
+-- and passed for months against an emulator whose databases inherited the
+-- container's case-INsensitive collation; it would have failed the first time it
+-- ran anywhere real. Emulator 0.21.0 adopted Fabric's collation and the mistake
+-- surfaced locally, which is the only place it is cheap to fix.
+--
+-- The literals stay lowercase: those match VALUES (this warehouse's column names
+-- and SQL Server's own type names), not identifiers.
 select
-    table_name,
-    column_name,
-    data_type
-from information_schema.columns
+    TABLE_NAME,
+    COLUMN_NAME,
+    DATA_TYPE
+from INFORMATION_SCHEMA.COLUMNS
 where (
-        column_name like '%amount%'
-        or column_name like '%price%'
-        or column_name like '%revenue%'
-        or column_name like '%rate_to%'
+        COLUMN_NAME like '%amount%'
+        or COLUMN_NAME like '%price%'
+        or COLUMN_NAME like '%revenue%'
+        or COLUMN_NAME like '%rate_to%'
     )
-    and data_type <> 'decimal'
+    and DATA_TYPE <> 'decimal'
     and (select count(*) from built) = 0
