@@ -23,7 +23,17 @@ import time
 
 import pbip
 import state
-from fabric import FABRIC, FABRIC_AUD, S, T, ensure_audience, fabric, log, token
+from fabric import (
+    FABRIC,
+    FABRIC_AUD,
+    S,
+    T,
+    await_operation,
+    ensure_audience,
+    fabric,
+    log,
+    token,
+)
 from provision import find_item
 
 import gold
@@ -366,6 +376,17 @@ def publish(workspace: str, defn: dict, tok: str) -> str:
             timeout=120,
         )
         assert r.status_code in (200, 202), (r.status_code, r.text[:300])
+        # AWAIT IT. A 202 means the definition has NOT been applied yet, and the
+        # next thing this platform does is query the model — so accepting the 202
+        # and returning made the rebuilt rows a race. It presented as "the model
+        # still has the old numbers" rather than as an error, which is the worst
+        # way for it to present.
+        #
+        # Invisible locally until the emulator learned to answer 202 for a
+        # definition write (fabric-emulator #173/#174); silver.py has always
+        # awaited its own updateDefinition, so this was an inconsistency inside
+        # one repo rather than a missing idea.
+        await_operation(r, tok, "updateDefinition")
         return existing["id"]
 
     r = S.post(
