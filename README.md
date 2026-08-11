@@ -1,5 +1,9 @@
 # Contoso Data Platform
 
+[![CI](https://github.com/calvinchengx/contoso-data-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/calvinchengx/contoso-data-platform/actions/workflows/ci.yml)
+[![Acceptance](https://github.com/calvinchengx/contoso-data-platform/actions/workflows/acceptance.yml/badge.svg)](https://github.com/calvinchengx/contoso-data-platform/actions/workflows/acceptance.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 A complete analytics platform built on [`fabric-emulator`](https://github.com/calvinchengx/fabric-emulator) —
 from **real source systems** through a medallion lakehouse to a **semantic model
 and Power BI**, with everything catalogued in **OpenMetadata**.
@@ -205,3 +209,8 @@ What is still absent there, and so still absent here: **MDX, `<Refresh>`, the
 LRO continuation byte, and structural writes** (new tables, columns,
 relationships). Measures, lineage tags and annotations on existing objects are
 in scope.
+
+## License
+
+Apache-2.0. This repository is a **consumer**: it holds no emulator source and
+runs against a published release, so what works here works for anyone.
