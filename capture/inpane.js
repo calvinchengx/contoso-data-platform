@@ -246,29 +246,34 @@ const H = Number(process.env.HEIGHT || 900)
   }
   const om = (p) => page.goto(OM + p, { waitUntil: 'domcontentloaded' })
 
-  // The semantic model: list, the model itself, then MAKE IT ANSWER — a DAX
-  // query typed and run on camera, through the same evaluator as
-  // executeQueries. This is the closest honest stand-in for "querying from a
-  // Power BI dashboard" the stack can film: the wire is the Power BI wire,
-  // the UI is the emulator's own and says so.
+  // The semantic model: the list, then the model itself — its Direct Lake
+  // bindings and every measure's DAX.
+  //
+  // NO TYPED QUERY HERE ANY MORE, and the reason is a real improvement rather
+  // than a lost scene. Gold is now read IN PLACE by Direct Lake instead of the
+  // model carrying a copy of it in `data.json`, and the portal's query runner
+  // refuses Direct Lake by design: reading lake data needs a principal and an
+  // unauthenticated portal has none. Typing a query here would film the
+  // refusal.
+  //
+  // The live DAX answer comes from the terminal instead — `make reconcile`
+  // asks the model through `executeQueries`, the route that error message
+  // names, and grades the result against the same figures computed straight
+  // from the warehouse in SQL. That is a stronger frame than the old one: the
+  // number is not just returned, it is cross-checked on camera against a
+  // surface that shares no code with it.
   await scene('models', 4000, () => page.goto(`${PORTAL}/#models`, { waitUntil: 'domcontentloaded' }))
-  await scene('ContosoRevenue', 5000, async () => {
+  await scene('ContosoRevenue', 6000, async () => {
     const model = page.locator('text=ContosoRevenue').first()
     if (await model.count()) await model.click()
   })
-  await scene('DAX query', 12000, async () => {
-    const box = page.getByLabel('DAX query')
-    await box.waitFor({ state: 'visible', timeout: 10000 })
-    await box.click()
-    await box.fill('')
-    // Typed, not filled: the point of the scene is watching the query happen.
-    await box.pressSequentially(
-      'EVALUATE SUMMARIZECOLUMNS(Reporting[FiscalQuarterLabel], ' +
-        '"Revenue USD", [Revenue USD], "Cancelled", [Cancelled Revenue])',
-      { delay: 25 },
-    )
-    await page.getByRole('button', { name: 'Run' }).click()
-    await page.locator('.query-result').waitFor({ state: 'visible', timeout: 15000 })
+  await scene('Direct Lake bindings', 7000, async () => {
+    // Scroll the measures into frame: the page opens on the column list, and
+    // what earns the screen time is the DAX beside each measure and the
+    // `Direct Lake` badge naming where the rows actually live.
+    const badge = page.locator('text=Direct Lake').first()
+    if (await badge.count()) await badge.scrollIntoViewIfNeeded()
+    await page.mouse.wheel(0, 600)
   })
 
   // The theme control, shown rather than claimed — and shown from where this
