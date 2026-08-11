@@ -15,6 +15,12 @@ dependencies = [
     "pyyaml>=6,<7",
     "confluent-kafka>=2.6,<3",
     "pyarrow>=18,<24",
+    # delta-rs, to read a table WITHOUT holding a Spark session. bronze and
+    # silver hand their transforms to Fabric now, so the only thing this process
+    # still needs from a Delta table is to read the run metrics back — and
+    # starting an engine to read one row would put the shape those steps just
+    # stopped depending on back in the operator.
+    "deltalake>=0.23,<2",
     # The THIN Spark Connect client — about a megabyte, and no JVM. The full
     # pyspark distribution is not needed to drive a Connect server.
     "pyspark-client==4.1.1",
@@ -86,8 +92,8 @@ unresolved-import = "ignore"
 # the emulator. Declaring them to satisfy the checker would shadow the real
 # session with a stub, which is a worse file than a suppressed rule.
 #
-# Scoped to the notebook. Everywhere else an undefined name is a real bug, and
-# this is the module most likely to acquire one, so the suppression is as
+# Scoped to the notebooks. Everywhere else an undefined name is a real bug, and
+# these are the modules most likely to acquire one, so the suppression is as
 # narrow as the tooling allows rather than switched off repo-wide.
 #
 # Scoped by FILENAME, for the reason the ruff ignore above already gives: the

@@ -1,28 +1,92 @@
-"""Landing → bronze, read by the ENGINE, not by this process.
+"""Landing → bronze, as a Fabric NOTEBOOK.
 
-Bronze parses and nothing more. No dedupe, no conforming, no quarantine —
-those are silver's job, and doing them here would destroy the only copy of what
-the vendor actually sent.
+The transform is `definitions/bronze-ingest.Notebook/notebook-content.py` and it
+is not imported here — it is published as a Notebook item and executed by a Spark
+engine. This module is the operator: publish, submit, wait, grade.
 
-THE ENGINE READS LANDING DIRECTLY. An earlier version pulled 170 MB out of
-OneLake through this process to parse it client-side. That works and it is the
-wrong shape: it puts one machine in the data path, and it does not scale past
-what that machine can hold. Spark reads `abfs://…/Files/landing/…` itself,
-which is what a Fabric notebook or Spark Job Definition does.
+WHY THIS CHANGED. Bronze always claimed to be notebook code — "Spark reads
+`abfs://…` itself, which is what a Fabric notebook or a Spark Job Definition
+does" — while actually running in this process over Spark Connect. **No Fabric
+tenant exposes a Spark Connect endpoint**, so the step could not have run in
+production at all: `FABRIC_TARGET=real` left `SPARK_REMOTE` unset and `spark.py`
+refused, correctly and uselessly. Now Fabric decides where the transform runs,
+and the same file is a notebook on both targets.
 
-Nothing here is emulator-aware. The paths are real Fabric OneLake URIs and the
-session comes from spark.py — ambient inside a Fabric notebook, Spark Connect
-outside one.
+Bronze parses and nothing more. No dedupe, no conforming, no quarantine — those
+are silver's job, and doing them here would destroy the only copy of what the
+vendor actually sent.
+
+HOW THE NUMBERS GET OUT. The notebook writes one row to `bronze_ingest_metrics`
+and this module reads it. Real Fabric exposes no exit value for a REST-submitted
+run, so a table is the only portable channel — and the quantities involved
+(distinct counts, whether a declared column parsed at all) exist only inside the
+transform. The grading stays here because the expected counts come from the
+generator fixtures, which belong to the harness and not to the transform.
 """
 
 from __future__ import annotations
 
 import connections
-import spark as sparkmod
+import notebookjob
 import state
 import web_schema
 from fabric import FABRIC_AUD, log, token
-from pyspark.sql import functions as F
+from target import T
+
+NOTEBOOK = "bronze-ingest"
+METRICS = "bronze_ingest_metrics"
+
+# Which landing path fed which table. Used only for the lineage report — the
+# notebook records its own reads and writes as it performs them, and this names
+# the vendor→table pairing that a per-cell observation cannot express: one move
+# per table, because the ERP change stream did not produce the customers table.
+FEEDS = (
+    ("contoso_pos/{day}/customers", "bronze_customers"),
+    ("contoso_pos/{day}/orders", "bronze_orders"),
+    ("contoso_web/{day}/customers", "bronze_web_customers"),
+    ("contoso_web/{day}/products", "bronze_web_products"),
+    ("contoso_web/{day}/orders", "bronze_web_orders"),
+    ("contoso_reference/{day}/fx_rates.parquet", "bronze_fx_rates"),
+    ("contoso_reference/{day}/product_hierarchy.parquet", "bronze_product_hierarchy"),
+    ("contoso_erp/{day}/changes.parquet", "bronze_erp_changes"),
+)
+
+
+def leaf_names(fields: dict) -> str:
+    """The declared leaf field names, for the notebook's parsed-anything check.
+
+    Nested maps are skipped rather than flattened: `lines` is an array of struct,
+    and `F.col("lines")` is what the notebook checks — its children are silver's
+    concern.
+    """
+    return ",".join(fields)
+
+
+def metrics_row(tok: str, workspace: str, lakehouse: str) -> dict:
+    """The one row the notebook wrote, read back over OneLake.
+
+    delta-rs rather than Spark: this process must not hold a session at all now,
+    which is the point of the change. `T.delta_storage_options` is where the
+    emulator-vs-real endpoint difference lives, so nothing about that decision is
+    restated here.
+
+    `az://`, NOT an https URL. The account name and the endpoint arrive through
+    the storage options; the URI carries only the container — the workspace — and
+    the path within it. Building `https://{onelake_url}/…` instead looks right and
+    routes around the endpoint option, which is the same mistake that had the
+    medallion examples landing bytes on the emulator's own control-plane prefix
+    and 404ing on a tenant.
+    """
+    from deltalake import DeltaTable
+
+    uri = f"az://{workspace}/{lakehouse}/Tables/{METRICS}"
+    rows = (
+        DeltaTable(uri, storage_options=T.delta_storage_options(tok))
+        .to_pyarrow_table()
+        .to_pylist()
+    )
+    assert len(rows) == 1, f"{METRICS} holds {len(rows)} rows, expected exactly 1"
+    return rows[0]
 
 
 def main() -> int:
@@ -33,169 +97,99 @@ def main() -> int:
 
     st = state.load()
     day = st["landing_day"]
-    spark = sparkmod.session()
-    base = sparkmod.lakehouse_uri(st["workspace"], st["lakehouse"])
-    landing = f"{base}/Files/landing"
-    tables = f"{base}/Tables"
+    ws, lake = st["workspace"], st["lakehouse"]
+    tok = token(FABRIC_AUD)
 
-    def save(df, name: str) -> int:
-        df.write.format("delta").mode("overwrite").option(
-            "overwriteSchema", "true"
-        ).save(f"{tables}/{name}")
-        return df.count()
-
-    # --- Contoso POS -------------------------------------------------------
-    # Every column stays a string. The vendor's CSV is text on the wire, and
-    # inferring types here would make bronze an interpretation rather than a
-    # copy — silver is where meaning gets assigned.
-    # A DIRECTORY, not a file. The vendor's export is paged, so landing holds
-    # `part-0001.csv … part-000N.csv` and the engine reads them as one dataset.
-    # This is the shape Spark wants anyway — parts are what it writes — so the
-    # paged vendor and the distributed reader agree without anything in between
-    # having to reassemble 170 MB in one process's memory.
-    #
-    # Every part repeats the header, which is why `header=True` stays correct
-    # across a directory rather than turning row one of each part into data.
-    customers = (
-        spark.read.option("header", True)
-        .option("inferSchema", False)
-        .csv(f"{landing}/contoso_pos/{day}/customers/")
+    body = notebookjob.content(
+        NOTEBOOK,
+        WORKSPACE=ws,
+        LAKEHOUSE=lake,
+        DAY=day,
+        # The page schemas, rendered from the module a test pins to the vendor's
+        # own OpenAPI. See the notebook's parameters cell for why they travel as
+        # DDL rather than as an import.
+        WEB_CUSTOMER=web_schema.array_of(web_schema.WEB_CUSTOMER),
+        WEB_PRODUCT=web_schema.array_of(web_schema.WEB_PRODUCT),
+        WEB_ORDER=web_schema.array_of(web_schema.WEB_ORDER),
+        WEB_CUSTOMER_FIELDS=leaf_names(web_schema.WEB_CUSTOMER),
+        WEB_PRODUCT_FIELDS=leaf_names(web_schema.WEB_PRODUCT),
+        WEB_ORDER_FIELDS=leaf_names(web_schema.WEB_ORDER),
     )
-    n_cust = save(customers, "bronze_customers")
+    item = notebookjob.publish(tok, ws, NOTEBOOK, body)
+    job = notebookjob.submit(tok, ws, item)
+    notebookjob.await_job(tok, ws, item, job)
 
-    orders = spark.read.json(f"{landing}/contoso_pos/{day}/orders/")
-    n_ord = save(orders, "bronze_orders")
-
-    # --- Contoso Web -------------------------------------------------------
-    # This vendor ships JSON ARRAYS, not the JSON Lines the POS orders feed
-    # sends. Same reader, different vendor, different dialect — which is the
-    # whole reason there is more than one source.
-    #
-    # THE ENGINE'S JSON READER IS NDJSON-ONLY, and it does not say so. Both
-    # `multiLine` and `wholetext` are accepted and then ignored; that is
-    # measured, not assumed. Reading the POS export — 255,000 JSON Lines across
-    # a handful of files — with `wholetext=True` returns 255,000 rows, one per
-    # line, when an honoured option would have returned one per file. An array
-    # page handed to .json() therefore fails with `Expected JSON record to be an
-    # object, found Array`.
-    #
-    # So the page is read as TEXT and parsed with from_json, which keeps the
-    # parse in the engine. Pulling the pages through this process to json.loads
-    # them would also work, and would put one machine back in the data path —
-    # the shape this module's docstring exists to reject.
-    def read_json_array(path: str, fields: dict[str, object]):
-        page = F.from_json("value", web_schema.array_of(fields))
-        return spark.read.text(path).select(F.explode(page).alias("r")).select("r.*")
-
-    # ONE LINE PER PAGE is what makes .text() equal to "one row per page", and
-    # ingest_web asserts it as the bytes arrive — so a vendor that starts
-    # pretty-printing fails there, naming the cause, rather than here with a
-    # column of nulls that every count below would agree with.
-    web_customers = read_json_array(
-        f"{landing}/contoso_web/{day}/customers/", web_schema.WEB_CUSTOMER
-    )
-    n_web_cust = save(web_customers, "bronze_web_customers")
-
-    web_products = read_json_array(
-        f"{landing}/contoso_web/{day}/products/", web_schema.WEB_PRODUCT
-    )
-    n_web_prod = save(web_products, "bronze_web_products")
-
-    # NESTED, and left that way. `lines` stays an array here because bronze is
-    # the record of what arrived; exploding it to an order-line grain is a
-    # decision, and it belongs where the decision is visible.
-    web_orders = read_json_array(
-        f"{landing}/contoso_web/{day}/orders/", web_schema.WEB_ORDER
-    )
-    n_web_ord = save(web_orders, "bronze_web_orders")
-
-    # --- Contoso Reference -------------------------------------------------
-    # The group data office's master data, and the only vendor here that is not
-    # an operational system. Parquet, so the reader needs no options at all —
-    # the file carries its own schema, which is the whole reason a data office
-    # publishing definitions would choose it.
-    fx = spark.read.parquet(f"{landing}/contoso_reference/{day}/fx_rates.parquet")
-    n_fx = save(fx, "bronze_fx_rates")
-
-    hierarchy = spark.read.parquet(
-        f"{landing}/contoso_reference/{day}/product_hierarchy.parquet"
-    )
-    n_hier = save(hierarchy, "bronze_product_hierarchy")
-
-    # --- Contoso ERP -------------------------------------------------------
-    changes = spark.read.parquet(f"{landing}/contoso_erp/{day}/changes.parquet")
-    n_erp = save(changes, "bronze_erp_changes")
+    got = metrics_row(token("https://storage.azure.com"), ws, lake)
 
     # --- what bronze must have preserved -----------------------------------
     # The vendor repeats a share of its rows. Bronze holding MORE rows than
     # distinct customers is the property silver's dedupe exists to fix — and if
     # bronze had already deduped, silver would pass its own assertions while
     # testing nothing.
-    distinct_cust = customers.select("customer_id").distinct().count()
-    assert distinct_cust == src.EXPECTED_SILVER_CUSTOMERS, (
-        distinct_cust,
+    assert got["distinct_customers"] == src.EXPECTED_SILVER_CUSTOMERS, (
+        got["distinct_customers"],
         src.EXPECTED_SILVER_CUSTOMERS,
     )
-    assert n_cust > distinct_cust, (
-        f"bronze holds {n_cust:,} rows for {distinct_cust:,} customers — the "
-        f"vendor's redeliveries are missing, so silver's dedupe has nothing to do"
+    assert got["bronze_customers"] > got["distinct_customers"], (
+        f"bronze holds {got['bronze_customers']:,} rows for "
+        f"{got['distinct_customers']:,} customers — the vendor's redeliveries "
+        f"are missing, so silver's dedupe has nothing to do"
     )
-    assert len(customers.columns) == src.EXPECTED_CUSTOMER_COLUMNS, (
-        len(customers.columns),
+    assert got["customer_columns"] == src.EXPECTED_CUSTOMER_COLUMNS, (
+        got["customer_columns"],
         src.EXPECTED_CUSTOMER_COLUMNS,
     )
 
     # Orders arrive at-least-once, so bronze must exceed the distinct order
     # count that silver settles on.
-    distinct_ord = orders.select("order_id").distinct().count()
-    assert n_ord > distinct_ord, (n_ord, distinct_ord)
+    assert got["bronze_orders"] > got["distinct_orders"], (
+        got["bronze_orders"],
+        got["distinct_orders"],
+    )
 
     # --- what the web vendor must have preserved ---------------------------
-    assert n_web_cust == web.N_WEB_CUSTOMERS, (n_web_cust, web.N_WEB_CUSTOMERS)
-    assert n_web_ord == web.N_WEB_ORDERS, (n_web_ord, web.N_WEB_ORDERS)
-    assert n_web_prod == len(web.PRODUCTS), (n_web_prod, len(web.PRODUCTS))
-    # The NESTING survived. A reader that flattened or dropped `lines` would
-    # still land the right row count, and the loss would only surface much
-    # later as an order with no items.
-    assert "lines" in web_orders.columns, web_orders.columns
-    # A declared field that no longer matches the vendor's JSON parses as NULL
-    # rather than raising, and every count above would still agree — the row
-    # count comes from the array's length, not from its contents. So check the
-    # columns actually carry something. `limit(1)` because the question is
-    # "anything at all", not "how many".
-    for tname, tdf, tfields in (
-        ("bronze_web_customers", web_customers, web_schema.WEB_CUSTOMER),
-        ("bronze_web_products", web_products, web_schema.WEB_PRODUCT),
-        ("bronze_web_orders", web_orders, web_schema.WEB_ORDER),
-    ):
-        blank = [
-            c for c in tfields if tdf.filter(F.col(c).isNotNull()).limit(1).count() == 0
-        ]
-        assert not blank, (
-            f"{tname}: {blank} parsed entirely NULL — the schema declared in "
-            f"web_schema.py no longer matches what Contoso Web sends"
-        )
-    # And the overlap the resolution problem depends on is really there: web
-    # accounts share emails with POS customers, and neither vendor knows it.
-    web_emails = {
-        r["email"] for r in web_customers.select("email").distinct().collect()
-    }
-    pos_emails = {
-        r["email"] for r in customers.select("email").distinct().collect() if r["email"]
-    }
-    shared = len(web_emails & pos_emails)
-    assert shared > 0, (
+    assert got["bronze_web_customers"] == web.N_WEB_CUSTOMERS, (
+        got["bronze_web_customers"],
+        web.N_WEB_CUSTOMERS,
+    )
+    assert got["bronze_web_orders"] == web.N_WEB_ORDERS, (
+        got["bronze_web_orders"],
+        web.N_WEB_ORDERS,
+    )
+    assert got["bronze_web_products"] == len(web.PRODUCTS), (
+        got["bronze_web_products"],
+        len(web.PRODUCTS),
+    )
+    assert got["web_orders_has_lines"], (
+        "bronze_web_orders lost its nested `lines` — a flattening reader lands "
+        "the right row count and the loss surfaces later as an order with no items"
+    )
+    assert not got["blank_columns"], (
+        f"{got['blank_columns']} parsed entirely NULL — the schema declared in "
+        f"web_schema.py no longer matches what Contoso Web sends"
+    )
+    assert got["shared_emails"] > 0, (
         "no web account shares an email with a POS customer — the overlap that "
         "makes identity resolution a real problem is missing"
     )
 
     # --- what the reference vendor must have preserved ---------------------
-    assert n_fx == ref.EXPECTED_FX_ROWS, (n_fx, ref.EXPECTED_FX_ROWS)
-    assert n_hier == ref.EXPECTED_PRODUCTS, (n_hier, ref.EXPECTED_PRODUCTS)
-    n_ccy = fx.select("currency").distinct().count()
-    assert n_ccy == ref.EXPECTED_FX_CURRENCIES, (n_ccy, ref.EXPECTED_FX_CURRENCIES)
-    n_dept = hierarchy.select("department").distinct().count()
-    assert n_dept == ref.EXPECTED_DEPARTMENTS, (n_dept, ref.EXPECTED_DEPARTMENTS)
+    assert got["bronze_fx_rates"] == ref.EXPECTED_FX_ROWS, (
+        got["bronze_fx_rates"],
+        ref.EXPECTED_FX_ROWS,
+    )
+    assert got["bronze_product_hierarchy"] == ref.EXPECTED_PRODUCTS, (
+        got["bronze_product_hierarchy"],
+        ref.EXPECTED_PRODUCTS,
+    )
+    assert got["fx_currencies"] == ref.EXPECTED_FX_CURRENCIES, (
+        got["fx_currencies"],
+        ref.EXPECTED_FX_CURRENCIES,
+    )
+    assert got["departments"] == ref.EXPECTED_DEPARTMENTS, (
+        got["departments"],
+        ref.EXPECTED_DEPARTMENTS,
+    )
 
     # THE GAPS ARE REAL AND MUST SURVIVE. FX is published on trading days only,
     # so this table is missing every weekend — and that absence is the whole
@@ -204,83 +198,75 @@ def main() -> int:
     # interpolated, would make the carry-forward look like dead code while
     # silently changing what revenue means. Asserting the gap keeps the problem
     # in the data rather than in a comment.
-    fx_days = fx.select("rate_date").distinct().count()
-    assert fx_days == ref.EXPECTED_FX_PUBLISHED_DAYS, (
-        fx_days,
+    assert got["fx_published_days"] == ref.EXPECTED_FX_PUBLISHED_DAYS, (
+        got["fx_published_days"],
         ref.EXPECTED_FX_PUBLISHED_DAYS,
     )
-    span = fx.selectExpr(
-        "datediff(max(rate_date), min(rate_date)) + 1 AS days"
-    ).collect()[0]["days"]
-    assert span > fx_days, (
-        f"FX covers {span} calendar days with {fx_days} published — the "
-        f"non-trading-day gaps are gone, so the carry-forward in gold is no "
-        f"longer being exercised by anything"
+    assert got["fx_calendar_span"] > got["fx_published_days"], (
+        f"FX covers {got['fx_calendar_span']} calendar days with "
+        f"{got['fx_published_days']} published — the non-trading-day gaps are "
+        f"gone, so the carry-forward in gold is no longer being exercised"
     )
 
-    assert n_erp == erp.EXPECTED_ERP_CHANGE_EVENTS, (
-        n_erp,
+    assert got["bronze_erp_changes"] == erp.EXPECTED_ERP_CHANGE_EVENTS, (
+        got["bronze_erp_changes"],
         erp.EXPECTED_ERP_CHANGE_EVENTS,
     )
 
-    # The landing→bronze hop, reported because nothing else can see it. Spark
-    # read `abfs://…` directly, so the emulator watched bytes leave OneLake and
-    # bytes arrive, with nothing tying one to the other — and without this the
-    # vendor nodes the ingest steps name would hang off landing paths that no
-    # later edge mentions, leaving the source systems floating beside the
-    # medallion rather than feeding it. One move per table: the ERP change
-    # stream did not produce the customers table.
-    ftok = token(FABRIC_AUD)
-    lake = st["lakehouse"]
-    connections.announce(
-        ftok,
-        st["workspace"],
-        "bronze",
-        "landing",
-        [
-            {
-                "reads": [{"itemId": lake, "path": f"Files/landing/{src_path}"}],
-                "writes": [{"itemId": lake, "path": f"Tables/{table}"}],
-            }
-            for src_path, table in (
-                (f"contoso_pos/{day}/customers", "bronze_customers"),
-                (f"contoso_pos/{day}/orders", "bronze_orders"),
-                (f"contoso_web/{day}/customers", "bronze_web_customers"),
-                (f"contoso_web/{day}/products", "bronze_web_products"),
-                (f"contoso_web/{day}/orders", "bronze_web_orders"),
-                (
-                    f"contoso_reference/{day}/fx_rates.parquet",
-                    "bronze_fx_rates",
-                ),
-                (
-                    f"contoso_reference/{day}/product_hierarchy.parquet",
-                    "bronze_product_hierarchy",
-                ),
-                (f"contoso_erp/{day}/changes.parquet", "bronze_erp_changes"),
-            )
-        ],
-    )
+    # The landing→bronze hop, reported because nothing else can see it. The
+    # engine read `abfs://…` directly, so the emulator watched bytes leave
+    # OneLake and bytes arrive with nothing tying one to the other — and without
+    # this the vendor nodes the ingest steps name would hang off landing paths
+    # that no later edge mentions, leaving the source systems floating beside the
+    # medallion rather than feeding it.
+    if T.lineage_can_be_reported:
+        connections.announce(
+            tok,
+            ws,
+            "bronze",
+            "landing",
+            [
+                {
+                    "reads": [
+                        {"itemId": lake, "path": f"Files/landing/{p.format(day=day)}"}
+                    ],
+                    "writes": [{"itemId": lake, "path": f"Tables/{table}"}],
+                }
+                for p, table in FEEDS
+            ],
+        )
 
     state.save(
         bronze={
-            "bronze_customers": n_cust,
-            "bronze_orders": n_ord,
-            "bronze_web_customers": n_web_cust,
-            "bronze_web_products": n_web_prod,
-            "bronze_web_orders": n_web_ord,
-            "bronze_fx_rates": n_fx,
-            "bronze_product_hierarchy": n_hier,
-            "bronze_erp_changes": n_erp,
-        }
+            k: got[k]
+            for k in (
+                "bronze_customers",
+                "bronze_orders",
+                "bronze_web_customers",
+                "bronze_web_products",
+                "bronze_web_orders",
+                "bronze_fx_rates",
+                "bronze_product_hierarchy",
+                "bronze_erp_changes",
+            )
+        },
+        bronze_notebook=item,
+        bronze_job=job,
     )
     log(
-        f"bronze: {n_cust:,} POS customer rows ({distinct_cust:,} distinct, "
-        f"{len(customers.columns)} cols), {n_ord:,} POS order events "
-        f"({distinct_ord:,} distinct), {n_web_cust:,} web accounts "
-        f"({shared:,} sharing an email with POS), {n_web_ord:,} web orders "
-        f"nested over {n_web_prod} products, {n_erp:,} ERP change events, "
-        f"{n_hier} products over {n_dept} departments, {n_fx} FX rows on "
-        f"{fx_days} of {span} calendar days"
+        f"bronze: {got['bronze_customers']:,} POS customer rows "
+        f"({got['distinct_customers']:,} distinct, {got['customer_columns']} cols), "
+        f"{got['bronze_orders']:,} POS order events "
+        f"({got['distinct_orders']:,} distinct), "
+        f"{got['bronze_web_customers']:,} web accounts "
+        f"({got['shared_emails']:,} sharing an email with POS), "
+        f"{got['bronze_web_orders']:,} web orders nested over "
+        f"{got['bronze_web_products']} products, "
+        f"{got['bronze_erp_changes']:,} ERP change events, "
+        f"{got['bronze_product_hierarchy']} products over {got['departments']} "
+        f"departments, {got['bronze_fx_rates']} FX rows on "
+        f"{got['fx_published_days']} of {got['fx_calendar_span']} calendar days "
+        f"— computed by a Fabric notebook"
     )
     return 0
 

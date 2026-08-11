@@ -255,6 +255,39 @@ def test_the_fabric_client_knows_nothing_about_the_source_systems():
         assert leak not in src, f"fabric.py should not mention {leak}"
 
 
+def builds_a_session(src: str) -> bool:
+    """Does this source actually CONSTRUCT a Spark session?
+
+    Parsed, not grepped. A substring scan cannot tell code from prose, and the
+    first version of this check failed on silver's notebook for the comment
+    explaining why it must never call `spark.session()` — a check that fires on
+    the documentation of a rule while the rule is being obeyed. Both files here
+    argue about sessions at length, so the question has to be asked of the syntax.
+    """
+    import ast
+
+    def roots_at_spark(name: str | None) -> bool:
+        return (name or "").split(".")[0] == "spark"
+
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        # `import spark` / `from spark import session`
+        if isinstance(node, ast.Import) and any(
+            roots_at_spark(a.name) for a in node.names
+        ):
+            return True
+        if isinstance(node, ast.ImportFrom) and roots_at_spark(node.module):
+            return True
+        # `spark.session(...)`, `sparkmod.session(...)`, `SparkSession.builder…`
+        if isinstance(node, ast.Attribute) and node.attr in (
+            "session",
+            "getOrCreate",
+            "getActiveSession",
+        ):
+            return True
+    return False
+
+
 def test_the_transforms_are_engine_side():
     """bronze and silver must scale.
 
@@ -263,23 +296,40 @@ def test_the_transforms_are_engine_side():
     put one machine in the data path and cap the platform at its memory, which
     is exactly what a single-node engine quietly does.
     """
-    # Named per layer, because the two get their session from different places
-    # and both are correct. bronze is a script and calls spark.session(); silver
-    # is a Fabric notebook, where `spark` is ambient and building a second
-    # session is the thing the rule exists to prevent. What must hold for both
-    # is that the rows never leave the engine.
-    transforms = {
-        "bronze.py": "import spark",
-        "definitions/silver-conform.Notebook/notebook-content.py": "spark.read",
-    }
-    for name, uses_engine in transforms.items():
+    # BOTH are Fabric notebooks now, and neither builds a session. `spark` is
+    # ambient inside a notebook — Fabric's pool binds it to a session already
+    # carrying the workspace identity — so constructing a second one is the thing
+    # this rule exists to prevent. bronze used to be a script calling
+    # `spark.session()`, which meant Spark Connect, which no Fabric tenant
+    # exposes: it could not have run in production.
+    transforms = [
+        "definitions/bronze-ingest.Notebook/notebook-content.py",
+        "definitions/silver-conform.Notebook/notebook-content.py",
+    ]
+    for name in transforms:
         src = (ROOT / "platform" / name).read_text(encoding="utf-8")
-        assert uses_engine in src, f"{name} does not use the engine"
+        assert "spark.read" in src, f"{name} does not read through the engine"
+        assert not builds_a_session(src), (
+            f"{name} builds its own session — inside a notebook `spark` is "
+            f"ambient, and a second session ignores the bound lakehouse"
+        )
         for single_node in ("duckdb", "pandas", "deltalake", "pyarrow"):
             assert single_node not in src, (
                 f"{name} pulls data client-side with {single_node} — the "
                 f"transforms must stay in the engine to scale"
             )
+
+    # AND THE OPERATORS HOLD NO SESSION AT ALL. This is the half that was
+    # unenforceable while bronze was a script: a step that submits a notebook and
+    # then also builds a dataframe has quietly put one machine back in the data
+    # path. Reading the run metrics with delta-rs is allowed and is not that —
+    # one row, by construction (see bronze.py's metrics_row).
+    for operator in ("bronze.py", "silver.py"):
+        src = (ROOT / "platform" / operator).read_text(encoding="utf-8")
+        assert not builds_a_session(src), (
+            f"{operator} holds a Spark session — the transform runs on Fabric's "
+            f"engine now, so the operator only publishes, submits and grades"
+        )
 
 
 def test_every_file_read_and_write_names_its_encoding():
