@@ -83,10 +83,11 @@ where nothing does.
 
 ## What it needs to run
 
-The full stack is **17 services** — the emulator family, Sail, a Spark agent, a
-SQL Server sidecar, the source systems (three mokapi instances, Postgres,
-Redpanda, Debezium) and OpenMetadata with its own Postgres and OpenSearch.
-Budget **~8 GB** to Docker; OpenSearch alone asks for a 1 GB heap.
+The full stack is **16 services** — three emulators (entra, keyvault, fabric),
+Sail, a Spark agent, a SQL Server sidecar, the source systems (three mokapi
+instances, Postgres, Redpanda, Debezium) and OpenMetadata with its own
+Postgres, OpenSearch and a one-shot migration. Budget **~8 GB** to Docker;
+OpenSearch alone asks for a 1 GB heap.
 
 Two limits worth knowing before you start:
 
@@ -169,25 +170,38 @@ Working today, against the release pinned in [`versions.env`](versions.env):
 `make verify` runs the platform **end to end from a cold `make down`** — 16
 steps, no manual intervention.
 
-> **Currently red on `main` (2026-08-11).** `platform/bronze.py` imports `T` from
-> a module that never exported it, so it raises at load and `make verify` stops
-> at step 9. It reached main because `acceptance.yml` runs on a schedule and
-> `workflow_dispatch`, never on `pull_request` — so no PR check executes a
-> platform step. The import is fixed in the 0.22.0 bump; the step then fails on
-> a column count (the notebook produces 102, the vendor's fixture declares 101),
-> which is still open. Stated here rather than left for a reader to discover,
-> because "16 of 16" is the claim this README exists to make. The four vendors serve ~194 MB of seeded export,
-it lands in OneLake byte-identical, bronze and silver are computed by a **Fabric
-notebook** on Spark, gold builds in the Warehouse via **dbt-fabric** with 60
-data tests, and the semantic model answers DAX over the Power BI
-`executeQueries` wire.
+The four vendors serve ~194 MB of seeded export, it lands in OneLake
+byte-identical, bronze and silver are computed by a **Fabric notebook** on
+Spark, gold builds in the Warehouse via **dbt-fabric** with 60 data tests, and
+the semantic model answers DAX over the Power BI `executeQueries` wire.
+
+**No PR check runs a platform step.** `acceptance.yml` fires on a
+`repository_dispatch` from fabric-emulator's release workflow, on a daily
+schedule, and on `workflow_dispatch` — never on `pull_request`. That is
+deliberate (the full stack is too heavy for a PR gate) and it has a cost worth
+knowing: a change that breaks a platform step reaches `main` and is caught by
+the next scheduled run rather than before the merge. Read the acceptance run,
+not the PR checks, before trusting a green `main`.
 
 The reporting pack is the point of the whole thing: revenue in USD by
 **financial year** (Contoso's starts 1 April), by **product segment** and by
 **customer segment**, across both selling systems — 22,000 people resolved
 between them.
 
-**XMLA is the one named gap.** `make verify` runs a real ADOMD.NET client
-against the model and reports `no endpoint` — deferred in `docs/24`. It is
-reported rather than skipped, because a surface nobody asks about is a surface
-nobody hears about when it breaks.
+**XMLA is no longer the named gap.** It was, for most of this repository's
+life: `make verify` ran a real ADOMD.NET client against the model and reported
+`no endpoint`, reported rather than skipped, because a surface nobody asks
+about is a surface nobody hears about when it breaks.
+
+fabric-emulator shipped it. `docs/24` there now records the read path as
+delivered and the write path with it, driven in CI by two of Microsoft's own
+clients — `sempy` over the DMV rowsets and `semantic-link-labs` through the
+Tabular Object Model — both reading the same model. The probe was built to
+notice on its own: when XMLA answers it asserts the total equals the one REST
+returned, and two independent surfaces agreeing on one number is a stronger
+statement than either alone.
+
+What is still absent there, and so still absent here: **MDX, `<Refresh>`, the
+LRO continuation byte, and structural writes** (new tables, columns,
+relationships). Measures, lineage tags and annotations on existing objects are
+in scope.
