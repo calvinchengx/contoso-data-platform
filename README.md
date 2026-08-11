@@ -1,5 +1,8 @@
 # Contoso Data Platform
 
+[![CI](https://github.com/calvinchengx/contoso-data-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/calvinchengx/contoso-data-platform/actions/workflows/ci.yml)
+[![Acceptance](https://github.com/calvinchengx/contoso-data-platform/actions/workflows/acceptance.yml/badge.svg)](https://github.com/calvinchengx/contoso-data-platform/actions/workflows/acceptance.yml)
+
 A complete analytics platform built on [`fabric-emulator`](https://github.com/calvinchengx/fabric-emulator) —
 from **real source systems** through a medallion lakehouse to a **semantic model
 and Power BI**, with everything catalogued in **OpenMetadata**.
