@@ -4,10 +4,12 @@ This is the readiness check for a BI client: a SemanticModel item with a TMSL
 definition and measures, queried with **DAX over the Power BI `executeQueries`
 wire** — the same REST surface Power BI Desktop, the service, and SemPy use.
 
-IMPORT, NOT DIRECT LAKE, and the difference is stated rather than hidden. A
-production Fabric model would bind Direct Lake to gold and read it in place. The
-rows here are exported over TDS and embedded in the definition — a real Fabric
-pattern, and the one this stack serves today.
+DIRECT LAKE, which is what a production Fabric model does: the model binds to
+gold in OneLake and the engine reads it in place. It was import-mode until
+fabric-emulator 0.21.0, carrying gold's rows embedded in the definition as
+`data.json` because the emulator's DAX evaluator read that instead of the
+warehouse. That worked on one target only, and a model with an embedded copy of
+its own source is two things that can disagree.
 
 The audience matters and is asserted: `executeQueries` takes a Power BI token,
 not the control-plane one. A surface that accepted either would be teaching the
@@ -85,8 +87,8 @@ def sql_endpoint(workspace: str, warehouse: str, tok: str) -> str:
     cs = (r.json().get("properties") or {}).get("connectionString")
     assert cs, (
         "the Warehouse advertises no connectionString. On the emulator that "
-        "means no SQL endpoint is running (FABRIC_SQL_TDS_ADDR unset), and a "
-        "model whose partitions name no server loads nothing."
+        "means no SQL endpoint is running (FABRIC_SQL_TDS_ADDR unset), and the "
+        "gold export this step grades against reads gold over TDS."
     )
     return cs
 
@@ -111,51 +113,75 @@ def gold_column(model_column: str) -> str:
     return "".join(out)
 
 
-def partition(table: str, columns: list[dict], server: str, database: str) -> dict:
-    """Where this table's rows come from, as a Fabric import partition.
+# The shared M expression every Direct Lake partition points at, by name.
+#
+# THE HOST IS LITERAL ON BOTH TARGETS, and this is the one place where writing
+# the emulator's own address would be wrong. A Direct Lake expression is not
+# fetched by the client: Fabric's engine resolves it, and the emulator parses the
+# workspace and item ids straight out of it. So the public host belongs here
+# verbatim even when nothing public is involved — resolving it per target made the
+# conversion fail on the emulator, measured, because the ids no longer parsed.
+ONELAKE_EXPRESSION = "GoldWarehouse"
 
-    WHY A PARTITION AT ALL. A table's columns say what it looks like; its
-    partition says where the rows come from. Without one the model is a shape
-    with nothing behind it — which is what this platform published until now,
-    leaning on `data.json`, an emulator-native convenience the model carried
-    instead of a source. Power BI Desktop opens such a model to empty tables,
-    and nothing about the definition says why.
 
-    `Value.NativeQuery` with explicit aliases rather than navigating to the
-    table: gold is snake_case and the model is PascalCase, so the SELECT is
-    where that mapping belongs. Leaving it implicit would make `sourceColumn`
-    a claim nobody checks.
-    """
-    cols = ", ".join(
-        f"[{gold_column(c['sourceColumn'])}] AS [{c['name']}]" for c in columns
-    )
-    query = f"SELECT {cols} FROM [dbo].[{table}]"
-    m = (
-        "let\n"
-        f'    Source = Sql.Database("{server}", "{database}"),\n'
-        f'    Data = Value.NativeQuery(Source, "{query}")\n'
-        "in\n"
-        "    Data"
-    )
+def gold_expression(workspace: str, warehouse: str) -> dict:
     return {
-        "name": table,
-        "mode": "import",
-        "source": {"type": "m", "expression": m},
+        "name": ONELAKE_EXPRESSION,
+        "kind": "m",
+        "expression": (
+            'let\n    Source = AzureStorage.DataLake("https://onelake.dfs.fabric.'
+            f'microsoft.com/{workspace}/{warehouse}")\nin\n    Source'
+        ),
     }
 
 
-def definition(rows: dict, server: str = "", database: str = "") -> dict:
-    """TMSL plus the rows, as InlineBase64 definition parts.
+def direct_lake_partition(table: str) -> dict:
+    """Where this table's rows come from, as a Direct Lake partition.
 
-    `rows` and the partitions coexist deliberately. The partition is what a BI
-    client follows to refresh; `data.json` is what the emulator's bounded DAX
-    evaluator reads to answer a query today. Dropping either would break one of
-    the two consumers, and they do not disagree — both come from the same gold
-    export.
+    NO QUERY, which is the whole difference from the import partition above and
+    the reason the column mapping had to move. An import partition carries
+    `Value.NativeQuery(… SELECT [snake_case] AS [PascalCase] …)`, so the SELECT is
+    where gold's names became the model's. Direct Lake names an ENTITY and the
+    engine reads it in place — there is no query to alias in, so every
+    `sourceColumn` must be the warehouse's own column name and the rename lives
+    in `name` alone.
+
+    WHY THIS REPLACES THE IMPORT MODE. The import model leaned on `data.json`, an
+    emulator-native convenience: the rows were exported over TDS and embedded in
+    the definition, so the model carried a COPY of gold rather than reading it.
+    Power BI Desktop opens such a model to empty tables and nothing in the
+    definition says why. Direct Lake is what a production model does — bind to
+    gold, read it in place — and since fabric-emulator 0.21.0 the emulator
+    resolves it over a Warehouse too, so the same definition answers DAX on both
+    targets.
+    """
+    return {
+        "name": table,
+        "mode": "directLake",
+        "source": {
+            "type": "entity",
+            "entityName": table,
+            "schemaName": "dbo",
+            "expressionSource": ONELAKE_EXPRESSION,
+        },
+    }
+
+
+def definition(workspace: str = "", warehouse: str = "") -> dict:
+    """TMSL as a single InlineBase64 definition part.
+
+    ONE SOURCE OF ROWS, which is what changed. This used to ship `data.json`
+    beside the model — gold's rows exported over TDS and embedded — because the
+    emulator's DAX evaluator read that rather than the warehouse. A Direct Lake
+    model reads gold in place on both targets, so a second embedded copy could
+    only ever drift from the first.
     """
     model = {
         "name": MODEL,
-        "compatibilityLevel": 1550,
+        # 1604, not 1550: Direct Lake partitions are not expressible below it,
+        # and the emulator enforces that rather than accepting a model it cannot
+        # resolve — measured, after a conversion silently produced empty tables.
+        "compatibilityLevel": 1604,
         "model": {
             "culture": "en-US",
             "tables": [
@@ -345,17 +371,30 @@ def definition(rows: dict, server: str = "", database: str = "") -> dict:
             "payload": base64.b64encode(json.dumps(obj).encode()).decode(),
         }
 
-    # Attach a partition per table when the endpoint is known. Guarded rather
-    # than assumed so `definition(rows)` stays callable without a live
+    # Attach a Direct Lake partition per table when the warehouse is known.
+    # Guarded rather than assumed so `definition()` stays callable without a live
     # warehouse — the governance step and the tests both do that.
-    if server and database:
+    if workspace and warehouse:
+        model["model"]["expressions"] = [gold_expression(workspace, warehouse)]
         tables: list[dict] = model["model"]["tables"]
         for tbl in tables:
             name: str = tbl["name"]
-            columns: list[dict] = tbl["columns"]
-            tbl["partitions"] = [partition(GOLD_TABLE[name], columns, server, database)]
+            gold_name = GOLD_TABLE[name]
+            tbl["partitions"] = [direct_lake_partition(gold_name)]
+            # EVERY sourceColumn BECOMES THE WAREHOUSE'S OWN NAME. With no query
+            # to alias in, a PascalCase sourceColumn names a column gold does not
+            # have — and a Direct Lake partition pointing at a missing column
+            # fails only when something refreshes, which is exactly the silent
+            # shape `gold_column`'s docstring warns about.
+            for col in tbl["columns"]:
+                col["sourceColumn"] = gold_column(col["name"])
 
-    return {"parts": [part("model.bim", model), part("data.json", rows)]}
+    # `data.json` IS GONE, and that is the point of the change rather than a side
+    # effect. It carried a copy of gold's rows for the emulator's bounded DAX
+    # evaluator to read; a Direct Lake model reads gold itself, on both targets,
+    # so embedding rows would now be a second source that can disagree with the
+    # first. Requires fabric-emulator >= 0.21.0 (see versions.env).
+    return {"parts": [part("model.bim", model)]}
 
 
 def publish(workspace: str, defn: dict, tok: str) -> str:
@@ -429,13 +468,18 @@ def main() -> int:
     ), "the export is empty"
 
     tok = token(FABRIC_AUD)
-    # The database name is the one thing the Warehouse differs about across
-    # targets, so it is resolved by target.py and not decided here.
+    # A PRECONDITION NOW, not an input to the model. A Direct Lake partition names
+    # no server — the engine resolves OneLake itself — so this no longer feeds the
+    # definition. It is still worth asking: the export above grades this step, and
+    # it reads gold over TDS, so an endpoint that is not listening fails here with
+    # a cause rather than three calls later with an empty comparison. The database
+    # name is the one thing the Warehouse differs about across targets, so
+    # target.py resolves it and this does not decide it.
     server = sql_endpoint(st["workspace"], st["warehouse"], tok)
     database = T.warehouse_database(st["warehouse"], gold.WAREHOUSE)
-    log(f"warehouse SQL endpoint {server}, database {database}")
+    log(f"gold readable over TDS at {server}, database {database}")
 
-    defn = definition(rows, server, database)
+    defn = definition(st["workspace"], st["warehouse"])
     dataset = publish(st["workspace"], defn, tok)
 
     # The same definition, on disk, as a Power BI Project. Written from `defn`
