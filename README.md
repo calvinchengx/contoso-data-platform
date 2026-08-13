@@ -8,6 +8,22 @@ A complete analytics platform built on [`fabric-emulator`](https://github.com/ca
 from **real source systems** through a medallion lakehouse to a **semantic model
 and Power BI**, with everything catalogued in **OpenMetadata**.
 
+This is the proof that an AI coding agent can deliver a real data product end
+to end: give it a source system's metadata, the business goal a stakeholder
+needs answered, and sample or synthetic data, and it builds the whole path,
+source to landing to medallion to a served analytics layer, against the
+emulator first and real Fabric second, with no code changes between them. What
+this repository took to build, months of tenant-bound trial and error compressed
+into days by iterating offline first, is the point of the whole family.
+
+The trust chain is the same one production uses:
+[entra-emulator](https://github.com/calvinchengx/entra-emulator) issues every
+token, and [azure-keyvault-emulator](https://github.com/calvinchengx/azure-keyvault-emulator)
+holds every credential. Its own dbt tests, the ones that already gate
+`dbt build`, are published as ODCS data contracts in OpenMetadata rather than
+redefined a second time for governance, one definition of quality, not two.
+Data-quality validation with Great Expectations is on the roadmap, not yet built.
+
 It runs against a **published release**, never a checkout. That is the point:
 this repository is a *consumer*. It has no access to the emulator's source, so
 anything that works here works for anyone.
