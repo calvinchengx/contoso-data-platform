@@ -94,8 +94,19 @@ def metrics_row(tok: str, workspace: str, lakehouse: str) -> dict:
     return rows[0]
 
 
-def landed_at(tok: str, workspace: str, lakehouse: str, table: str) -> int:
-    """Open `Tables/{table}` and count it, or fail naming the path.
+def landed_at(
+    tok: str, workspace: str, lakehouse: str, table: str
+) -> tuple[int, list[str]]:
+    """Open `Tables/{table}` and return its (row count, column names).
+
+    THE COLUMNS AS WELL AS THE ROWS, because the disagreement between them is a
+    diagnosis. `customer_columns` came back 102 against a vendor figure of 101
+    while the table written from that same frame had 101 — and that gap localises
+    the fault to the READ rather than to the data or the write. The cause turned
+    out to be the emulator's `input_file_name()` shim tagging file reads with a
+    hidden column that was stripped at `.write` and visible in `df.columns`, so
+    every surface outside the notebook reported the right number. Comparing the
+    frame to the table is what says "the read added it" in one assertion.
 
     WHERE, not just how many. A Copy activity fed a dataset whose empty column
     list rendered as a path segment ran, reported `Succeeded`, and wrote to
@@ -108,11 +119,10 @@ def landed_at(tok: str, workspace: str, lakehouse: str, table: str) -> int:
 
     uri = f"az://{workspace}/{lakehouse}/Tables/{table}"
     try:
-        return (
-            DeltaTable(uri, storage_options=T.delta_storage_options(tok))
-            .to_pyarrow_table()
-            .num_rows
-        )
+        at_rest = DeltaTable(
+            uri, storage_options=T.delta_storage_options(tok)
+        ).to_pyarrow_table()
+        return at_rest.num_rows, list(at_rest.column_names)
     except exceptions.TableNotFoundError as err:
         raise SystemExit(
             f"nothing at {uri} — bronze reported writing {table}, so either the "
@@ -163,8 +173,10 @@ def main() -> int:
     # Read from OneLake at the declared path rather than trusting the run's own
     # report: a job that says Succeeded having written to the wrong prefix is a
     # measured failure mode here, not a hypothetical.
+    at_rest_cols: dict[str, list[str]] = {}
     for _, table in FEEDS:
-        at_path = landed_at(stok, ws, lake, table)
+        at_path, cols = landed_at(stok, ws, lake, table)
+        at_rest_cols[table] = cols
         assert at_path == got[table], (
             f"Tables/{table} holds {at_path:,} rows and the run counted "
             f"{got[table]:,} — the notebook and the store disagree"
@@ -184,6 +196,53 @@ def main() -> int:
         f"{got['distinct_customers']:,} customers — the vendor's redeliveries "
         f"are missing, so silver's dedupe has nothing to do"
     )
+    # WHICH COLUMNS, not how many. This asserted the count alone and the first run
+    # it ever completed reported `(102, 101)` — a column had appeared and nothing
+    # said which, so the two available fixes ("the reader is adding one" and "the
+    # expectation is stale") were indistinguishable from the failure. They are not
+    # equivalent: all three published fixture wheels declare 101, so 101 is the
+    # vendor's own figure and an edit to 102 would have gone green over a column
+    # nobody had identified. Silver carries the same assertion and would have been
+    # edited twice.
+    landed_cols = got["customer_column_names"].split(",")
+    expected_cols = [name for name, _kind in src.CUSTOMER_COLUMNS]
+    # THE FRAME AGAINST THE TABLE, first, because when these two disagree the
+    # fault is in the READ and nowhere else — the notebook wrote what it read, so
+    # a column the frame has and the table does not was added between the file and
+    # the DataFrame. That is precisely how the emulator's `input_file_name()` shim
+    # presented: a hidden tag on every file read, stripped at `.write`, so the
+    # vendor's pages, the landed parts, a client Spark session and the written
+    # table all said 101 while the notebook said 102.
+    on_disk = at_rest_cols["bronze_customers"]
+    frame_only = [c for c in landed_cols if c not in set(on_disk)]
+    assert not frame_only, (
+        f"the notebook's frame carries {frame_only} which Tables/bronze_customers "
+        f"does not ({len(landed_cols)} columns in the frame, {len(on_disk)} at "
+        f"rest). The write stripped it, so the READ added it — look at the engine "
+        f"and its shims, not at the vendor's data."
+    )
+    extra = [c for c in landed_cols if c not in set(expected_cols)]
+    absent = [c for c in expected_cols if c not in set(landed_cols)]
+    # DUPLICATES SEPARATELY, because the two set differences above are both empty
+    # when the surplus column repeats a name that belongs — and "a duplicate means
+    # two part files were unioned" would then be a cause this check names and
+    # cannot detect.
+    seen: dict[str, int] = {}
+    for c in landed_cols:
+        seen[c] = seen.get(c, 0) + 1
+    repeated = sorted(c for c, n in seen.items() if n > 1)
+    assert not extra and not absent and not repeated, (
+        f"bronze_customers has {len(landed_cols)} columns, the vendor declares "
+        f"{len(expected_cols)}.\n"
+        f"  appeared:  {extra}\n"
+        f"  missing:   {absent}\n"
+        f"  duplicated: {repeated}\n"
+        f"An empty or `_c<N>` name means a trailing delimiter in the vendor's "
+        f"header; a duplicate means two part files with different headers were "
+        f"unioned by the reader."
+    )
+    # Kept as its own check: the count is what silver and gold size themselves
+    # against, and a rename that swapped two names would satisfy the sets above.
     assert got["customer_columns"] == src.EXPECTED_CUSTOMER_COLUMNS, (
         got["customer_columns"],
         src.EXPECTED_CUSTOMER_COLUMNS,

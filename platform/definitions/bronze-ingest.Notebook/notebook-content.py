@@ -190,6 +190,12 @@ n_erp = save(changes, "bronze_erp_changes")
 distinct_cust = customers.select("customer_id").distinct().count()
 distinct_ord = orders.select("order_id").distinct().count()
 customer_columns = len(customers.columns)
+# THE NAMES, not just the count. A count that disagrees with the vendor's own
+# figure says a column appeared and nothing about which one — and `(102, 101)` is
+# what this reported the first time it ever ran. The name is the diagnosis: `_c101`
+# or an empty name means a trailing delimiter in the header, a duplicate means the
+# reader unioned two part files with different headers.
+customer_column_names = ",".join(customers.columns)
 
 # The NESTING survived. A reader that flattened or dropped `lines` would still
 # land the right row count, and the loss would only surface much later as an
@@ -250,6 +256,7 @@ metrics = spark.createDataFrame(
             n_cust,
             distinct_cust,
             customer_columns,
+            customer_column_names,
             n_ord,
             distinct_ord,
             n_web_cust,
@@ -268,6 +275,7 @@ metrics = spark.createDataFrame(
         )
     ],
     "bronze_customers long, distinct_customers long, customer_columns long, "
+    "customer_column_names string, "
     "bronze_orders long, distinct_orders long, "
     "bronze_web_customers long, bronze_web_products long, bronze_web_orders long, "
     "web_orders_has_lines boolean, blank_columns string, shared_emails long, "
