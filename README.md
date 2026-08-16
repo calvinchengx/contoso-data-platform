@@ -121,6 +121,14 @@ that `fabric-emulator`'s own compose does run arm-emulator by default; this
 repository builds its own stack from published images, so that default does not
 reach here.
 
+[azure-apim-emulator](https://github.com/calvinchengx/azure-apim-emulator) is
+absent for a simpler reason: **nothing here sits behind a gateway.** APIM is the
+publish-and-front-an-API product, and the four vendor systems are consumed
+directly, three from mokapi over REST and one over CDC. A real enterprise might
+well put those vendor APIs behind APIM and enforce subscription keys or
+`validate-jwt` there, but this platform does not, so adding the service would
+mean inventing a hop the code does not make.
+
 Two limits worth knowing before you start:
 
 - **SQL Server is amd64-only.** On Apple silicon it runs translated; on an
