@@ -103,23 +103,30 @@ where nothing does.
 
 ## What it needs to run
 
-The full stack is **16 services** — three emulators (entra, keyvault, fabric),
-Sail, a Spark agent, a SQL Server sidecar, the source systems (three mokapi
-instances, Postgres, Redpanda, Debezium) and OpenMetadata with its own
+The full stack is **17 services** — four emulators (entra, keyvault, arm,
+fabric), Sail, a Spark agent, a SQL Server sidecar, the source systems (three
+mokapi instances, Postgres, Redpanda, Debezium) and OpenMetadata with its own
 Postgres, OpenSearch and a one-shot migration. Budget **~8 GB** to Docker;
 OpenSearch alone asks for a 1 GB heap.
 
-**Three of the family's emulators, not all of them.** The one most obviously
-absent is [arm-emulator](https://github.com/calvinchengx/arm-emulator), which
-owns the Azure resource lifecycle: a Fabric **capacity** is an ARM resource
-(`Microsoft.Fabric/capacities`), created through `management.azure.com` rather
-than through the Fabric REST API. This platform never creates one. It consumes a
-capacity that already exists, which is what real Fabric expects of it too, so
-the emulator/real difference is a single `capacity_is_auto_assigned` flag in
-[`platform/target.py`](platform/target.py) rather than a provisioning step. Note
-that `fabric-emulator`'s own compose does run arm-emulator by default; this
-repository builds its own stack from published images, so that default does not
-reach here.
+**Why ARM is in the stack.** A Fabric **capacity** is an Azure resource
+(`Microsoft.Fabric/capacities`), created through `management.azure.com` and only
+then visible on the Fabric control plane. Nothing in the Fabric REST API makes
+one. So [arm-emulator](https://github.com/calvinchengx/arm-emulator) is here to
+be the thing that does, and `make verify` runs the real sequence: create the
+capacity in ARM, wait for Fabric to see it, assign the workspace to it.
+
+That is a difference this platform used to tolerate rather than fix. The
+emulator seeds a capacity and attaches it to every new workspace; real Fabric
+does not, so the assertion "the workspace has a capacity" was true locally and
+false in production, and it sat behind a `capacity_is_auto_assigned` flag.
+Creating the resource properly retires the flag: **"this workspace runs on the
+capacity we named" is now asserted on both targets.**
+
+Against real Fabric no capacity is created. `FABRIC_CAPACITY` names one that
+already exists and the platform resolves it, because a capacity is billable
+infrastructure and provisioning it is an operator's decision rather than
+something a pipeline run should do on its own. That rule has a test.
 
 [azure-apim-emulator](https://github.com/calvinchengx/azure-apim-emulator) is
 absent for a simpler reason: **nothing here sits behind a gateway.** APIM is the

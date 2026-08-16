@@ -36,6 +36,10 @@ T = target.resolve()
 # Real Fabric audiences, on both targets — the emulator validates the same ones.
 FABRIC_AUD = "https://api.fabric.microsoft.com"
 STORAGE_AUD = "https://storage.azure.com"
+# The management plane, where a capacity is an ARM resource. A first-party
+# Entra audience like the two above, so it needs no registration on either
+# target.
+MANAGEMENT_AUD = "https://management.azure.com"
 
 FABRIC = T.api_root
 

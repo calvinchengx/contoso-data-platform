@@ -62,6 +62,30 @@ REAL = "real"
 # has no reason to opt out of.
 WORKSPACE = "contoso-analytics"
 
+# The capacity this platform runs on, by name. Lowercase alphanumeric because
+# that is ARM's rule for a Fabric capacity name (`^[a-z][a-z0-9]{2,62}$`), not a
+# style choice — a hyphen here is a 400 from ARM.
+CAPACITY = "contosocapacity"
+
+
+@dataclass(frozen=True)
+class ArmCapacity:
+    """Where a capacity gets created, on a target that is allowed to create one.
+
+    Azure needs all of this to place the resource, and none of it is derivable:
+    a subscription, a resource group inside it, a region, and an F-series SKU.
+    `admin` becomes `properties.administration.members`, which ARM requires and
+    refuses an empty list for — a capacity with no administrator is not a thing
+    Azure will make.
+    """
+
+    url: str
+    subscription: str
+    resource_group: str
+    location: str
+    sku: str
+    admin: str
+
 
 def target() -> str:
     t = os.environ.get("FABRIC_TARGET", EMULATOR).lower()
@@ -86,11 +110,17 @@ class Target:
     # no override — so this is the one place that difference lives.
     onelake_host_header: str | None
     verify_tls: bool
-    # Real Fabric requires a capacity to exist and be assigned; the emulator
-    # seeds one and auto-assigns it. Asserting the emulator's convenience would
-    # fail against production for a reason that has nothing to do with the code
-    # under test.
-    capacity_is_auto_assigned: bool
+    # THE CAPACITY, ADDRESSED BY NAME like everything else durable. A Fabric
+    # capacity is an ARM resource (`Microsoft.Fabric/capacities`), created
+    # through management.azure.com rather than the Fabric REST API, and the
+    # workspace is then assigned to it. That sequence is the same on both
+    # targets; only WHERE the capacity comes from differs, which is why it is
+    # this field and not a branch in provision.py.
+    capacity_name: str
+    # Where the platform may CREATE one, or None when it may not. Creating a
+    # capacity means creating billable Azure infrastructure, so the real target
+    # never does: it resolves a capacity an operator already provisioned.
+    capacity_arm: ArmCapacity | None
     # Where the Spark session comes from. In a Fabric notebook `spark` is
     # ambient and this is None; outside one, a Spark Connect endpoint.
     spark_remote: str | None
@@ -246,6 +276,15 @@ def resolve() -> Target:
                 "FABRIC_TARGET=real needs AZURE_KEY_VAULT_URL — secrets come "
                 "from the customer's own Key Vault, never the source tree."
             )
+        capacity = os.environ.get("FABRIC_CAPACITY", "")
+        if not capacity:
+            raise SystemExit(
+                "FABRIC_TARGET=real needs FABRIC_CAPACITY, the display name of "
+                "a capacity that already exists in your tenant. This platform "
+                "never creates one: a Microsoft.Fabric/capacities resource is "
+                "billable Azure infrastructure and provisioning it is an "
+                "operator's decision, not a side effect of running a pipeline."
+            )
         return Target(
             name=REAL,
             api_root=api_root,
@@ -254,7 +293,9 @@ def resolve() -> Target:
             onelake_url=ft.onelake_url,
             onelake_host_header=None,
             verify_tls=True,
-            capacity_is_auto_assigned=False,
+            capacity_name=capacity,
+            # None: never create billable infrastructure from a pipeline run.
+            capacity_arm=None,
             # A Fabric Spark notebook supplies the session; nothing to connect to.
             spark_remote=os.environ.get("SPARK_REMOTE"),
             runs_notebooks_itself=True,
@@ -280,7 +321,22 @@ def resolve() -> Target:
         # still exercised. On the real target it is True above, literally, and
         # no configuration reaches it.
         verify_tls=ft.tls_verify,
-        capacity_is_auto_assigned=True,
+        capacity_name=CAPACITY,
+        capacity_arm=ArmCapacity(
+            url=os.environ.get("FABRIC_ARM_URL", "https://localhost:8445"),
+            # arm-emulator's seeded subscription and a resource group this
+            # platform makes for itself. In Azure both are the operator's.
+            subscription=os.environ.get(
+                "AZURE_SUBSCRIPTION_ID", "6082bfda-63d0-46f4-8272-ae9195139feb"
+            ),
+            resource_group="contoso-rg",
+            location="westus",
+            # The smallest F-SKU. Size is meaningless against the emulator and
+            # the cheapest real answer, so nothing here encourages an expensive
+            # copy-paste.
+            sku="F2",
+            admin="admin@contoso.com",
+        ),
         spark_remote=os.environ.get("SPARK_REMOTE", "sc://localhost:50051"),
         runs_notebooks_itself=True,
         clock_is_controllable=True,
