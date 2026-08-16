@@ -38,8 +38,14 @@ will break** — the "enforced by" column is the honest part of this document, a
 | | |
 |---|---|
 | **Rule** | A pipeline run never creates billable Azure infrastructure. Only a target that declares `capacity_arm` may create a capacity; the real target declares `None` and resolves the one named in `FABRIC_CAPACITY`. |
-| **Why** | A `Microsoft.Fabric/capacities` resource bills for as long as it exists, and provisioning one is an operator's decision. The emulator creates its own precisely so the local run proves the real ordering — ARM first, then `assignToCapacity` — without that ordering costing anything to exercise. |
+| **Why** | A `Microsoft.Fabric/capacities` resource bills for as long as it exists, and provisioning one is an operator's decision. The emulator creates its own precisely so the local run proves the real ordering, ARM first and then the workspace, without that ordering costing anything to exercise. |
 | **Enforced by** | `test_the_real_target_never_creates_a_capacity` |
+
+| | |
+|---|---|
+| **Rule** | No step changes which capacity a workspace is on. The capacity is supplied to `POST /v1/workspaces` at create; an existing workspace's capacity is adopted as it stands. |
+| **Why** | The first version of the capacity work resolved a capacity and then reassigned the workspace whenever the two disagreed. Harmless against the emulator; against real Fabric a `make verify` with a stale `FABRIC_CAPACITY` moves a live workspace, changing its billing and disturbing what runs on it. It also made `FABRIC_CAPACITY` required for every real run, when an existing workspace already knows its own capacity and needs no configuration at all. A pipeline run should not hold an opinion about infrastructure an operator already decided. |
+| **Enforced by** | `test_the_platform_never_changes_a_workspace_capacity` |
 
 | | |
 |---|---|

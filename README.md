@@ -114,19 +114,28 @@ OpenSearch alone asks for a 1 GB heap.
 then visible on the Fabric control plane. Nothing in the Fabric REST API makes
 one. So [arm-emulator](https://github.com/calvinchengx/arm-emulator) is here to
 be the thing that does, and `make verify` runs the real sequence: create the
-capacity in ARM, wait for Fabric to see it, assign the workspace to it.
+capacity in ARM, wait for Fabric to see it, then create the workspace **on**
+it.
 
 That is a difference this platform used to tolerate rather than fix. The
 emulator seeds a capacity and attaches it to every new workspace; real Fabric
 does not, so the assertion "the workspace has a capacity" was true locally and
 false in production, and it sat behind a `capacity_is_auto_assigned` flag.
-Creating the resource properly retires the flag: **"this workspace runs on the
-capacity we named" is now asserted on both targets.**
+Creating the resource properly retires the flag: **"this workspace runs on a
+capacity" is now asserted on both targets.**
 
-Against real Fabric no capacity is created. `FABRIC_CAPACITY` names one that
-already exists and the platform resolves it, because a capacity is billable
-infrastructure and provisioning it is an operator's decision rather than
-something a pipeline run should do on its own. That rule has a test.
+**The capacity is chosen at create, and never changed afterwards.** An existing
+workspace already carries the capacity someone put it on, and the platform
+adopts it. That is why `FABRIC_CAPACITY` is *optional*: a real run against an
+established workspace needs no capacity configuration, because Fabric already
+knows. It is read only when a workspace has to be created, since `capacityId`
+is optional on `POST /v1/workspaces` and a workspace created without one has no
+capacity at all, which no Lakehouse can live in.
+
+Against real Fabric no capacity is ever created, and none is ever reassigned.
+Creating one is billable infrastructure; moving a live workspace onto a
+different one changes its billing and disturbs whatever is running on it.
+Both rules have tests.
 
 [azure-apim-emulator](https://github.com/calvinchengx/azure-apim-emulator) is
 absent for a simpler reason: **nothing here sits behind a gateway.** APIM is the
