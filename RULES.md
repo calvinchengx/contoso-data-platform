@@ -32,8 +32,14 @@ will break** — the "enforced by" column is the honest part of this document, a
 | | |
 |---|---|
 | **Rule** | Never assert on emulator conveniences. |
-| **Why** | `assert ws.get("capacityId")` passed locally and would have failed on real Fabric, which does not auto-assign a capacity. The assertion is now behind `T.capacity_is_auto_assigned`. |
+| **Why** | `assert ws.get("capacityId")` passed locally and would have failed on real Fabric, which does not auto-assign a capacity. That was first hidden behind a `capacity_is_auto_assigned` flag, which made the difference *tolerated* rather than fixed. The platform now creates the capacity in ARM, where a capacity actually comes from, and assigns the workspace to it: one sequence, and the same assertion, on both targets. Prefer removing a difference to flagging it. |
 | **Enforced by** | judgement — ask "is this true on both targets?" of every assertion about platform behaviour |
+
+| | |
+|---|---|
+| **Rule** | A pipeline run never creates billable Azure infrastructure. Only a target that declares `capacity_arm` may create a capacity; the real target declares `None` and resolves the one named in `FABRIC_CAPACITY`. |
+| **Why** | A `Microsoft.Fabric/capacities` resource bills for as long as it exists, and provisioning one is an operator's decision. The emulator creates its own precisely so the local run proves the real ordering — ARM first, then `assignToCapacity` — without that ordering costing anything to exercise. |
+| **Enforced by** | `test_the_real_target_never_creates_a_capacity` |
 
 | | |
 |---|---|

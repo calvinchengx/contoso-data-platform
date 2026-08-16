@@ -243,6 +243,71 @@ def test_tls_verification_is_never_hardcoded_off():
     assert "allow_invalid" not in real
 
 
+def test_the_real_target_never_creates_a_capacity():
+    """A pipeline run must not be able to provision billable Azure resources.
+
+    A `Microsoft.Fabric/capacities` resource costs money for as long as it
+    exists. The emulator may create one freely, and does, so that the local run
+    exercises the real ordering — ARM first, then assign — rather than leaning
+    on the seeded capacity the emulator attaches for convenience. Against real
+    Fabric the same code must resolve a capacity an operator already made.
+
+    Read as text for the same reason as the TLS check above: the guarantee is
+    that no configuration can reach the creating branch, which is a property of
+    the literal, not of a value some environment might produce.
+    """
+    real = real_branch()
+    assert "capacity_arm=None" in real, (
+        "the real target must declare capacity_arm=None — anything else lets a "
+        "pipeline run create billable infrastructure"
+    )
+    assert "ArmCapacity(" not in real, (
+        "the real target must not construct an ArmCapacity: that is the object "
+        "that says where a capacity may be created"
+    )
+
+
+def test_the_real_target_requires_a_named_capacity():
+    """Real mode names its capacity in configuration, or refuses to start.
+
+    Not optional, and deliberately so: if a missing name simply skipped the
+    assignment, the platform would be back to tolerating a difference between
+    the targets instead of asserting the same thing on both.
+    """
+    real = real_branch()
+    assert "FABRIC_CAPACITY" in real, (
+        "real mode must read the capacity name from FABRIC_CAPACITY"
+    )
+    assert "raise SystemExit" in real, "a missing capacity name must stop the run"
+
+
+def test_the_capacity_name_is_one_arm_accepts():
+    """ARM's name rule for a Fabric capacity, checked against our constant.
+
+    `^[a-z][a-z0-9]{2,62}$` — no hyphens, no capitals. Every other name in this
+    platform is hyphenated, so this one looks like a typo and will eventually
+    be "fixed" by someone tidying up. It is not a style choice: ARM answers 400
+    InvalidResourceName, and only when the stack is actually running.
+
+    Parsed rather than imported, because importing target.py resolves a target
+    and `make test` promises no emulator and no fixture wheels.
+    """
+    tree = ast.parse((ROOT / "platform" / "target.py").read_text(encoding="utf-8"))
+    names = [
+        node.value.value
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+        for t in node.targets
+        if isinstance(t, ast.Name) and t.id == "CAPACITY"
+    ]
+    assert names, "platform/target.py should define CAPACITY"
+    assert re.fullmatch(r"[a-z][a-z0-9]{2,62}", names[0]), (
+        f"CAPACITY={names[0]!r} is not a name ARM will accept"
+    )
+
+
 def test_the_fabric_client_knows_nothing_about_the_source_systems():
     """Segregation, in the other direction.
 
