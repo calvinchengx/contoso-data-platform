@@ -109,6 +109,18 @@ instances, Postgres, Redpanda, Debezium) and OpenMetadata with its own
 Postgres, OpenSearch and a one-shot migration. Budget **~8 GB** to Docker;
 OpenSearch alone asks for a 1 GB heap.
 
+**Three of the family's emulators, not all of them.** The one most obviously
+absent is [arm-emulator](https://github.com/calvinchengx/arm-emulator), which
+owns the Azure resource lifecycle: a Fabric **capacity** is an ARM resource
+(`Microsoft.Fabric/capacities`), created through `management.azure.com` rather
+than through the Fabric REST API. This platform never creates one. It consumes a
+capacity that already exists, which is what real Fabric expects of it too, so
+the emulator/real difference is a single `capacity_is_auto_assigned` flag in
+[`platform/target.py`](platform/target.py) rather than a provisioning step. Note
+that `fabric-emulator`'s own compose does run arm-emulator by default; this
+repository builds its own stack from published images, so that default does not
+reach here.
+
 Two limits worth knowing before you start:
 
 - **SQL Server is amd64-only.** On Apple silicon it runs translated; on an
