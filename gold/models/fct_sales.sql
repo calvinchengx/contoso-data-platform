@@ -22,7 +22,7 @@ with pos as (
         o.product_id,
         o.order_date,
         'POS'                             as channel_system,
-        cast(0 as bit)                    as is_cancelled,
+        {{ flag(0) }}                    as is_cancelled,
         o.quantity,
         o.amount,
         o.currency
@@ -41,7 +41,7 @@ web as (
         w.product_id,
         w.order_date,
         'WEB'                             as channel_system,
-        case when w.status = 'cancelled' then cast(1 as bit) else cast(0 as bit) end
+        case when w.status = 'cancelled' then {{ flag(1) }} else {{ flag(0) }} end
                                           as is_cancelled,
         w.quantity,
         w.amount,

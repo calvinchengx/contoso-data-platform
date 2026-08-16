@@ -2,7 +2,7 @@
 # installed by `make fixtures` from the pinned release, because which release
 # they came from is the thing under test.
 [project]
-name = "contoso-data-platform"
+name = "contoso-fabric-platform"
 version = "0.1.0"
 description = "A complete analytics platform on a released fabric-emulator"
 requires-python = ">=3.12"

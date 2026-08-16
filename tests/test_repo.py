@@ -1470,3 +1470,21 @@ def test_the_relationships_contract_rule_actually_checks_the_relationship():
     assert not f["name"].endswith("_resolves"), f["name"]
     assert f["dimension"] != "consistency", f
     assert "NOT asserted" in f["description"], f["description"]
+
+
+def test_gold_sql_is_portable():
+    """T-SQL BIT must not appear in gold models. The flag() macro is the
+    dialect adapter; restating `cast(0 as bit)` is how the Databricks
+    consumer would need a second copy of the product."""
+    sales = (ROOT / "gold" / "models" / "fct_sales.sql").read_text(encoding="utf-8")
+    assert "as bit" not in sales.lower()
+    assert "{{ flag(" in sales
+    assert (ROOT / "gold" / "macros" / "flag.sql").is_file()
+
+
+def test_openmetadata_url_is_env():
+    """OM_URL is the catalog address. Hardcoding localhost ships the
+    emulator into production the same way a hardcoded vault URL would."""
+    src = (ROOT / "platform" / "govern.py").read_text(encoding="utf-8")
+    assert 'os.environ.get("OM_URL"' in src
+    assert 'OM = "http://localhost:8585' not in src

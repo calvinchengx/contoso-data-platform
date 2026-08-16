@@ -12,7 +12,7 @@
 # Deliberately NOT copied from fabric-emulator's own compose file. That one is
 # for people building the emulator; this one is what a consumer writes from the
 # published docs, which is the thing this repo is here to prove is possible.
-name: contoso-data-platform
+name: contoso-fabric-platform
 
 services:
   entra-emulator:

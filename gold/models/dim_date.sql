@@ -48,13 +48,15 @@ select
     date_key,
     calendar_year,
     calendar_month,
-    datepart(quarter, date_key) as calendar_quarter,
+    {{ date_quarter('date_key') }} as calendar_quarter,
     fiscal_year,
     fiscal_month_index / 3 + 1 as fiscal_quarter,
     fiscal_month_index + 1     as fiscal_period,
     -- The label a report writer actually puts on an axis. Built here so every
     -- surface spells it the same way.
-    'FY' + right(cast(fiscal_year as varchar(4)), 2) as fiscal_year_label,
-    'FY' + right(cast(fiscal_year as varchar(4)), 2)
-        + ' Q' + cast(fiscal_month_index / 3 + 1 as varchar(1)) as fiscal_quarter_label
+    {{ str_concat("'FY'", "right(cast(fiscal_year as " ~ varchar_n(4) ~ "), 2)") }} as fiscal_year_label,
+    {{ str_concat(
+        str_concat("'FY'", "right(cast(fiscal_year as " ~ varchar_n(4) ~ "), 2)"),
+        str_concat("' Q'", "cast(fiscal_month_index / 3 + 1 as " ~ varchar_n(1) ~ ")")
+    ) }} as fiscal_quarter_label
 from parts

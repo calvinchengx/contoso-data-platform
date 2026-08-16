@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import pathlib
 import re
 
@@ -33,7 +34,7 @@ from fabric import log
 from sources import ERP_DB, ERP_TOPIC, POS_API
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-OM = "http://localhost:8585/api/v1"
+OM = os.environ.get("OM_URL", "http://localhost:8585/api/v1").rstrip("/")
 # OpenMetadata's seeded dev admin. Basic auth is not enough — the API wants a
 # JWT, obtained by exchanging these at /users/login.
 OM_USER = "admin@open-metadata.org"
