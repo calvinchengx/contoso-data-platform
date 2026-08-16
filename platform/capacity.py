@@ -17,8 +17,17 @@ WHAT THIS REPLACED. The platform used to assert `ws.get("capacityId")` behind a
 `capacity_is_auto_assigned` flag, because the emulator seeds a capacity and
 attaches it to every new workspace while real Fabric does not. That flag was a
 difference the platform *tolerated*. Creating the resource properly removes it:
-the assertion "this workspace runs on the capacity we named" is now true, and
-checked, on both targets.
+the assertion "this workspace runs on a capacity" is now true, and checked, on
+both targets.
+
+THE CAPACITY IS SUPPLIED AT CREATE, NEVER REASSIGNED. An earlier version of
+this resolved a capacity first and then moved the workspace onto it whenever
+the two disagreed. Against the emulator that is harmless. Against real Fabric
+it means a `make verify` with a mismatched `FABRIC_CAPACITY` silently moves a
+live workspace between capacities, changing what it bills to and disturbing
+whatever is running on it. A pipeline run has no business doing that, so the
+capacity is now passed to `POST /v1/workspaces` and an existing workspace's
+capacity is adopted as it stands.
 """
 
 from __future__ import annotations
@@ -105,18 +114,36 @@ def find(tok: str, name: str) -> str | None:
     return None
 
 
-def resolve(tok: str) -> str:
-    """The capacity id to assign the workspace to, creating it where allowed."""
+def for_new_workspace(tok: str) -> str:
+    """The capacity id to CREATE a workspace on.
+
+    Called only when there is no workspace yet, or when the one that exists
+    carries no capacity. An existing workspace's capacity is adopted, never
+    replaced — see provision.py.
+
+    Real Fabric will not guess: `capacityId` is optional on
+    `POST /v1/workspaces`, and omitting it leaves a workspace no Lakehouse can
+    be created in. So something has to name one, and on the real target that
+    is configuration rather than anything this platform can invent.
+    """
     name = T.capacity_name
 
     if T.capacity_arm is None:
+        if not name:
+            raise SystemExit(
+                "creating a workspace on real Fabric needs FABRIC_CAPACITY, the "
+                "display name of a capacity that already exists in your tenant. "
+                "It is needed ONLY to create a workspace: an existing one "
+                "already carries its capacity and this platform adopts it. This "
+                "platform never creates a capacity, because that is billable "
+                "Azure infrastructure and an operator's decision."
+            )
         found = find(tok, name)
         if found is None:
             raise SystemExit(
                 f"no capacity named {name!r} is visible to this identity. "
                 f"FABRIC_CAPACITY must name a capacity that already exists and "
-                f"that the running identity can see. This platform does not "
-                f"create one: that is billable Azure infrastructure."
+                f"that the running identity can see."
             )
         log(f"capacity {name} resolved to {found}")
         return found

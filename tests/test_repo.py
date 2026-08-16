@@ -267,18 +267,44 @@ def test_the_real_target_never_creates_a_capacity():
     )
 
 
-def test_the_real_target_requires_a_named_capacity():
-    """Real mode names its capacity in configuration, or refuses to start.
+def test_the_real_target_reads_its_capacity_name_from_configuration():
+    """Real mode takes the capacity name from FABRIC_CAPACITY, never a literal.
 
-    Not optional, and deliberately so: if a missing name simply skipped the
-    assignment, the platform would be back to tolerating a difference between
-    the targets instead of asserting the same thing on both.
+    Optional on purpose. It is consulted only when a workspace has to be
+    CREATED; an existing one already carries its capacity and the platform
+    adopts it. Requiring it unconditionally was worse than redundant, because
+    a value that disagreed with a live workspace got "corrected" by moving the
+    workspace.
     """
     real = real_branch()
     assert "FABRIC_CAPACITY" in real, (
         "real mode must read the capacity name from FABRIC_CAPACITY"
     )
-    assert "raise SystemExit" in real, "a missing capacity name must stop the run"
+
+
+def test_the_platform_never_changes_a_workspace_capacity():
+    """No step may move a workspace between capacities.
+
+    Against the emulator that call is harmless. Against real Fabric it takes a
+    live workspace off the capacity an operator chose, which changes what it
+    bills to and disturbs whatever is running on it, as a side effect of a
+    pipeline run. A capacity is supplied to `POST /workspaces` at create and an
+    existing workspace's capacity is adopted as it stands.
+
+    Checked as text against the whole platform, not one file, because the
+    hazard is the API call existing anywhere in a step.
+    """
+    offenders = []
+    for p in sorted((ROOT / "platform").glob("*.py")):
+        for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
+            if line.lstrip().startswith("#"):
+                continue
+            if "assignToCapacity" in line or "unassignFromCapacity" in line:
+                offenders.append(f"{p.name}:{i}: {line.strip()}")
+    assert not offenders, (
+        "a step moves a workspace between capacities, which must never happen "
+        "against real Fabric: " + str(offenders)
+    )
 
 
 def test_the_capacity_name_is_one_arm_accepts():

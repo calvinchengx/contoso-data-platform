@@ -54,44 +54,52 @@ def find_item(tok: str, workspace: str, name: str, kind: str) -> dict | None:
 def main() -> int:
     tok = token(FABRIC_AUD)
 
-    # The capacity first, because the workspace has to be assigned to one and
-    # the control plane takes a moment to learn about a freshly created
-    # capacity. Doing it here overlaps that wait with the workspace call below.
-    cap = capacity.resolve(tok)
-
     ws = find_workspace(tok, WORKSPACE)
     if ws is None:
-        r = fabric("POST", "/workspaces", tok, json={"displayName": WORKSPACE})
+        # A workspace is created ON a capacity. `capacityId` is optional in the
+        # contract, and omitting it is the trap: the emulator auto-assigns its
+        # seeded capacity, real Fabric leaves the workspace with none and the
+        # Lakehouse below then fails. So it is always supplied.
+        cap = capacity.for_new_workspace(tok)
+        r = fabric(
+            "POST",
+            "/workspaces",
+            tok,
+            json={"displayName": WORKSPACE, "capacityId": cap},
+        )
         # Create is one of the synchronous paths (quickstart §3). A 202 would
         # mean the contract changed, which is worth failing on rather than
         # silently polling.
         assert r.status_code == 201, (r.status_code, r.text[:300])
         ws = r.json()
-        log(f"created workspace {WORKSPACE}")
+        log(f"created workspace {WORKSPACE} on capacity {cap}")
     else:
+        # ADOPTED, NOT REPLACED. An existing workspace already carries the
+        # capacity someone put it on, and on real Fabric that someone is an
+        # operator whose decision this run must not overrule. Moving it would
+        # change what it bills to and disturb whatever is running on it.
         log(f"reusing workspace {WORKSPACE}")
+        if not ws.get("capacityId"):
+            # Nothing to adopt. A workspace can exist with no capacity, and
+            # then no Lakehouse can be created in it. Assigning one here would
+            # be harmless, but the rule that this step never changes a
+            # workspace's capacity is worth more than the convenience: a rule
+            # with an exception is one somebody extends to the case that hurts.
+            raise SystemExit(
+                f"workspace {WORKSPACE} exists but is on no capacity. Assign it "
+                f"to one and re-run. This step never changes which capacity a "
+                f"workspace is on, because doing that to a live workspace moves "
+                f"its billing and disturbs what is running on it."
+            )
     assert ws["id"], ws
 
-    # Put the workspace on the capacity we resolved. This is one call on both
-    # targets and asserts the same thing on both, which it could not do while
-    # the emulator was seeding a capacity of its own and this platform was
-    # merely noticing. Skipped when it is already there, so a re-run is quiet.
-    if ws.get("capacityId") != cap:
-        r = fabric(
-            "POST",
-            f"/workspaces/{ws['id']}/assignToCapacity",
-            tok,
-            json={"capacityId": cap},
-        )
-        assert r.status_code == 202, (r.status_code, r.text[:300])
-        log(f"assigned {WORKSPACE} to capacity {cap}")
-
-    # True on BOTH targets now, so it is asserted on both.
+    # True on BOTH targets, and the reason the old capacity_is_auto_assigned
+    # flag is gone: a workspace without a capacity is not usable on either.
     r = fabric("GET", f"/workspaces/{ws['id']}", tok)
     assert r.status_code == 200, (r.status_code, r.text[:200])
-    assert r.json().get("capacityId") == cap, (
-        f"workspace is on capacity {r.json().get('capacityId')}, expected {cap}"
-    )
+    on = r.json().get("capacityId")
+    assert on, f"workspace {WORKSPACE} is on no capacity: {r.json()}"
+    log(f"workspace {WORKSPACE} runs on capacity {on}")
 
     lake = find_item(tok, ws["id"], LAKEHOUSE, "Lakehouse")
     if lake is None:

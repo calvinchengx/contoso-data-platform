@@ -276,15 +276,14 @@ def resolve() -> Target:
                 "FABRIC_TARGET=real needs AZURE_KEY_VAULT_URL — secrets come "
                 "from the customer's own Key Vault, never the source tree."
             )
+        # OPTIONAL, and only consulted when a workspace has to be CREATED.
+        # An existing workspace already carries its capacity and the platform
+        # adopts it, so a real run against an established workspace needs no
+        # capacity configuration at all. Demanding it unconditionally was both
+        # redundant and a trap: it invited a value that disagreed with reality,
+        # and the code then "corrected" reality to match. Missing is checked
+        # where it is needed, in capacity.for_new_workspace.
         capacity = os.environ.get("FABRIC_CAPACITY", "")
-        if not capacity:
-            raise SystemExit(
-                "FABRIC_TARGET=real needs FABRIC_CAPACITY, the display name of "
-                "a capacity that already exists in your tenant. This platform "
-                "never creates one: a Microsoft.Fabric/capacities resource is "
-                "billable Azure infrastructure and provisioning it is an "
-                "operator's decision, not a side effect of running a pipeline."
-            )
         return Target(
             name=REAL,
             api_root=api_root,
