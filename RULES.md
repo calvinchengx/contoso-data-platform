@@ -15,9 +15,9 @@ will break** — the "enforced by" column is the honest part of this document, a
 
 | | |
 |---|---|
-| **Rule** | Bronze/silver Spark logic and gold dbt SQL are the **data product**. They live in `contoso-data-product` and are consumed here, not restated. Dialect leaks (`cast(0 as bit)`) go through dbt macros. |
-| **Why** | A second copy of `fct_sales.sql` for Databricks is how the "no DE code change" claim dies. |
-| **Enforced by** | `test_gold_sql_is_portable` |
+| **Rule** | Bronze/silver Spark logic and gold dbt SQL are the **data product**. They live in `contoso-data-product`, are installed from its release, and are consumed here, not restated. Dialect leaks (`cast(0 as bit)`) go through dbt macros. |
+| **Why** | A second copy of `fct_sales.sql` for Databricks is how the "no DE code change" claim dies. **It had already happened.** This repository carried its own 18-file copy of the gold project and its own 400-line copy of the silver transform, and the copies had diverged: the product gained `cast(x as int) = 1` so its boolean comparisons run on Spark SQL as well as T-SQL, and the fork here never got it. Nothing failed, because nothing compared them. Note what the old entry cited: `test_gold_sql_is_portable` checks that the local copy avoids T-SQL `bit`, which is a real rule but not this one. A rule whose named enforcer tests something adjacent is unenforced with extra steps. |
+| **Enforced by** | `test_the_product_is_imported_not_restated` |
 
 | **Rule** | Every difference between the emulator and real Fabric lives in `platform/target.py`, selected by `FABRIC_TARGET=emulator\|real`. Nowhere else. |
 | **Why** | A localhost URL or a seeded credential anywhere else is a workaround that ships to production — and the emulator goes on passing, so nothing reveals it. |

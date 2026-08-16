@@ -14,6 +14,7 @@ against a fresh tenant is not one anybody can operate.
 from __future__ import annotations
 
 import capacity
+import environment
 import state
 from fabric import FABRIC_AUD, fabric, log, token
 
@@ -116,7 +117,13 @@ def main() -> int:
         log(f"reusing lakehouse {LAKEHOUSE}")
     assert lake["id"], lake
 
+    # The data product, delivered to the Spark engine. bronze and silver run
+    # as notebooks on the pool, so installing the package in this process is
+    # not enough: the Environment is what carries it across.
+    env = environment.ensure(tok, ws["id"])
+
     state.save(
+        environment=env,
         workspace=ws["id"],
         lakehouse=lake["id"],
         workspace_name=WORKSPACE,

@@ -145,6 +145,9 @@ def main() -> int:
         NOTEBOOK,
         WORKSPACE=ws,
         LAKEHOUSE=lake,
+        # The Environment that carries contoso-data-product to the engine.
+        # Resolved by provision, because both notebooks bind the same one.
+        ENVIRONMENT=st["environment"],
         # DAY IS STANDING IN FOR A JOB PARAMETER. Real Fabric would pass the
         # landing day through the RunNotebook job's `executionData.parameters`
         # and leave the file untouched; the emulator implements no parameter

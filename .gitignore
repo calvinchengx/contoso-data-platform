@@ -23,6 +23,12 @@ gold/_reconcile_sql.json
 # the repo already holds the source of — and a stale manifest reads like a
 # source of truth while describing a project that no longer exists.
 # .user.yml is dbt's anonymous-usage id, generated per machine.
+# The product's dbt project, staged into gold/ by platform/gold.py on every
+# run. Not tracked: a checked-in copy is a second source of truth, and this one
+# had already drifted from contoso-data-product before it was removed.
+gold/models/
+gold/macros/
+gold/tests/
 gold/target/
 gold/logs/
 gold/.user.yml
@@ -32,3 +38,4 @@ artifacts/
 
 # Local tooling
 .nwave/
+.wheels/
