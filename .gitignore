@@ -29,3 +29,6 @@ gold/.user.yml
 
 # Emitted by platform/pbip.py — a build output, not a source.
 artifacts/
+
+# Local tooling
+.nwave/
