@@ -15,6 +15,10 @@ will break** — the "enforced by" column is the honest part of this document, a
 
 | | |
 |---|---|
+| **Rule** | Bronze/silver Spark logic and gold dbt SQL are the **data product**. They live in `contoso-data-product` and are consumed here, not restated. Dialect leaks (`cast(0 as bit)`) go through dbt macros. |
+| **Why** | A second copy of `fct_sales.sql` for Databricks is how the "no DE code change" claim dies. |
+| **Enforced by** | `test_gold_sql_is_portable` |
+
 | **Rule** | Every difference between the emulator and real Fabric lives in `platform/target.py`, selected by `FABRIC_TARGET=emulator\|real`. Nowhere else. |
 | **Why** | A localhost URL or a seeded credential anywhere else is a workaround that ships to production — and the emulator goes on passing, so nothing reveals it. |
 | **Enforced by** | `test_the_emulator_appears_only_in_the_target_resolver` |

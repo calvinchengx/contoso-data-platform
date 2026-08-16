@@ -1,7 +1,7 @@
-# Contoso Data Platform
+# Contoso Fabric Platform
 
-[![CI](https://github.com/calvinchengx/contoso-data-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/calvinchengx/contoso-data-platform/actions/workflows/ci.yml)
-[![Acceptance](https://github.com/calvinchengx/contoso-data-platform/actions/workflows/acceptance.yml/badge.svg)](https://github.com/calvinchengx/contoso-data-platform/actions/workflows/acceptance.yml)
+[![CI](https://github.com/calvinchengx/contoso-fabric-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/calvinchengx/contoso-fabric-platform/actions/workflows/ci.yml)
+[![Acceptance](https://github.com/calvinchengx/contoso-fabric-platform/actions/workflows/acceptance.yml/badge.svg)](https://github.com/calvinchengx/contoso-fabric-platform/actions/workflows/acceptance.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 A complete analytics platform built on [`fabric-emulator`](https://github.com/calvinchengx/fabric-emulator) —
@@ -29,8 +29,8 @@ this repository is a *consumer*. It has no access to the emulator's source, so
 anything that works here works for anyone.
 
 ```sh
-git clone https://github.com/calvinchengx/contoso-data-platform
-cd contoso-data-platform
+git clone https://github.com/calvinchengx/contoso-fabric-platform
+cd contoso-fabric-platform
 make doctor      # what is ready, and what is not
 make fixtures    # install the generators published by the pinned release
 make sources     # materialise the bytes the vendor APIs serve

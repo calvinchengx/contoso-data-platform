@@ -6,8 +6,8 @@ version: 2
 # real Fabric works too.
 sources:
   - name: silver
-    database: "{{ env_var('LAKEHOUSE_ID') }}"
-    schema: dbo
+    database: "{{ env_var('CONTOSO_SILVER_DATABASE', env_var('LAKEHOUSE_ID')) }}"
+    schema: "{{ env_var('CONTOSO_SILVER_SCHEMA', 'dbo') }}"
     tables:
       - name: silver_customers
       - name: silver_orders

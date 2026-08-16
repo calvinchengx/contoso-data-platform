@@ -162,7 +162,7 @@ wheels = [
 ]
 
 [[package]]
-name = "contoso-data-platform"
+name = "contoso-fabric-platform"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

@@ -3,6 +3,7 @@ version: "1.0.0"
 config-version: 2
 profile: contoso_gold
 model-paths: ["models"]
+macro-paths: ["macros"]
 test-paths: ["tests"]
 
 # dbt-fabric's own `table` materialization, unmodified. It emits Fabric/Synapse

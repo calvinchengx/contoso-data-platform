@@ -28,7 +28,7 @@ from fabric import T, log, server_cert_pem, token
 from semantic_model import DAX, PBI_AUD
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-IMAGE = "contoso-data-platform-xmla"
+IMAGE = "contoso-fabric-platform-xmla"
 
 RAN, NO_SURFACE = 0, 3
 
