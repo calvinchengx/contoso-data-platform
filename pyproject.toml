@@ -7,6 +7,7 @@ version = "0.1.0"
 description = "A complete analytics platform on a released fabric-emulator"
 requires-python = ">=3.12"
 dependencies = [
+    "contoso-data-product",
     "requests>=2.32,<3",
     # The ERP source is a real Postgres, and its change stream is real Kafka.
     "psycopg[binary]>=3.2,<4",
@@ -37,6 +38,18 @@ dev = ["pytest>=9.0.3,<10", "ruff>=0.14,<0.15", "ty>=0.0.1a1"]
 
 [tool.uv]
 package = false
+
+[tool.uv.sources]
+# THE DATA PRODUCT, from its published release. bronze/silver Spark logic and
+# the gold dbt project live in `contoso-data-product` and are consumed here,
+# not restated: two copies of `fct_sales.sql` agree until the day one of them
+# is fixed. They had already diverged before this arrived, which is what the
+# rule was written to stop.
+#
+# A release rather than a path, for the same reason the emulator itself is a
+# published image: a consumer that reads a sibling's source tree is not
+# consuming anything anyone else can obtain.
+contoso-data-product = { url = "https://github.com/calvinchengx/contoso-data-product/releases/download/v0.1.0/contoso_data_product-0.1.0-py3-none-any.whl" }
 
 # Astral's toolchain throughout: uv resolves, ruff lints and formats, ty checks
 # types. One vendor, one config file, and every contributor gets the same

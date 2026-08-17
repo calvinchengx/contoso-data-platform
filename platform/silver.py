@@ -65,7 +65,16 @@ def main() -> int:
     ws, lake = st["workspace"], st["lakehouse"]
 
     notebook = notebookjob.publish(
-        tok, ws, NOTEBOOK, notebookjob.content(NOTEBOOK, WORKSPACE=ws, LAKEHOUSE=lake)
+        tok,
+        ws,
+        NOTEBOOK,
+        notebookjob.content(
+            NOTEBOOK,
+            WORKSPACE=ws,
+            LAKEHOUSE=lake,
+            # The Environment that puts contoso_product on the engine.
+            ENVIRONMENT=st["environment"],
+        ),
     )
 
     job = notebookjob.submit(tok, ws, notebook)

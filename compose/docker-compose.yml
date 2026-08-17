@@ -140,6 +140,25 @@ services:
     image: ghcr.io/calvinchengx/fabric-emulator-spark-agent:${SPARK_AGENT_VERSION:?see versions.env}
     depends_on:
       sail: {condition: service_started}
+    volumes:
+      # THE DATA PRODUCT, ON THE ENGINE. bronze and silver import
+      # `contoso_product`, and they run here, not in the client. The notebooks
+      # declare a Fabric **Environment** (see platform/environment.py), which is
+      # what real Fabric resolves and what this platform models.
+      #
+      # The emulator does not apply it on this path. Its ledger is precise about
+      # the split: an Environment is "applied to the session" for Livy sessions
+      # and Spark Job Definitions, while notebook cell execution "resolves
+      # attached lakehouse/Environment METADATA". A RunNotebook job parses the
+      # binding and never hands it to the agent, so the import would fail with
+      # ModuleNotFoundError, measured rather than assumed.
+      #
+      # `/opt/wheels` is the emulator's own documented fallback for exactly this:
+      # the agent installs whatever is bind-mounted there at startup. Staged by
+      # scripts/compose.py before every `up`. The notebooks are unchanged by it,
+      # so this is a difference in the local STACK and not in the platform's
+      # code, and against real Fabric the Environment alone does the job.
+      - ../.wheels:/opt/wheels:ro
     environment:
       SPARK_REMOTE: "sc://sail:50051"   # a Spark Connect client of sail; no JVM
       # delta-rs reaches OneLake on its own account: a Connect client cannot

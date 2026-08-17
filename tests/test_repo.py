@@ -223,6 +223,19 @@ def test_the_emulator_appears_only_in_the_target_resolver():
     )
 
 
+def gold_root():
+    """The product's dbt project, as installed.
+
+    `gold/models` is no longer in this repository: it belongs to
+    `contoso-data-product` and `platform/gold.py` stages it on every run. These
+    assertions are about the SQL this platform executes, so they read it where
+    it actually comes from rather than from a copy that could disagree.
+    """
+    from contoso_product import gold_dir
+
+    return gold_dir()
+
+
 def real_branch() -> str:
     """The real target's arm of the resolver, as source.
 
@@ -399,7 +412,13 @@ def test_the_transforms_are_engine_side():
     ]
     for name in transforms:
         src = (ROOT / "platform" / name).read_text(encoding="utf-8")
-        assert "spark.read" in src, f"{name} does not read through the engine"
+        # THE AMBIENT SESSION, HANDED TO THE PRODUCT. The reads themselves are
+        # `contoso_product`'s now, so what this file must show is that it passes
+        # the session Fabric bound rather than making one, and that the engine
+        # is what touches the data.
+        assert "spark," in src or "spark, " in src or "(spark" in src, (
+            f"{name} does not hand the ambient session to the product"
+        )
         assert not builds_a_session(src), (
             f"{name} builds its own session — inside a notebook `spark` is "
             f"ambient, and a second session ignores the bound lakehouse"
@@ -877,8 +896,21 @@ def test_notebook_lineage_is_observed_not_declared():
         / "silver-conform.Notebook"
         / "notebook-content.py"
     ).read_text(encoding="utf-8")
-    assert 'LINEAGE.append(("read"' in nb, "the notebook does not record reads"
-    assert 'LINEAGE.append(("write"' in nb, "the notebook does not record writes"
+    # THE OBSERVATION MOVED, THE RULE DID NOT. The transform now lives in
+    # `contoso-data-product`, so the IO helpers that record each movement live
+    # there too. Asserted against the installed package, because that is the
+    # code that runs.
+    from contoso_product import silver as product_silver
+
+    src_product = pathlib.Path(product_silver.__file__).read_text(encoding="utf-8")
+    assert 'lineage.append(("read"' in src_product, (
+        "the product's silver does not record reads"
+    )
+    assert 'lineage.append(("write"' in src_product, (
+        "the product's silver does not record writes"
+    )
+    # And the notebook must still hand the result on rather than inventing one.
+    assert "run_silver(" in nb, "the notebook no longer calls the product"
 
     # Per-cell attribution is now the EMULATOR's job — it watches its own data
     # plane and tags each access with the cell that made it. What this platform
@@ -1456,7 +1488,7 @@ def test_no_table_with_a_nested_column_is_read_over_tds():
         re.findall(r'\(\s*"warehouse",\s*"(\w+)"', govern[start:end])
     )
 
-    sources = (ROOT / "gold" / "models" / "sources.yml").read_text(encoding="utf-8")
+    sources = (gold_root() / "models" / "sources.yml").read_text(encoding="utf-8")
     dbt_sources = set(re.findall(r"^\s+- name: (\w+)$", sources, re.M))
 
     # Declared in web_schema.py as a map, which is how that module says "array
@@ -1567,10 +1599,10 @@ def test_gold_sql_is_portable():
     """T-SQL BIT must not appear in gold models. The flag() macro is the
     dialect adapter; restating `cast(0 as bit)` is how the Databricks
     consumer would need a second copy of the product."""
-    sales = (ROOT / "gold" / "models" / "fct_sales.sql").read_text(encoding="utf-8")
+    sales = (gold_root() / "models" / "fct_sales.sql").read_text(encoding="utf-8")
     assert "as bit" not in sales.lower()
     assert "{{ flag(" in sales
-    assert (ROOT / "gold" / "macros" / "flag.sql").is_file()
+    assert (gold_root() / "macros" / "flag.sql").is_file()
 
 
 def test_openmetadata_url_is_env():
@@ -1579,3 +1611,43 @@ def test_openmetadata_url_is_env():
     src = (ROOT / "platform" / "govern.py").read_text(encoding="utf-8")
     assert 'os.environ.get("OM_URL"' in src
     assert 'OM = "http://localhost:8585' not in src
+
+
+def test_the_product_is_imported_not_restated():
+    """The transforms and gold SQL come from the package, never from a copy.
+
+    THIS RULE WAS UNENFORCED AND ALREADY BROKEN. RULES.md named
+    `test_gold_sql_is_portable`, which asserts that gold SQL avoids T-SQL `bit`.
+    True, useful, and about something else: it passed happily against a
+    checked-in fork of all nine models. The fork drifted from the package and
+    nothing noticed, which is the exact failure the product split exists to
+    prevent.
+
+    So this checks the thing the rule actually says.
+    """
+    for step, symbol in (("bronze", "run_bronze"), ("silver", "run_silver")):
+        nb = (
+            ROOT
+            / "platform"
+            / "definitions"
+            / f"{'bronze-ingest' if step == 'bronze' else 'silver-conform'}.Notebook"
+            / "notebook-content.py"
+        ).read_text(encoding="utf-8")
+        assert f"from contoso_product import {symbol}" in nb, (
+            f"the {step} notebook does not import the product"
+        )
+
+    gold = (ROOT / "platform" / "gold.py").read_text(encoding="utf-8")
+    assert "from contoso_product import gold_dir" in gold, (
+        "gold.py does not take its dbt project from the product"
+    )
+
+    # And no copy may come back. `gold/models` is staged from the package on
+    # every run and gitignored; a tracked one is the fork returning.
+    tracked = subprocess.run(
+        ["git", "ls-files", "gold/models", "gold/macros", "gold/tests"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    ).stdout.split()
+    assert not tracked, f"the gold fork is tracked again: {tracked}"

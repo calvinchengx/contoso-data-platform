@@ -20,9 +20,11 @@ from __future__ import annotations
 
 import os
 import pathlib
+import shutil
 import subprocess
 
 import state
+from contoso_product import gold_dir
 from fabric import FABRIC_AUD, ensure_audience, fabric, log, token
 from provision import find_item
 
@@ -84,10 +86,35 @@ def in_dbt_container(*args: str) -> int:
     ).returncode
 
 
+def stage_the_product() -> None:
+    """Copy the product's dbt project into `gold/`, where the container mounts it.
+
+    THE MODEL GRAPH IS THE PRODUCT'S, THE MATERIALIZATION IS OURS. `gold/` keeps
+    this platform's own `dbt_project.yml` and `profiles.yml`, because dbt-fabric's
+    CTAS and an Entra-token connection are Fabric's business and not the
+    product's. `models/`, `macros/` and `tests/` arrive from the installed
+    package on every run. They are gitignored, so a local edit has nowhere to
+    hide.
+
+    This replaces a checked-in copy of all 18 files, which had already drifted:
+    the product gained `cast(x as int) = 1` so its boolean comparisons run on
+    Spark SQL as well as T-SQL, and the copy here never got it.
+    """
+    product = gold_dir()
+    for name in ("models", "macros", "tests"):
+        dest = ROOT / "gold" / name
+        if dest.exists():
+            shutil.rmtree(dest)
+        shutil.copytree(product / name, dest)
+    models = sorted(p.name for p in (ROOT / "gold" / "models").glob("*.sql"))
+    log(f"staged the product's gold project: {len(models)} models from {product}")
+
+
 def main() -> int:
     st = state.load()
     tok = token(FABRIC_AUD)
     ensure_audience(SQL_AUD, "Azure SQL")
+    stage_the_product()
 
     wh = find_item(tok, st["workspace"], WAREHOUSE, "Warehouse")
     if wh is None:
