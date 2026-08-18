@@ -18,9 +18,9 @@ import release_info as rel
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FILES = [
     "compose/docker-compose.yml",
-    "compose/sources.yml",
     "compose/governance.yml",
 ]
+BUILD = ROOT / "compose" / ".generated"
 
 # TERMINAL=1 films the run inside the portal's own terminal pane rather than
 # beside a separately launched ttyd. Opt-in because it points the emulator at a
@@ -31,6 +31,57 @@ if os.environ.get("TERMINAL") == "1":
 
 
 WHEELS = ROOT / ".wheels"
+
+
+def sources_dir() -> pathlib.Path:
+    """The contoso-sources checkout this stack pulls its vendors from.
+
+    A SIBLING PATH, and the one place in this repository where that is right:
+    the vendors are not a dependency of this platform, they are the world
+    outside it, mounted into containers as bytes rather than imported as code.
+    Overridable, because pointing this at real vendors is what production does.
+    """
+    return pathlib.Path(os.environ.get("SOURCES", ROOT.parent / "contoso-sources")).resolve()
+
+
+def vendor_fragment() -> pathlib.Path:
+    """Generate the vendor compose fragment from the sources declaration.
+
+    Generated rather than checked in, so this repository cannot hold a stale
+    copy of another repository's vendor list -- which is exactly what it did
+    hold until now: eight tracked definition files, byte-identical to
+    contoso-sources', agreeing by accident of history rather than by structure.
+    """
+    src = sources_dir()
+    decl = src / "sources.yaml"
+    if not decl.exists():
+        sys.exit(
+            f"no vendor declaration at {decl}.\n\n"
+            f"This platform pulls from the vendors contoso-sources declares --\n"
+            f"the same ones every other cell pulls from, which is what makes\n"
+            f"their gold numbers comparable. Clone it beside this repository,\n"
+            f"or set SOURCES=/path/to/contoso-sources."
+        )
+    # The BYTES, not just the declaration. Without `make sources` over there the
+    # vendors still START -- mokapi falls back to generating bodies from the
+    # OpenAPI schema -- and every step would land invented data that looks
+    # entirely plausible until the numbers are compared.
+    data = src / "_data"
+    if not data.is_dir() or not any(data.iterdir()):
+        sys.exit(
+            f"{data} is empty -- the vendors have no bytes to serve.\n\n"
+            f"Run `make sources` in {src} first."
+        )
+    BUILD.mkdir(parents=True, exist_ok=True)
+    out = BUILD / "sources.json"
+    out.write_text(
+        subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "sources.py"), str(decl), str(src)],
+            check=True, capture_output=True, text=True,
+        ).stdout,
+        encoding="utf-8",
+    )
+    return out
 
 
 def stage_product_wheel() -> None:
@@ -96,6 +147,9 @@ def main():
     ]
     for f in FILES:
         cmd += ["-f", f]
+    # The vendors come last, generated from contoso-sources at every invocation
+    # so a vendor added over there is stood up here without an edit.
+    cmd += ["-f", str(vendor_fragment().relative_to(ROOT))]
     cmd += args
     print("$", " ".join(cmd), f"   (fabric-emulator {rel.version()})")
     return subprocess.run(cmd, cwd=ROOT, env=env).returncode

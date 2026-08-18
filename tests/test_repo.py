@@ -41,19 +41,25 @@ def _pins():
 
 
 def test_every_image_is_pinned_to_a_version():
-    """All THREE emulator images plus mokapi.
+    """All THREE emulator images.
 
     The family ships on independent cadences, so fabric-emulator, entra and
     keyvault sit on different version lines and one pin cannot describe the
     stack. Assuming it could is how this repo first failed to start: `manifest
     unknown`, because 0.13.0 existed for one image and not the others.
+
+    MOKAPI IS NO LONGER HERE, and that is the point rather than an omission.
+    The simulator is part of what "the vendor" means, so it is pinned by
+    `contoso-sources` alongside the specs it serves — two consumers on
+    different mokapis are not pulling from the same vendor even if the specs
+    match. `scripts/sources.py` reads that repo's versions.env and refuses to
+    guess a version it does not find there.
     """
     pins = _pins()
     expected = {
         "FABRIC_EMULATOR_VERSION",
         "ENTRA_EMULATOR_VERSION",
         "KEYVAULT_EMULATOR_VERSION",
-        "MOKAPI_VERSION",
     }
     assert expected <= set(pins), expected - set(pins)
     # The invariant is IMMUTABLE, not a particular shape. Upstream projects
@@ -627,7 +633,6 @@ def test_set_release_moves_every_version_the_emulator_tags():
     independent = (
         "ENTRA_EMULATOR_VERSION",
         "KEYVAULT_EMULATOR_VERSION",
-        "MOKAPI_VERSION",
     )
     for key in independent:
         b = re.search(rf"^{key}=(.+)$", text, re.M)

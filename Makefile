@@ -36,6 +36,12 @@
 # keeps a step from reconciling the environment out from under them.
 
 .DEFAULT_GOAL := help
+# THE VENDORS LIVE IN THEIR OWN REPOSITORY. This platform used to carry a copy
+# of them; it now mounts contoso-sources' and generates its compose fragment
+# from that repo's declaration, so every cell in the family pulls the same
+# bytes -- which is the only reason their gold numbers are comparable.
+SOURCES ?= ../contoso-sources
+
 .PHONY: help doctor fixtures sources up down config lint fmt capture demo govern verify reconcile snapshot test test-fixtures clean
 
 help:  ## Show the targets
@@ -47,8 +53,8 @@ doctor:  ## Check prerequisites and report what is and is not ready
 fixtures:  ## Install the seeded generators published by the pinned release
 	@uv run --no-project python scripts/fixtures.py
 
-sources:  ## Materialise the vendor exports the source APIs serve
-	@uv run --frozen --no-sync python scripts/materialise_sources.py
+sources:  ## Materialise the vendor exports, in the repo that owns them
+	@$(MAKE) -C $(SOURCES) sources
 
 up:  ## Start the emulator family and the source systems
 	@uv run --no-project python scripts/compose.py up -d

@@ -8,6 +8,7 @@ so "green" is a statement rather than the absence of a complaint.
 import platform
 import shutil
 import subprocess
+import pathlib
 import sys
 
 import release_info as rel
@@ -65,6 +66,26 @@ def main():
         rows.append(
             ("fixture wheels", PEND, f"not published for {v} — {', '.join(missing)}")
         )
+
+    # THE VENDORS ARE NOT OPTIONAL, and their absence does not announce itself.
+    # Without contoso-sources materialised, mokapi still starts and still
+    # answers 200 -- it generates bodies from the OpenAPI schema instead of
+    # serving the fixture. The pipeline would then land invented data, build a
+    # green medallion on it, and publish numbers that agree with nothing.
+    import os
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    src = pathlib.Path(os.environ.get("SOURCES", root.parent / "contoso-sources"))
+    if not (src / "sources.yaml").exists():
+        rows.append(("vendors", BAD,
+                     f"no declaration at {src / 'sources.yaml'} — clone "
+                     f"calvinchengx/contoso-sources beside this repo, or set SOURCES="))
+    elif not (src / "_data").is_dir() or not any((src / "_data").iterdir()):
+        rows.append(("vendors", BAD,
+                     f"{src / '_data'} is empty — run `make sources` "
+                     f"(it delegates to that repo)"))
+    else:
+        rows.append(("vendors", OK, f"declared and materialised at {src}"))
 
     width = max(len(r[0]) for r in rows)
     for name, status, detail in rows:

@@ -145,11 +145,11 @@ will break** — the "enforced by" column is the honest part of this document, a
 |---|---|
 | **Rule** | Source systems are real infrastructure — mokapi over HTTP, Postgres + Debezium + Redpanda for CDC — never in-process function calls. |
 | **Why** | Calling a generator in-process makes lineage start at a landed file, and the vendor is never a node. It also skips auth, transport and failure entirely. |
-| **Enforced by** | `test_every_spec_has_a_serve_script`, `test_every_operation_requires_a_key` |
+| **Enforced by** | `contoso-sources`' own suite — `contoso-sources: test_every_spec_has_a_serve_script`, `contoso-sources: test_every_operation_requires_a_key`. The vendors moved to the repository that owns them, and their invariants went with them: a test asserting what a vendor does protects nothing if it only runs beside one consumer's copy. |
 
 | | |
 |---|---|
-| **Rule** | Each source system gets its **own** mokapi instance, mounted only its own spec and its own bytes. Never one instance serving several vendors. |
+| **Rule** | Each source system gets its **own** mokapi instance, mounted only its own spec and its own bytes. Never one instance serving several vendors. The stack is **generated** from `contoso-sources/sources.yaml`; this repository carries no vendor of its own. |
 | **Why** | Separate companies are separate processes. Sharing one makes a single vendor's outage everyone's outage, puts every payload under one memory ceiling — the shape that let a 170 MB body OOM-kill the container — and hands each vendor every other one's export to serve by a path typo. |
 | **Enforced by** | `test_one_mokapi_instance_per_source` |
 

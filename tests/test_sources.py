@@ -1,57 +1,45 @@
-"""Invariants for the source systems.
+"""Platform-side invariants for the vendor stack.
 
-These are static checks on the specs and scripts — no Docker, no network — so
-they run on all three platforms in CI from day one.
+THE VENDORS THEMSELVES ARE NOT HERE. Their specs, serve scripts and the
+invariants about what they send moved to `contoso-sources`, which owns them;
+this repository used to carry a byte-identical copy and so tested a duplicate.
+What remains is what is genuinely this platform's: that the stack it GENERATES
+from that declaration gives every vendor its own instance and its own mounts,
+and that this platform's own parsing DDL still matches what the vendor
+publishes.
 """
 
+import json
 import pathlib
-import re
+import subprocess
 import sys
 
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SOURCES = ROOT / "sources"
+SOURCES = pathlib.Path(
+    __import__("os").environ.get("SOURCES", ROOT.parent / "contoso-sources")
+).resolve()
 SPECS = sorted(SOURCES.glob("*/openapi.yaml"))
 
-sys.path.insert(0, str(ROOT / "scripts"))
-from materialise_sources import paginate  # noqa: E402
+pytestmark = pytest.mark.skipif(
+    not SPECS,
+    reason=(
+        "contoso-sources is not beside this repository. These tests read the "
+        "vendor declaration this platform generates its stack from; set "
+        "SOURCES=/path/to/contoso-sources."
+    ),
+)
 
 
-def test_there_is_at_least_one_source():
-    assert SPECS, "no source specs found"
-
-
-def test_every_spec_has_a_serve_script():
-    """A spec without a script is a spec mokapi GENERATES bodies for.
-
-    Measured against mokapi v0.50.0: schema generation is random per request and
-    random in shape — optional properties are dropped per row — so a generated
-    body cannot back an exact-count assertion. Every source must serve bytes
-    from the seeded generators instead.
-    """
-    missing = [s.parent.name for s in SPECS if not (s.parent / "serve.js").exists()]
-    assert not missing, f"these sources would serve generated data: {missing}"
-
-
-def test_serve_scripts_read_files_rather_than_inventing_bodies():
-    for spec in SPECS:
-        js = (spec.parent / "serve.js").read_text(encoding="utf-8")
-        assert "mokapi/file" in js, f"{spec.parent.name}: serves no file"
-        assert "faker" not in js, f"{spec.parent.name}: fabricates data"
-
-
-def test_every_operation_requires_a_key():
-    """The extract steps assert that a wrong key is refused. That assertion is
-    only meaningful if the API actually demands one."""
-    for spec in SPECS:
-        text = spec.read_text(encoding="utf-8")
-        assert "securitySchemes" in text, f"{spec.parent.name}: no auth declared"
-        ops = len(re.findall(r"^\s{6}operationId:", text, re.M))
-        secured = len(re.findall(r"^\s{6}security:", text, re.M))
-        assert ops == secured, (
-            f"{spec.parent.name}: {ops} operations, {secured} declare security"
-        )
+def generated_fragment() -> dict:
+    """The vendor compose fragment, generated the way `make up` generates it."""
+    out = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "sources.py"),
+         str(SOURCES / "sources.yaml"), str(SOURCES)],
+        check=True, capture_output=True, text=True,
+    ).stdout
+    return json.loads(out)
 
 
 def test_one_mokapi_instance_per_source():
@@ -63,113 +51,30 @@ def test_one_mokapi_instance_per_source():
     the only way those three stay false, so the split is checked rather than
     left to whoever edits the compose file next.
     """
-    compose = (ROOT / "compose" / "sources.yml").read_text(encoding="utf-8")
+    frag = generated_fragment()
+    services = frag["services"]
     for spec in SPECS:
         vendor = spec.parent.name
-        short = vendor.removeprefix("contoso-")
-        service = f"mokapi-{short}"
-        assert re.search(rf"^  {re.escape(service)}:$", compose, re.M), (
-            f"{vendor} has no mokapi instance of its own — expected a "
-            f"`{service}:` service in compose/sources.yml"
+        assert vendor in services, (
+            f"{vendor} has no mokapi instance of its own in the generated "
+            f"fragment — expected a `{vendor}:` service"
         )
-        # Mounted its own directories, NOT the whole sources tree.
-        assert f"../sources/{vendor}:" in compose, f"{vendor}: spec not mounted"
-        assert f"../sources/_data/{vendor}:" in compose, f"{vendor}: data not mounted"
-    assert "\n  mokapi:" not in compose, (
+        mounts = services[vendor].get("volumes", [])
+        # Mounted its own directories, NOT the whole sources tree. A vendor
+        # handed the whole tree can serve another vendor's export by a path typo.
+        assert any(f"/sources/{vendor}:" in m for m in mounts), (
+            f"{vendor}: spec directory not mounted, or mounted too broadly")
+        assert any(f"/sources/_data/{vendor}:" in m for m in mounts), (
+            f"{vendor}: data directory not mounted")
+        assert not any(m.rstrip(":ro").endswith("/sources") for m in mounts), (
+            f"{vendor}: the whole sources tree is mounted")
+    assert "mokapi" not in services, (
         "a shared `mokapi` service is back — every vendor gets its own instance"
     )
     # Ports are per vendor, so two instances cannot silently collide.
-    published = re.findall(r'^\s+- "\$\{(\w+):-(\d+)\}:', compose, re.M)
-    ports = [p for _, p in published]
-    assert len(ports) == len(set(ports)), f"two services publish one port: {ports}"
-
-
-def test_pages_reassemble_into_exactly_the_original_bytes():
-    """Paging that loses or duplicates a row is worse than not paging.
-
-    The whole export must be recoverable from its parts, byte for byte, or
-    every count downstream is measuring a different dataset than the vendor
-    sent — and would still look self-consistent while doing it.
-    """
-    body = b"".join(b'{"id":%d}\n' % i for i in range(50_000))
-    pages = paginate(body, keep_header=False, page_bytes=64_000)
-    assert len(pages) > 1, "the sample did not split, so nothing was tested"
-    assert b"".join(pages) == body
-
-
-def test_every_csv_page_repeats_the_header():
-    """Each part has to be independently readable.
-
-    Spark reads the landed directory with `header=True`. A part missing the
-    header turns its first record into column names — silently, since the
-    result is still a dataframe.
-    """
-    header = b"customer_id,name,country\n"
-    rows = [b"c%d,Name %d,US\n" % (i, i) for i in range(50_000)]
-    pages = paginate(header + b"".join(rows), keep_header=True, page_bytes=64_000)
-    assert len(pages) > 1, "the sample did not split, so nothing was tested"
-    for i, page in enumerate(pages):
-        assert page.startswith(header), f"page {i + 1} has no header row"
-    rebuilt = header + b"".join(p[len(header) :] for p in pages)
-    assert rebuilt == header + b"".join(rows)
-
-
-def test_paging_never_splits_a_record():
-    sample = b"".join(b'{"id":%d}\n' % i for i in range(50_000))
-    for page in paginate(sample, False, page_bytes=64_000):
-        assert page.endswith(b"\n"), "a page ends mid-record"
-        for line in page.splitlines():
-            assert line.startswith(b'{"id":') and line.endswith(b"}"), line[:40]
-
-
-def test_paged_operations_declare_their_paging():
-    """The spec is what OpenMetadata ingests and what a client reads.
-
-    An endpoint that pages without saying so leaves every caller to discover it
-    by getting a partial answer that looks complete.
-
-    WHETHER A VENDOR PAGES is decided by the `page` PARAMETER, not by the word
-    appearing somewhere in the file. Contoso Reference does not page and says so
-    in prose — it serves a Parquet file that cannot be split on line boundaries
-    — and matching on the bare word marked it as a paging vendor missing its
-    headers. The check runs both ways so neither half can be declared alone.
-    """
-    for spec in SPECS:
-        text = spec.read_text(encoding="utf-8")
-        declares_param = bool(re.search(r"^\s+name: page$", text, re.M))
-        headers = [f for f in ("X-Total-Pages", "X-Page") if f in text]
-        if not declares_param and not headers:
-            continue
-        assert declares_param, (
-            f"{spec.parent.name}: advertises {headers} but declares no `page` "
-            f"parameter, so a caller cannot ask for the rest"
-        )
-        for field in ("X-Total-Pages", "X-Page"):
-            assert field in text, f"{spec.parent.name}: pages but no {field} header"
-
-
-def test_serve_scripts_do_not_hardcode_a_page_count():
-    """The page count belongs to the data, not to the handler.
-
-    `make sources` decides how many pages there are. A number in the script is
-    a second source of truth that goes stale the moment the page size moves,
-    and the API would then advertise a count the directory cannot serve.
-    """
-    for spec in SPECS:
-        js = spec.parent / "serve.js"
-        if "X-Total-Pages" not in js.read_text(encoding="utf-8"):
-            continue
-        assert "pages.txt" in js.read_text(encoding="utf-8"), (
-            f"{spec.parent.name}: page count is not read from the data"
-        )
-
-
-def test_specs_are_pinned_to_no_host_we_do_not_control():
-    for spec in SPECS:
-        for url in re.findall(
-            r"^\s*- url:\s*(\S+)", spec.read_text(encoding="utf-8"), re.M
-        ):
-            assert "localhost" in url, f"{spec.parent.name}: points at {url}"
+    published = [p.split(":")[0] for s in services.values() for p in s.get("ports", [])]
+    assert len(published) == len(set(published)), (
+        f"two services publish the same host port: {published}")
 
 
 def test_the_web_bronze_schema_matches_the_vendors_published_spec():
@@ -231,78 +136,3 @@ def test_the_web_bronze_schema_keeps_every_leaf_a_string():
             assert kind == "string", f"{name} is declared {kind}, not string"
 
 
-def test_the_reference_vendor_serves_binary_through_the_only_path_that_survives():
-    """Parquet must go out on `response.data` as raw bytes, never `response.body`.
-
-    THE FAILURE THIS PREVENTS IS SILENT. mokapi's text path takes a Go string
-    into goja, which decodes it as UTF-8 and replaces every invalid sequence —
-    so binary comes back mangled with a 200 attached. Measured against these
-    exact files: fx_rates.parquet goes 2,268 bytes -> 3,301, a 46% inflation,
-    with the `PAR1` magic AND the `PAR1` footer both still in place. Nothing
-    downstream of a boundary check would notice.
-
-    Only `response.data` holding a byte slice is passed through unmarshalled
-    (providers/openapi/handler.go), and only `open(path, {as: 'binary'})`
-    produces one — `read()` from 'mokapi/file' is the lossy path.
-    """
-    serve = (SOURCES / "contoso-reference" / "serve.js").read_text(encoding="utf-8")
-    assert "{ as: 'binary' }" in serve or '{as: "binary"}' in serve, (
-        "contoso-reference must open its Parquet with {as: 'binary'}; "
-        "read() decodes bytes as UTF-8 and corrupts them"
-    )
-    # The parquet must not be handed to `response.body` under any spelling.
-    body_assignments = re.findall(r"response\.body\s*=\s*(.+)", serve)
-    assert not body_assignments, (
-        f"contoso-reference assigns response.body ({body_assignments}) — that "
-        f"path is a Go string and cannot carry Parquet without corrupting it"
-    )
-
-
-@pytest.mark.fixtures
-def test_the_reference_spec_documents_the_columns_the_vendor_actually_sends():
-    """The spec's schemas must match the Parquet the generator produces.
-
-    These bodies are binary, so the schemas document COLUMNS rather than being
-    marshalled into a response — which makes them the sort of documentation
-    that rots unwatched. OpenMetadata surfaces them as the vendor's schema, and
-    gold's rollup is written against these names, so a generator that renamed a
-    column would leave the spec describing a table nobody serves.
-    """
-    import yaml
-
-    spec = yaml.safe_load(
-        (SOURCES / "contoso-reference" / "openapi.yaml").read_text(encoding="utf-8")
-    )
-    schemas = spec["components"]["schemas"]
-
-    import reference_data as ref
-
-    fx, hierarchy, _ = ref._built()
-    for component, rows in (("FxRate", fx), ("ProductHierarchy", hierarchy)):
-        published = set(schemas[component]["properties"])
-        actual = set(rows[0])
-        assert published == actual, (
-            f"{component}: the spec documents {sorted(published)} but the "
-            f"vendor sends {sorted(actual)}"
-        )
-
-
-@pytest.mark.fixtures
-def test_reference_data_is_small_enough_to_serve_whole():
-    """This vendor does not page, and Parquet cannot be paged.
-
-    The line splitter would not refuse a Parquet file — it would return it
-    intact today, because joining split lines reconstructs the bytes, and start
-    corrupting it the day the export crosses PAGE_BYTES. A binary format with a
-    footer has no line boundaries to split on. So the assumption that it fits
-    in one response is checked here rather than left to hold by luck.
-    """
-    import reference_data as ref
-    from materialise_sources import PAGE_BYTES
-
-    for name, blob in ref.export(ref.API_KEY).items():
-        assert blob[:4] == b"PAR1" and blob[-4:] == b"PAR1", name
-        assert len(blob) <= PAGE_BYTES, (
-            f"{name} is {len(blob):,} bytes, past the {PAGE_BYTES:,} served "
-            f"whole — Parquet cannot be paged, so this needs a real answer"
-        )

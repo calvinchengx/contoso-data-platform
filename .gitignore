@@ -39,3 +39,6 @@ artifacts/
 # Local tooling
 .nwave/
 .wheels/
+
+# Generated from contoso-sources at `make up` -- never edited, never committed.
+compose/.generated/
