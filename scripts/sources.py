@@ -23,6 +23,7 @@ Emits a compose fragment on stdout rather than starting anything, so the
 services join the same project, network and lifecycle as the rest of the stack
 and `make down` really does take everything with it.
 """
+
 from __future__ import annotations
 
 import json
@@ -55,7 +56,11 @@ def _load(path: pathlib.Path) -> dict:
     current: dict | None = None
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.split("#", 1)[0].rstrip()
-        if not line.strip() or line.strip() in ("vendors:",) or line.startswith("version:"):
+        if (
+            not line.strip()
+            or line.strip() in ("vendors:",)
+            or line.startswith("version:")
+        ):
             continue
         stripped = line.strip()
         if stripped.startswith("- "):
@@ -83,15 +88,19 @@ def fragment(decl: dict, sources_dir: str, pins: dict) -> dict:
                 raise SystemExit(
                     f"platform: vendor {v['name']!r} has no host port assigned in "
                     f"scripts/sources.py. Add one rather than letting compose pick, "
-                    f"or two stacks will fight over it.")
+                    f"or two stacks will fight over it."
+                )
             svc = {
                 "image": f"mokapi/mokapi:{pins['MOKAPI_VERSION']}",
                 # The dashboard keeps every request AND its response body in
                 # memory -- for a 95 MB export that is a 246 MB JSON copy
                 # retained per call, measured. One entry per API is all the
                 # dashboard is used for here.
-                "command": ["--event-store-default-size=1",
-                            f"/sources/{v['spec']}", f"/sources/{v['script']}"],
+                "command": [
+                    "--event-store-default-size=1",
+                    f"/sources/{v['spec']}",
+                    f"/sources/{v['script']}",
+                ],
                 # Go does NOT read the cgroup limit. Without this the runtime
                 # assumes it can grow, the heap climbs past `mem_limit`, and the
                 # container is terminated mid-response.
@@ -118,11 +127,16 @@ def fragment(decl: dict, sources_dir: str, pins: dict) -> dict:
                 # as a row count that is merely plausible. wget exits non-zero
                 # on 401, which is the healthy case -- hence the inverted test.
                 svc["healthcheck"] = {
-                    "test": ["CMD-SHELL",
-                             f"wget -q -O /dev/null "
-                             f"--header='X-Api-Key: definitely-not-the-key' "
-                             f"http://localhost:{v['port']}{health} && exit 1 || exit 0"],
-                    "interval": "10s", "timeout": "5s", "retries": 5}
+                    "test": [
+                        "CMD-SHELL",
+                        f"wget -q -O /dev/null "
+                        f"--header='X-Api-Key: definitely-not-the-key' "
+                        f"http://localhost:{v['port']}{health} && exit 1 || exit 0",
+                    ],
+                    "interval": "10s",
+                    "timeout": "5s",
+                    "retries": 5,
+                }
             services[name] = svc
         elif kind == "cdc":
             # THREE SERVICES, because a change stream needs all three and any
@@ -134,40 +148,70 @@ def fragment(decl: dict, sources_dir: str, pins: dict) -> dict:
                 # logical replication stream at all and Debezium fails at
                 # connector creation with a message naming neither this setting
                 # nor the cause.
-                "command": ["postgres", "-c", "wal_level=logical",
-                            "-c", "max_replication_slots=4", "-c", "max_wal_senders=4"],
-                "environment": {"POSTGRES_USER": v.get("db_user", "contoso"),
-                                "POSTGRES_PASSWORD": v.get("db_password", "contoso-erp-dev"),
-                                "POSTGRES_DB": v.get("db_name", "erp")},
+                "command": [
+                    "postgres",
+                    "-c",
+                    "wal_level=logical",
+                    "-c",
+                    "max_replication_slots=4",
+                    "-c",
+                    "max_wal_senders=4",
+                ],
+                "environment": {
+                    "POSTGRES_USER": v.get("db_user", "contoso"),
+                    "POSTGRES_PASSWORD": v.get("db_password", "contoso-erp-dev"),
+                    "POSTGRES_DB": v.get("db_name", "erp"),
+                },
                 "ports": [f"{ERP_DB_PORT}:5432"],
                 "healthcheck": {
-                    "test": ["CMD-SHELL",
-                             f"pg_isready -U {v.get('db_user','contoso')} "
-                             f"-d {v.get('db_name','erp')}"],
-                    "interval": "5s", "timeout": "3s", "retries": 20},
+                    "test": [
+                        "CMD-SHELL",
+                        f"pg_isready -U {v.get('db_user', 'contoso')} "
+                        f"-d {v.get('db_name', 'erp')}",
+                    ],
+                    "interval": "5s",
+                    "timeout": "3s",
+                    "retries": 20,
+                },
                 "volumes": [f"{sources_dir}:/sources:ro"],
             }
             services[broker] = {
-                "image": f"docker.redpanda.com/redpandadata/redpanda:{pins['REDPANDA_VERSION']}",
+                "image": (
+                    "docker.redpanda.com/redpandadata/redpanda:"
+                    f"{pins['REDPANDA_VERSION']}"
+                ),
                 # TWO LISTENERS. A broker tells clients where to reconnect, so a
                 # single internal advertisement is correct for Debezium and
                 # unusable from the host, which cannot resolve that name. The
                 # failure is librdkafka's `Host resolution failure`, which names
                 # the symptom and not the listener.
-                "command": ["redpanda", "start", "--mode=dev-container", "--smp=1",
-                            f"--kafka-addr=INTERNAL://0.0.0.0:9092,"
-                            f"EXTERNAL://0.0.0.0:{ERP_BROKER_PORT}",
-                            f"--advertise-kafka-addr=INTERNAL://{broker}:9092,"
-                            f"EXTERNAL://localhost:{ERP_BROKER_PORT}"],
+                "command": [
+                    "redpanda",
+                    "start",
+                    "--mode=dev-container",
+                    "--smp=1",
+                    f"--kafka-addr=INTERNAL://0.0.0.0:9092,"
+                    f"EXTERNAL://0.0.0.0:{ERP_BROKER_PORT}",
+                    f"--advertise-kafka-addr=INTERNAL://{broker}:9092,"
+                    f"EXTERNAL://localhost:{ERP_BROKER_PORT}",
+                ],
                 "ports": [f"{ERP_BROKER_PORT}:{ERP_BROKER_PORT}"],
-                "healthcheck": {"test": ["CMD-SHELL",
-                                         "rpk cluster health | grep -q 'Healthy:.*true'"],
-                                "interval": "5s", "timeout": "5s", "retries": 30},
+                "healthcheck": {
+                    "test": [
+                        "CMD-SHELL",
+                        "rpk cluster health | grep -q 'Healthy:.*true'",
+                    ],
+                    "interval": "5s",
+                    "timeout": "5s",
+                    "retries": 30,
+                },
             }
             services[connect] = {
                 "image": f"debezium/connect:{pins['DEBEZIUM_VERSION']}",
-                "depends_on": {db: {"condition": "service_healthy"},
-                               broker: {"condition": "service_healthy"}},
+                "depends_on": {
+                    db: {"condition": "service_healthy"},
+                    broker: {"condition": "service_healthy"},
+                },
                 "environment": {
                     "BOOTSTRAP_SERVERS": f"{broker}:9092",
                     "GROUP_ID": v["name"],
@@ -179,17 +223,25 @@ def fragment(decl: dict, sources_dir: str, pins: dict) -> dict:
                     # does not need.
                     "CONFIG_STORAGE_REPLICATION_FACTOR": "1",
                     "OFFSET_STORAGE_REPLICATION_FACTOR": "1",
-                    "STATUS_STORAGE_REPLICATION_FACTOR": "1"},
+                    "STATUS_STORAGE_REPLICATION_FACTOR": "1",
+                },
                 "ports": [f"{ERP_CONNECT_PORT}:8083"],
-                "healthcheck": {"test": ["CMD-SHELL",
-                                         "curl -sf http://localhost:8083/connectors || exit 1"],
-                                "interval": "10s", "timeout": "5s", "retries": 30},
+                "healthcheck": {
+                    "test": [
+                        "CMD-SHELL",
+                        "curl -sf http://localhost:8083/connectors || exit 1",
+                    ],
+                    "interval": "10s",
+                    "timeout": "5s",
+                    "retries": 30,
+                },
             }
         else:
             raise SystemExit(
                 f"platform: vendor {v['name']!r} declares kind={kind!r}, which this "
                 f"platform does not know how to run. Add it here or fix the "
-                f"declaration; guessing would stand up the wrong vendor.")
+                f"declaration; guessing would stand up the wrong vendor."
+            )
     return {"services": services}
 
 
@@ -203,18 +255,27 @@ def main() -> int:
     # SOURCES repo. Two consumers on different mokapis are not pulling from the
     # same vendor even if the specs match.
     versions = pathlib.Path(sys.argv[2]) / "versions.env"
-    pins = dict(
-        line.split("=", 1) for line in versions.read_text(encoding="utf-8").splitlines()
-        if "=" in line and not line.strip().startswith("#")
-    ) if versions.exists() else {}
+    pins = (
+        dict(
+            line.split("=", 1)
+            for line in versions.read_text(encoding="utf-8").splitlines()
+            if "=" in line and not line.strip().startswith("#")
+        )
+        if versions.exists()
+        else {}
+    )
     pins = {k.strip(): val.strip() for k, val in pins.items()}
-    needed = {"openapi": ["MOKAPI_VERSION"],
-              "cdc": ["POSTGRES_VERSION", "REDPANDA_VERSION", "DEBEZIUM_VERSION"]}
+    needed = {
+        "openapi": ["MOKAPI_VERSION"],
+        "cdc": ["POSTGRES_VERSION", "REDPANDA_VERSION", "DEBEZIUM_VERSION"],
+    }
     for v in decl["vendors"]:
         for key in needed.get(v.get("kind"), []):
             if key not in pins:
-                sys.exit(f"platform: vendor {v['name']!r} is kind={v.get('kind')!r} but "
-                         f"{versions} does not pin {key}; this platform will not guess it")
+                sys.exit(
+                    f"platform: vendor {v['name']!r} is kind={v.get('kind')!r} but "
+                    f"{versions} does not pin {key}; this platform will not guess it"
+                )
     print(json.dumps(fragment(decl, sys.argv[2], pins), indent=2))
     return 0
 

@@ -5,10 +5,10 @@ what it checked. Every line below says what was examined and what was found,
 so "green" is a statement rather than the absence of a complaint.
 """
 
+import pathlib
 import platform
 import shutil
 import subprocess
-import pathlib
 import sys
 
 import release_info as rel
@@ -77,13 +77,23 @@ def main():
     root = pathlib.Path(__file__).resolve().parent.parent
     src = pathlib.Path(os.environ.get("SOURCES", root.parent / "contoso-sources"))
     if not (src / "sources.yaml").exists():
-        rows.append(("vendors", BAD,
-                     f"no declaration at {src / 'sources.yaml'} — clone "
-                     f"calvinchengx/contoso-sources beside this repo, or set SOURCES="))
+        rows.append(
+            (
+                "vendors",
+                BAD,
+                f"no declaration at {src / 'sources.yaml'} — clone "
+                f"calvinchengx/contoso-sources beside this repo, or set SOURCES=",
+            )
+        )
     elif not (src / "_data").is_dir() or not any((src / "_data").iterdir()):
-        rows.append(("vendors", BAD,
-                     f"{src / '_data'} is empty — run `make sources` "
-                     f"(it delegates to that repo)"))
+        rows.append(
+            (
+                "vendors",
+                BAD,
+                f"{src / '_data'} is empty — run `make sources` "
+                f"(it delegates to that repo)",
+            )
+        )
     else:
         rows.append(("vendors", OK, f"declared and materialised at {src}"))
 

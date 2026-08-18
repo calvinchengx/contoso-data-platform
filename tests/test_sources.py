@@ -35,9 +35,15 @@ pytestmark = pytest.mark.skipif(
 def generated_fragment() -> dict:
     """The vendor compose fragment, generated the way `make up` generates it."""
     out = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "sources.py"),
-         str(SOURCES / "sources.yaml"), str(SOURCES)],
-        check=True, capture_output=True, text=True,
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "sources.py"),
+            str(SOURCES / "sources.yaml"),
+            str(SOURCES),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
     ).stdout
     return json.loads(out)
 
@@ -63,18 +69,22 @@ def test_one_mokapi_instance_per_source():
         # Mounted its own directories, NOT the whole sources tree. A vendor
         # handed the whole tree can serve another vendor's export by a path typo.
         assert any(f"/sources/{vendor}:" in m for m in mounts), (
-            f"{vendor}: spec directory not mounted, or mounted too broadly")
+            f"{vendor}: spec directory not mounted, or mounted too broadly"
+        )
         assert any(f"/sources/_data/{vendor}:" in m for m in mounts), (
-            f"{vendor}: data directory not mounted")
+            f"{vendor}: data directory not mounted"
+        )
         assert not any(m.rstrip(":ro").endswith("/sources") for m in mounts), (
-            f"{vendor}: the whole sources tree is mounted")
+            f"{vendor}: the whole sources tree is mounted"
+        )
     assert "mokapi" not in services, (
         "a shared `mokapi` service is back — every vendor gets its own instance"
     )
     # Ports are per vendor, so two instances cannot silently collide.
     published = [p.split(":")[0] for s in services.values() for p in s.get("ports", [])]
     assert len(published) == len(set(published)), (
-        f"two services publish the same host port: {published}")
+        f"two services publish the same host port: {published}"
+    )
 
 
 def test_the_web_bronze_schema_matches_the_vendors_published_spec():
@@ -134,5 +144,3 @@ def test_the_web_bronze_schema_keeps_every_leaf_a_string():
     ):
         for name, kind in leaves(component):
             assert kind == "string", f"{name} is declared {kind}, not string"
-
-

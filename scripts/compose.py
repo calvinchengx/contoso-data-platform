@@ -41,7 +41,9 @@ def sources_dir() -> pathlib.Path:
     outside it, mounted into containers as bytes rather than imported as code.
     Overridable, because pointing this at real vendors is what production does.
     """
-    return pathlib.Path(os.environ.get("SOURCES", ROOT.parent / "contoso-sources")).resolve()
+    return pathlib.Path(
+        os.environ.get("SOURCES", ROOT.parent / "contoso-sources")
+    ).resolve()
 
 
 def vendor_fragment() -> pathlib.Path:
@@ -77,7 +79,9 @@ def vendor_fragment() -> pathlib.Path:
     out.write_text(
         subprocess.run(
             [sys.executable, str(ROOT / "scripts" / "sources.py"), str(decl), str(src)],
-            check=True, capture_output=True, text=True,
+            check=True,
+            capture_output=True,
+            text=True,
         ).stdout,
         encoding="utf-8",
     )

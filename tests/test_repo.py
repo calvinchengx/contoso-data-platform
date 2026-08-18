@@ -1679,7 +1679,8 @@ def test_the_domain_is_core_s_name_not_restated_here():
     imported = {
         alias.name
         for node in ast.walk(tree)
-        if isinstance(node, ast.ImportFrom) and node.module == "contoso_product.contracts"
+        if isinstance(node, ast.ImportFrom)
+        and node.module == "contoso_product.contracts"
         for alias in node.names
     }
     assert "DOMAIN" in imported, (

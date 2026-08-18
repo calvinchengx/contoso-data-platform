@@ -28,8 +28,8 @@ import re
 
 import requests
 import state
-from contoso_product.contracts import DOMAIN
 import yaml
+from contoso_product.contracts import DOMAIN
 from fabric import log
 
 from sources import ERP_DB, ERP_TOPIC, POS_API
