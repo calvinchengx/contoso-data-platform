@@ -16,6 +16,11 @@ gold/_columns.json
 # What `make reconcile` read back from the Warehouse — an observation of a
 # particular run, not a fact about the repository.
 gold/_reconcile_sql.json
+# The gold numbers a particular run produced. `product_snapshot.json` at the
+# repo root is the one compare_products reads; this is the staging copy
+# platform/gold.py writes beside the dbt project, and it is an output like the
+# rest of them.
+gold/_snapshot.json
 
 # dbt writes these on every run: the compiled SQL it just built, the manifest
 # describing it, and its own log. They are OUTPUTS of gold/models/*.sql, so
