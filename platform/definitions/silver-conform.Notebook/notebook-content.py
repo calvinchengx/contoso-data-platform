@@ -52,7 +52,7 @@ from contoso_product import run_silver
 # WHAT USED TO BE HERE. Four hundred lines that were a copy of
 # `contoso_product/silver.py`: the same MONEY and RATE widths, the same COUNTRY
 # map, the same dedupe, conform, quarantine and identity resolution. Its sibling
-# in contoso-databricks-platform called the package; this one had a fork, and the
+# in databricks-platform-jobs called the package; this one had a fork, and the
 # fork had already drifted from the package it was copied from.
 #
 # `spark` is ambient. Fabric's pool binds it to a session that already carries

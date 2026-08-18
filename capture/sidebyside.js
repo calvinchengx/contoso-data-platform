@@ -39,7 +39,7 @@ const PAGE = `
 </style>
 <div class="wrap">
   <header>
-    <div><b>terminal</b> — contoso-fabric-platform&nbsp; $ make verify</div>
+    <div><b>terminal</b> — fabric-platform-notebook-pipelines&nbsp; $ make verify</div>
     <div id="right"><b>fabric-emulator portal</b> — Data flow&nbsp; (${PORTAL}/#flow)</div>
   </header>
   <main>

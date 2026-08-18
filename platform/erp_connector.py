@@ -38,7 +38,7 @@ def reset_topic() -> None:
         [
             "docker",
             "exec",
-            "contoso-fabric-platform-redpanda-1",
+            "fabric-platform-notebook-pipelines-redpanda-1",
             "rpk",
             "topic",
             "delete",
