@@ -36,7 +36,7 @@
 # keeps a step from reconciling the environment out from under them.
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor fixtures sources up down config lint fmt capture demo govern verify reconcile test test-fixtures clean
+.PHONY: help doctor fixtures sources up down config lint fmt capture demo govern verify reconcile snapshot test test-fixtures clean
 
 help:  ## Show the targets
 	@uv run --no-project python scripts/help.py
@@ -70,6 +70,9 @@ verify:  ## Run the platform end to end against the pinned release
 
 reconcile:  ## Prove the model's numbers ARE the warehouse's (needs `make verify` first)
 	@uv run --frozen --no-sync python platform/reconcile.py
+
+snapshot:  ## Publish gold's numbers for compare_products (needs `make verify` first)
+	@uv run --frozen --no-sync python platform/snapshot.py
 
 demo:  ## Record the run: terminal and flow graph side by side (needs ttyd)
 	@uv run --frozen --no-sync python scripts/demo.py
