@@ -1656,3 +1656,45 @@ def test_the_product_is_imported_not_restated():
         text=True,
     ).stdout.split()
     assert not tracked, f"the gold fork is tracked again: {tracked}"
+
+
+def test_the_domain_is_core_s_name_not_restated_here():
+    """A platform consumes what core names. It does not declare its own.
+
+    This file declared `DOMAIN = "contoso-sales"` while contoso-data-product
+    already named the same domain `contoso-commerce`, and the Databricks
+    platform imported that one. So the two runtimes published ONE product into
+    TWO domains, described two ways — the disagreement a shared catalog exists
+    to remove, reproduced inside it.
+
+    Nothing detected it because each platform was self-consistent and neither
+    read the other, which is exactly why this is a test rather than a comment.
+    RULES.md §1 already said it; the rule needed teeth.
+    """
+    import ast
+
+    src = (ROOT / "platform" / "govern.py").read_text(encoding="utf-8")
+    tree = ast.parse(src)
+
+    imported = {
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module == "contoso_product.contracts"
+        for alias in node.names
+    }
+    assert "DOMAIN" in imported, (
+        "govern.py must import DOMAIN from contoso_product.contracts, not name "
+        "the domain itself"
+    )
+
+    assigned = {
+        target.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign)
+        for target in node.targets
+        if isinstance(target, ast.Name)
+    }
+    assert "DOMAIN" not in assigned, (
+        "govern.py assigns DOMAIN locally — that is how one product came to "
+        "live in two domains"
+    )

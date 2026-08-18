@@ -28,6 +28,7 @@ import re
 
 import requests
 import state
+from contoso_product.contracts import DOMAIN
 import yaml
 from fabric import log
 
@@ -233,8 +234,21 @@ FABRIC_SERVICE = "contoso-fabric"
 # sprint and nothing would notice. The terms below are defined by their SQL,
 # which is derived and exact. Real prose belongs in a data contract next to the
 # transform, and there is not one in this repository yet.
-DOMAIN = "contoso-sales"
-GLOSSARY = "Contoso Sales"
+# DOMAIN IS CORE'S, IMPORTED RATHER THAN RESTATED. This file used to declare
+# `DOMAIN = "contoso-sales"` while contoso-data-product already named the same
+# domain `contoso-commerce`, and databricks-platform-jobs imported that one. So
+# the two runtimes published ONE product into TWO domains, described two ways —
+# the disagreement a shared catalog exists to remove, reproduced inside it.
+#
+# Nothing detected it, because each platform was self-consistent and neither
+# read the other. RULES.md §1 already said a platform consumes what core names
+# instead of restating it; this was simply in breach, in the same shape as a
+# platform carrying its own copy of the vendors.
+#
+# GLOSSARY stays local because core does not name it and the databricks runtime
+# publishes no glossary at all — but its VALUE follows the domain, or the
+# catalog reads as two things again.
+GLOSSARY = "Contoso Commerce"
 
 # The measures gold publishes, taken from gold/models/fct_daily_revenue.sql.
 # A metric is a column PLUS how it aggregates, which is exactly what a column
@@ -708,7 +722,7 @@ def main() -> int:
         "domains",
         {
             "name": DOMAIN,
-            "displayName": "Contoso Sales",
+            "displayName": "Contoso Commerce",
             "domainType": "Consumer-aligned",
             "description": "Sales across Contoso's point-of-sale and ERP systems, "
             "conformed to one customer and one order grain.",
