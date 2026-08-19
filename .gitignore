@@ -50,3 +50,7 @@ compose/.generated/
 
 # The product this platform is pointed at -- a mount point, never content.
 product
+
+# macOS Finder metadata. `capture/.DS_Store` was tracked, so every machine that
+# opened that folder dirtied the tree with a file nothing reads.
+.DS_Store
