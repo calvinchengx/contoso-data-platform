@@ -116,7 +116,7 @@ test:  ## The repo's own tests — version lockstep, boundaries, config
 	@uv run --frozen pytest -q tests -m "not fixtures"
 
 test-fixtures:  ## The tests that need the published wheels — after `make fixtures`
-	@uv run --frozen pytest -q tests -m fixtures
+	@uv run --no-project python scripts/test_fixtures.py
 
 clean:  ## Remove build and run artifacts
 	@uv run --no-project python scripts/clean.py
