@@ -41,6 +41,19 @@
 # from that repo's declaration, so every cell in the family pulls the same
 # bytes -- which is the only reason their gold numbers are comparable.
 SOURCES ?= ../contoso-sources
+# ABSOLUTE, and exported. The steps now run with the PRODUCT as their working
+# directory, so a path relative to this Makefile would resolve against the
+# wrong repository -- and exporting it is what makes this platform's choice of
+# vendors govern, rather than the product guessing at a sibling checkout.
+export SOURCES := $(abspath $(SOURCES))
+# WHICH PLATFORM IS RUNNING THE PRODUCT. gold runs dbt inside a container this
+# platform defines, so the product has to be able to ask this platform to start
+# it -- it knows it needs a dbt container, not which compose files declare one.
+export PLATFORM := $(CURDIR)
+# WHERE THE dbt CONTAINER FINDS THE PROJECT. The product stages its gold models
+# into its own gold/, so the mount has to follow PRODUCT rather than pointing at
+# this repository -- which silently built stale models when the two were split.
+export PRODUCT_GOLD := $(abspath $(PRODUCT))/gold
 
 # PRODUCT IS A PATH, NOT A NAME. This platform instantiates the emulator and
 # runs whatever product it is pointed at; naming one here would make "a second

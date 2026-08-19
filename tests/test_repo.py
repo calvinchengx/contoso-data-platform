@@ -333,7 +333,11 @@ def test_the_pin_moves_only_after_a_green_verify():
         assert len(hits) == 1, f"expected exactly one matching step, got {hits}"
         return hits[0]
 
-    verify = index_of(lambda s: s.get("run", "").strip() == "make verify")
+    # `startswith`, not equality: the step carries `PRODUCT=...` now that the
+    # product is a separate repository, and an exact match would silently find
+    # nothing -- which reads as "there is no verify step" rather than "the
+    # matcher is stale". The `make verify` prefix is what this test is about.
+    verify = index_of(lambda s: s.get("run", "").strip().startswith("make verify"))
     adopt = index_of(lambda s: "push origin" in s.get("run", ""))
 
     assert adopt > verify, "the pin is adopted before the run that verifies it"

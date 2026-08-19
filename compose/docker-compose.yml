@@ -210,7 +210,13 @@ services:
       fabric-emulator: {condition: service_healthy}
       sqlserver: {condition: service_healthy}
     volumes:
-      - ../gold:/gold
+      # THE PRODUCT'S gold DIRECTORY, not this platform's. The product stages
+      # its dbt project there and reads the artefacts back from it; mounting
+      # `../gold` meant dbt built whatever was left in the PLATFORM from an
+      # earlier run. That is not a missing file -- it is a passing run over
+      # stale models, which reported `PASS=61` against a project staged half a
+      # day earlier. The one failure mode worse than a crash.
+      - ${PRODUCT_GOLD:?set by the Makefile from PRODUCT}:/gold
       # The TDS helpers that need the driver but are not dbt models.
       - ../docker/dbt:/tools:ro
     environment:
