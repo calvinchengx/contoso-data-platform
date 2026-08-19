@@ -34,6 +34,14 @@ regexes = [
   # Base64 of "not-a-blob": a fixture whose whole purpose is to be rejected as
   # an invalid key blob. Decoded and verified before allowlisting.
   '''^bm90LWEtYmxvYg=*$''',
+  # The API key of the MOCK Contoso POS vendor (sources/contoso-pos, a mokapi
+  # server backed by this repo's own seeded fixtures). It exists so the extract
+  # step can assert a wrong key gets a real 401, which means it must be known
+  # to both sides and is useless anywhere else. The files that carried it are
+  # gone from the tree — the vendors moved out in 693b5e0 — so this matches
+  # history only. A value that can authenticate to nothing outside the emulator
+  # stack is a fixture, not a credential.
+  '''^contoso-pos-key-\d{4}-dev$''',
 ]
 
 paths = [

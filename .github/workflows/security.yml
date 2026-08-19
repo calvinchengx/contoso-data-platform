@@ -43,5 +43,10 @@ jobs:
       - name: Scan the working tree
         run: gitleaks dir . --config .gitleaks.toml --no-banner --redact --verbose
 
+      # `--verbose` here too, and it is not noise. Without it a failing scan
+      # logs "leaks found: 3" and nothing else — no file, no commit, no rule —
+      # so the one job whose whole output is "which line" names no line, and
+      # triage means reproducing the scan locally. `--redact` still masks the
+      # value itself; verbose only adds where it was found.
       - name: Scan the history
-        run: gitleaks git . --config .gitleaks.toml --no-banner --redact
+        run: gitleaks git . --config .gitleaks.toml --no-banner --redact --verbose
