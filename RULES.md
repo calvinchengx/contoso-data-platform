@@ -16,18 +16,18 @@ will break** — the "enforced by" column is the honest part of this document, a
 | | |
 |---|---|
 | **Rule** | Bronze/silver Spark logic and gold dbt SQL are the **data product**. They live in `contoso-data-product`, are installed from its release, and are consumed here, not restated. Dialect leaks (`cast(0 as bit)`) go through dbt macros. |
-| **Why** | A second copy of `fct_sales.sql` for Databricks is how the "no DE code change" claim dies. **It had already happened.** This repository carried its own 18-file copy of the gold project and its own 400-line copy of the silver transform, and the copies had diverged: the product gained `cast(x as int) = 1` so its boolean comparisons run on Spark SQL as well as T-SQL, and the fork here never got it. Nothing failed, because nothing compared them. Note what the old entry cited: `test_gold_sql_is_portable` checks that the local copy avoids T-SQL `bit`, which is a real rule but not this one. A rule whose named enforcer tests something adjacent is unenforced with extra steps. |
-| **Enforced by** | `test_the_product_is_imported_not_restated` |
+| **Why** | A second copy of `fct_sales.sql` for Databricks is how the "no DE code change" claim dies. **It had already happened.** This repository carried its own 18-file copy of the gold project and its own 400-line copy of the silver transform, and the copies had diverged: the product gained `cast(x as int) = 1` so its boolean comparisons run on Spark SQL as well as T-SQL, and the fork here never got it. Nothing failed, because nothing compared them. Note what the old entry cited: `contoso-data-product-fabric-notebook-pipelines: test_gold_sql_is_portable` checks that the local copy avoids T-SQL `bit`, which is a real rule but not this one. A rule whose named enforcer tests something adjacent is unenforced with extra steps. |
+| **Enforced by** | `contoso-data-product-fabric-notebook-pipelines: test_the_product_is_imported_not_restated` |
 
 | **Rule** | Every difference between the emulator and real Fabric lives in `platform/target.py`, selected by `FABRIC_TARGET=emulator\|real`. Nowhere else. |
 | **Why** | A localhost URL or a seeded credential anywhere else is a workaround that ships to production — and the emulator goes on passing, so nothing reveals it. |
-| **Enforced by** | `test_the_emulator_appears_only_in_the_target_resolver` |
+| **Enforced by** | `contoso-data-product-fabric-notebook-pipelines: test_the_emulator_appears_only_in_the_target_resolver` |
 
 | | |
 |---|---|
 | **Rule** | TLS verification is never hardcoded off. The real target verifies, and no configuration can disable it. |
 | **Why** | `S.verify = False` was written once as a local convenience. Against production it is a security defect. |
-| **Enforced by** | `test_tls_verification_is_never_hardcoded_off` |
+| **Enforced by** | `contoso-data-product-fabric-notebook-pipelines: test_tls_verification_is_never_hardcoded_off` |
 
 | | |
 |---|---|
@@ -39,25 +39,25 @@ will break** — the "enforced by" column is the honest part of this document, a
 |---|---|
 | **Rule** | A pipeline run never creates billable Azure infrastructure. Only a target that declares `capacity_arm` may create a capacity; the real target declares `None` and resolves the one named in `FABRIC_CAPACITY`. |
 | **Why** | A `Microsoft.Fabric/capacities` resource bills for as long as it exists, and provisioning one is an operator's decision. The emulator creates its own precisely so the local run proves the real ordering, ARM first and then the workspace, without that ordering costing anything to exercise. |
-| **Enforced by** | `test_the_real_target_never_creates_a_capacity` |
+| **Enforced by** | `contoso-data-product-fabric-notebook-pipelines: test_the_real_target_never_creates_a_capacity` |
 
 | | |
 |---|---|
 | **Rule** | No step changes which capacity a workspace is on. The capacity is supplied to `POST /v1/workspaces` at create; an existing workspace's capacity is adopted as it stands. |
 | **Why** | The first version of the capacity work resolved a capacity and then reassigned the workspace whenever the two disagreed. Harmless against the emulator; against real Fabric a `make verify` with a stale `FABRIC_CAPACITY` moves a live workspace, changing its billing and disturbing what runs on it. It also made `FABRIC_CAPACITY` required for every real run, when an existing workspace already knows its own capacity and needs no configuration at all. A pipeline run should not hold an opinion about infrastructure an operator already decided. |
-| **Enforced by** | `test_the_platform_never_changes_a_workspace_capacity` |
+| **Enforced by** | `contoso-data-product-fabric-notebook-pipelines: test_the_platform_never_changes_a_workspace_capacity` |
 
 | | |
 |---|---|
 | **Rule** | Credentials come from **Key Vault** — `azure-keyvault-emulator` locally, the customer's real Azure Key Vault in production. Never from the source tree. |
 | **Why** | A key in a repository has already leaked: it is in every clone, in the reflog, and in whatever CI cached the checkout. It also skips what a real deployment must get right — an identity permitted to read a vault, and rotation without a code change. Two structural exceptions: the **bootstrap** Entra credential (reading the vault needs it) in `target.py`, and `seed_secrets.py`, which exists only so a clone is self-contained and does not run against real vendors. |
-| **Enforced by** | `test_credentials_come_from_key_vault` |
+| **Enforced by** | `contoso-data-product-fabric-notebook-pipelines: test_credentials_come_from_key_vault` |
 
 | | |
 |---|---|
 | **Rule** | The `FABRIC_TARGET` contract is **installed**, never restated. `platform/target.py` consumes the published `fabric-target` package and adds only this platform's own policy. |
 | **Why** | It used to restate it, and the copy drifted: the real target resolved an Entra client-credentials flow and demanded `AZURE_CLIENT_SECRET`, so `az login` could not drive the platform, a managed identity could not, and it could not have run inside a Fabric notebook at all — there is no client secret to give there. The emulator never noticed, because it does not care which identity shows up. A copied contract is one you get wrong in the branch nothing exercises. |
-| **Enforced by** | `test_the_toggle_contract_is_installed_not_restated` |
+| **Enforced by** | `contoso-data-product-fabric-notebook-pipelines: test_the_toggle_contract_is_installed_not_restated` |
 
 | | |
 |---|---|
@@ -71,7 +71,7 @@ will break** — the "enforced by" column is the honest part of this document, a
 |---|---|
 | **Rule** | `bronze` and `silver` run **in the engine**. No `duckdb`, `pandas`, `deltalake` or `pyarrow` in a transform. |
 | **Why** | A client-side dataframe puts one machine in the data path and silently caps the platform at its memory. Spark reads `abfs://…` directly — the same code at 100,000 rows and at a hundred million. |
-| **Enforced by** | `test_the_transforms_are_engine_side` |
+| **Enforced by** | `contoso-data-product-fabric-notebook-pipelines: test_the_transforms_are_engine_side` |
 
 | | |
 |---|---|
@@ -83,43 +83,43 @@ will break** — the "enforced by" column is the honest part of this document, a
 |---|---|
 | **Rule** | `silver` runs as a **Fabric Notebook** — published as a Notebook item, executed by a RunNotebook job — and its source is a real file, never a string assembled at publish time. |
 | **Why** | Most Fabric data engineering is written in notebooks, and until this step existed nothing here exercised one: the transform was a Spark Connect script that merely resembled notebook code, so "the transforms are paste-able into a notebook" was an assertion rather than a result. The file matters as much as the job — a notebook built from an f-string is not Python to any tool, so ruff and ty go blind and a syntax error surfaces as a failed cell on a remote engine instead of at `make lint`. |
-| **Enforced by** | `test_silver_runs_as_a_fabric_notebook` |
+| **Enforced by** | `contoso-data-product-fabric-notebook-pipelines: test_silver_runs_as_a_fabric_notebook` |
 
 | | |
 |---|---|
 | **Rule** | The platform must prove it runs **unattended**: a schedule is created, and on a controllable clock its firing is asserted by `invokeType: "Scheduled"` — never merely by the schedule existing. `schedule` runs LAST, because advancing the clock moves what every job status derives from. |
 | **Why** | Everything else here runs because someone typed `make verify`, which proves the platform works and not that it operates. Broken scheduling is silent in the worst way: the data is yesterday's and every row count, table and dashboard still looks correct. A schedule that exists is not a schedule that fires, and only `invokeType` separates a scheduled run from the manual one that already happened earlier in the same pipeline. |
-| **Enforced by** | `test_the_platform_proves_it_runs_unattended`, `test_the_schedule_step_runs_last` |
+| **Enforced by** | `contoso-data-product-fabric-notebook-pipelines: test_the_platform_proves_it_runs_unattended`, `contoso-data-product-fabric-notebook-pipelines: test_the_schedule_step_runs_last` |
 
 | | |
 |---|---|
 | **Rule** | The **source system is a node**, not a filename. Each ingest step names the vendor as a Connection and reports the movement from it; `bronze` reports its landing→bronze hop so those nodes are not orphans. |
 | **Why** | A medallion does not begin in Fabric — it begins at a vendor's API or a production database — but an edge used to need a (workspace, item, path) triple at both ends, so the graph could only start at a file already in `Files/landing/` and the system that put it there could not be named. A connection rather than a URI because it holds the credential, carries a display name, and is what the client actually authenticated through. bronze must report too: Spark reads `abfs://` directly, so the emulator sees bytes leave and bytes arrive with nothing tying them together, and without that hop the vendors float beside the medallion instead of feeding it. |
-| **Enforced by** | `test_the_source_systems_are_named_in_lineage`, `test_the_landing_hop_is_reported_so_sources_are_not_orphans` |
+| **Enforced by** | `contoso-data-product-fabric-notebook-pipelines: test_the_source_systems_are_named_in_lineage`, `contoso-data-product-fabric-notebook-pipelines: test_the_landing_hop_is_reported_so_sources_are_not_orphans` |
 
 | | |
 |---|---|
 | **Rule** | A lineage report uses the precise `moves` form — one `{reads, writes}` per derivation — never flat read/write lists. |
 | **Why** | Flat lists cross-product. A step reading two feeds and writing two paths claims four movements where two happened, and the phantoms look exactly as plausible as the real edges. This repository shipped three such edges once already, from a declared read/write set on the silver notebook. |
-| **Enforced by** | `test_lineage_reports_use_the_precise_move_form` |
+| **Enforced by** | `contoso-data-product-fabric-notebook-pipelines: test_lineage_reports_use_the_precise_move_form` |
 
 | | |
 |---|---|
 | **Rule** | The platform must prove it **reacts to a delivery**: a file dropped at a marker path starts a run, evidenced by `invokeType: "EventTriggered"`. The trigger watches a dedicated marker, never the vendor's own landing prefix. |
 | **Why** | A schedule answers "run at 02:00" and cannot answer "run when it lands" — for an external feed the export finishes when it finishes, and a fixed hour either reprocesses yesterday or processes nothing. The marker matters as much as the trigger: the POS export lands as 21 parts, so a prefix over them would start 21 refreshes of one delivery, each correct alone and the set of them nonsense. |
-| **Enforced by** | `test_the_platform_proves_it_reacts_to_a_delivery`, `test_the_trigger_watches_a_marker_not_the_landing_zone` |
+| **Enforced by** | `contoso-data-product-fabric-notebook-pipelines: test_the_platform_proves_it_reacts_to_a_delivery`, `contoso-data-product-fabric-notebook-pipelines: test_the_trigger_watches_a_marker_not_the_landing_zone` |
 
 | | |
 |---|---|
 | **Rule** | Binding an event trigger is **emulator-only**, behind `T.event_triggers_have_rest_api`. Against real Fabric the step creates nothing and says so. |
 | **Why** | This is the one asymmetry this platform cannot close. Real Fabric has no public REST for the binding — the Eventstream/Reflex rule is assembled in the portal by hand — so a deployment cannot declare it the way it declares a lakehouse or a schedule. Inventing a REST call that does not exist would be worse than the gap; everything downstream of the binding is ordinary Fabric and is exercised by the job it starts. |
-| **Enforced by** | `test_the_platform_proves_it_reacts_to_a_delivery` |
+| **Enforced by** | `contoso-data-product-fabric-notebook-pipelines: test_the_platform_proves_it_reacts_to_a_delivery` |
 
 | | |
 |---|---|
 | **Rule** | A clock advance must fit inside one token lifetime, and the clock must be put back on EVERY path — `finally`, so a failing run restores it too. Any job started in the advanced frame is polled to a terminal state before the reset. |
 | **Why** | Only Fabric's clock moves; the Entra emulator that mints the tokens keeps its own. Jump further than a token lives and the two disagree permanently — every later call 401s `invalid token: expired`, including freshly minted tokens, because the new one is already past expiry as far as Fabric is concerned. It presents as an authentication fault and is really the clock lever. A stack left advanced breaks whatever runs next with an error nobody would trace back here. And resetting *under a running job* is its own fault: the job's start was stamped in the advanced frame, so its end lands in the old one and the instance reports having finished before it began. |
-| **Enforced by** | `test_the_clock_advance_fits_inside_one_token_lifetime`, `test_the_schedule_step_puts_the_clock_back` |
+| **Enforced by** | `contoso-data-product-fabric-notebook-pipelines: test_the_clock_advance_fits_inside_one_token_lifetime`, `contoso-data-product-fabric-notebook-pipelines: test_the_schedule_step_puts_the_clock_back` |
 
 | | |
 |---|---|
@@ -131,7 +131,7 @@ will break** — the "enforced by" column is the honest part of this document, a
 
 | **Rule** | The stack RUNS the notebook; this platform never plays the Spark pool. `compose` provides the published `spark-agent` and the emulator is given `FABRIC_SPARK_AGENT_URL`. |
 | **Why** | A Fabric notebook is executed by a Spark pool that reports back, and the emulator mirrors that rather than completing a job on a clock. Until fabric-emulator 0.15.0 no published artifact could be that engine — the spark-agent image shipped without the agent in it — so this platform supplied one, in `platform/engine.py`. That driver existed only because of a packaging bug upstream, and it is gone. Supplying an engine again would mean this repository had stopped being a consumer. |
-| **Enforced by** | `test_the_platform_does_not_supply_its_own_spark_pool` |
+| **Enforced by** | `contoso-data-product-fabric-notebook-pipelines: test_the_platform_does_not_supply_its_own_spark_pool` |
 
 ## 3. Layers do not leak
 
@@ -139,7 +139,7 @@ will break** — the "enforced by" column is the honest part of this document, a
 |---|---|
 | **Rule** | `fabric.py` knows Fabric. `sources.py` knows vendors. Neither knows the other. |
 | **Why** | A Fabric client that knows a vendor's DSN has merged two things that change for different reasons at different times. |
-| **Enforced by** | `test_the_fabric_client_knows_nothing_about_the_source_systems` |
+| **Enforced by** | `contoso-data-product-fabric-notebook-pipelines: test_the_fabric_client_knows_nothing_about_the_source_systems` |
 
 | | |
 |---|---|
@@ -195,7 +195,7 @@ will break** — the "enforced by" column is the honest part of this document, a
 |---|---|
 | **Rule** | No `tests/test_*.py` may reach a fixture wheel, directly or through any chain of this repo's own modules. Code that needs testing without a stack goes in a dependency-free module, like `platform/apipath.py` or `platform/say.py`; code that needs a stack imports it inside the function that talks to one. A test that genuinely needs a wheel is marked `@pytest.mark.fixtures`, which `make test` deselects and `make test-fixtures` runs in the acceptance workflow, where `make fixtures` has installed them. |
 | **Why** | `make test` promises its tests need no emulator, no Docker and no fixture wheels — they are the part of CI green from day one on all three platforms. Importing the client resolves a target, which needs the `fabric-target` wheel `make fixtures` installs from the pinned release, deliberately outside `uv.lock`. The day a guard was tested by importing the client that carries it, CI went red on ubuntu, macOS and Windows at once. The rule then said only "`test_repo.py` must not import `fabric` or `target`", and checked exactly that — so `test_reconcile.py` reached the wheel three hops away through `reconcile` and `state`, and CI stayed red for three days. Naming the modules was the mistake; the chain is what matters. Fixing that uncovered a second case the collection error had been hiding, `test_sources.py` importing `reference_data` inside the test body, which is why the marker exists: some tests really do need a wheel, and the honest answer is to run them where the wheels are rather than skip them where they are not. |
-| **Enforced by** | `test_the_repo_tests_need_no_fixture_wheels` |
+| **Enforced by** | `contoso-data-product-fabric-notebook-pipelines: test_the_repo_tests_need_no_fixture_wheels` |
 
 | **Rule** | uv, strictly. `pyproject.toml` + committed `uv.lock`. No bare `python`, no `pip`, no `--with`. |
 | **Why** | `--with pytest` resolves fresh every run, so the same commit can test against two different suites. |

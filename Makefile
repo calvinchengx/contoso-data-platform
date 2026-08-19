@@ -42,6 +42,13 @@
 # bytes -- which is the only reason their gold numbers are comparable.
 SOURCES ?= ../contoso-sources
 
+# PRODUCT IS A PATH, NOT A NAME. This platform instantiates the emulator and
+# runs whatever product it is pointed at; naming one here would make "a second
+# product can use this unchanged" untestable, because there would be nothing
+# else to point it at. `./product` is an empty, gitignored mount point.
+PRODUCT ?= ./product
+STEP := uv run --directory $(PRODUCT) --frozen
+
 .PHONY: help doctor fixtures sources up down config lint fmt capture demo govern verify reconcile snapshot test test-fixtures clean
 
 help:  ## Show the targets
@@ -69,16 +76,16 @@ capture:  ## Verify and photograph the catalog (the flow video comes from `make 
 	@uv run --frozen --no-sync python platform/capture.py
 
 govern:  ## Catalog the platform in OpenMetadata (also runs inside `make verify`)
-	@uv run --frozen --no-sync python platform/govern.py
+	@$(STEP) --no-sync python steps/govern.py
 
 verify:  ## Run the platform end to end against the pinned release
-	@uv run --frozen --no-sync python platform/pipeline.py
+	@$(STEP) --no-sync python steps/pipeline.py
 
 reconcile:  ## Prove the model's numbers ARE the warehouse's (needs `make verify` first)
-	@uv run --frozen --no-sync python platform/reconcile.py
+	@$(STEP) --no-sync python steps/reconcile.py
 
 snapshot:  ## Publish gold's numbers for compare_products (needs `make verify` first)
-	@uv run --frozen --no-sync python platform/snapshot.py
+	@$(STEP) --no-sync python steps/snapshot.py
 
 demo:  ## Record the run: terminal and flow graph side by side (needs ttyd)
 	@uv run --frozen --no-sync python scripts/demo.py
