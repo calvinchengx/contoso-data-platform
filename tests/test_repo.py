@@ -416,3 +416,68 @@ def test_attribute_stands_up_the_same_platform_acceptance_does():
     assert sources < _first_running(steps, "make up")
     verify = steps[_first_running(steps, "make verify")]["run"]
     assert "PRODUCT=" in verify, "verify would run against the empty ./product mount"
+
+
+def _load_script(name: str):
+    """Import a scripts/ module by path.
+
+    tests/ sets no pythonpath and the scripts are not a package, so importing
+    one by name would depend on the working directory pytest happened to start
+    in.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(name, ROOT / "scripts" / f"{name}.py")
+    assert spec and spec.loader, f"scripts/{name}.py is not importable"
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_an_empty_fixtures_selection_is_not_a_failure(monkeypatch):
+    """The `fixtures` marker is an escape hatch, so having none is the goal.
+
+    RULES.md forbids any test under tests/ from reaching a fixture wheel and
+    makes the marker the exception. Zero marked tests is therefore the state
+    that rule drives toward, and it is where this repo landed once the
+    wheel-dependent tests moved to the product repository. pytest exits 5 for
+    "no tests collected", so `make test-fixtures` could only fail -- masked for
+    weeks behind an earlier step that failed first.
+    """
+    import subprocess as sp
+
+    mod = _load_script("test_fixtures")
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        return sp.CompletedProcess(cmd, mod.NO_TESTS_COLLECTED)
+
+    monkeypatch.setattr(mod.subprocess, "run", fake_run)
+    assert mod.main() == 0
+    assert "fixtures" in seen["cmd"], "the marker is what selects the tests"
+
+
+def test_a_marked_test_that_fails_still_fails(monkeypatch):
+    """Tolerating an EMPTY selection must not tolerate a failing one.
+
+    Mapping every non-zero exit to success would turn the escape hatch into a
+    step that cannot report anything, which is worse than the bug it replaced.
+    """
+    import subprocess as sp
+
+    mod = _load_script("test_fixtures")
+    monkeypatch.setattr(
+        mod.subprocess, "run", lambda cmd, **kw: sp.CompletedProcess(cmd, 1)
+    )
+    assert mod.main() == 1
+
+
+def test_the_fixtures_target_goes_through_the_script():
+    """Bare `pytest -m fixtures` in the recipe is the bug itself.
+
+    The Makefile may not branch (cmd.exe runs these recipes on Windows), so the
+    exit-code handling has nowhere to live except a script.
+    """
+    recipe = [ln for ln in MAKEFILE.splitlines() if "test_fixtures.py" in ln]
+    assert recipe, "test-fixtures no longer delegates to scripts/test_fixtures.py"
