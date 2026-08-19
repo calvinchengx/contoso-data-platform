@@ -18,8 +18,25 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    # Checked out into a NAMED directory, with the vendors beside it, because
+    # doctor.py and compose.py resolve `ROOT.parent / "contoso-sources"`. A bare
+    # checkout puts this repo at the workspace root, which makes that parent the
+    # runner's work directory and the declaration unfindable. Same shape as
+    # acceptance.yml here and in the sibling platforms.
+    defaults:
+      run:
+        working-directory: fabric-platform-notebook-pipelines
     steps:
       - uses: actions/checkout@v7
+        with:
+          path: fabric-platform-notebook-pipelines
+      # The vendors are DECLARED in contoso-sources and materialised from it.
+      # Not vendorable here: the point of reading another repository's
+      # declaration is that this platform's vendor list is not a copy.
+      - uses: actions/checkout@v7
+        with:
+          repository: calvinchengx/contoso-sources
+          path: contoso-sources
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: "0.11.32"
@@ -39,6 +56,12 @@ jobs:
       # GitHub's macOS runners ship NO DOCKER — a documented fact about the
       # image, not a defect here — so `make doctor` correctly fails there and
       # `make config` has no `docker compose` to call.
+      # The declaration alone is not enough: compose.py wants the materialised
+      # bytes under _data/, because mokapi otherwise invents plausible bodies
+      # from the OpenAPI schema and every step lands invented data.
+      - name: Materialise the vendor exports
+        run: make sources
+        working-directory: contoso-sources
       - if: matrix.os != 'macos-latest'
         run: make doctor
       # Proves the compose file parses and the pin resolves, without pulling
