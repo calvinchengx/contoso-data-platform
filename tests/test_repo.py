@@ -481,3 +481,27 @@ def test_the_fixtures_target_goes_through_the_script():
     """
     recipe = [ln for ln in MAKEFILE.splitlines() if "test_fixtures.py" in ln]
     assert recipe, "test-fixtures no longer delegates to scripts/test_fixtures.py"
+
+
+def test_the_product_steps_provision_their_own_environment():
+    """`--no-sync` here means an EMPTY venv, not a protected one.
+
+    The steps run with `--directory $(PRODUCT)`, so the environment they need
+    belongs to the product's repository and a fresh checkout of it has none.
+    `--no-sync` made uv create one and install nothing into it, and every step
+    died importing its first dependency -- masked for weeks behind two earlier
+    steps that failed first.
+
+    The flag protects this repository's venv, where `make fixtures` installs
+    wheels outside the lock. The product's venv has no such installs, and
+    `uv run --frozen` would not prune them anyway, so there is nothing here for
+    it to defend.
+    """
+    step = [ln for ln in MAKEFILE.splitlines() if ln.startswith("STEP :=")]
+    assert len(step) == 1, "STEP is defined once"
+    assert "--no-sync" not in step[0], "STEP must let uv provision the product venv"
+
+    recipes = [
+        ln for ln in MAKEFILE.splitlines() if "$(STEP)" in ln and "--no-sync" in ln
+    ]
+    assert not recipes, f"these would run against an empty product venv: {recipes}"

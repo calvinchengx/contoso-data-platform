@@ -32,8 +32,17 @@
 #   uv sync           (explicit)        -> fixtures EVICTED
 #
 # So `uv sync` prunes anything not in the lock, and re-running `make fixtures`
-# after one is required rather than optional. `--no-sync` on the run targets
-# keeps a step from reconciling the environment out from under them.
+# after one is required rather than optional. `--no-sync` on this repository's
+# own run targets keeps a step from reconciling the environment out from under
+# them.
+#
+# THE PRODUCT'S STEPS DO NOT PASS IT, and that is the same measurement read the
+# other way. They run in the PRODUCT's virtualenv, which a fresh checkout of
+# that repository does not have: `--no-sync` made uv create an EMPTY one and
+# every step died importing its first dependency. Since `uv run --frozen`
+# leaves out-of-lock installs alone -- the top line of the table above --
+# omitting the flag provisions the environment from the committed lock and
+# prunes nothing, which is what was wanted at both ends.
 
 .DEFAULT_GOAL := help
 # THE VENDORS LIVE IN THEIR OWN REPOSITORY. This platform used to carry a copy
@@ -89,16 +98,16 @@ capture:  ## Verify and photograph the catalog (the flow video comes from `make 
 	@uv run --frozen --no-sync python platform/capture.py
 
 govern:  ## Catalog the platform in OpenMetadata (also runs inside `make verify`)
-	@$(STEP) --no-sync python steps/govern.py
+	@$(STEP) python steps/govern.py
 
 verify:  ## Run the platform end to end against the pinned release
-	@$(STEP) --no-sync python steps/pipeline.py
+	@$(STEP) python steps/pipeline.py
 
 reconcile:  ## Prove the model's numbers ARE the warehouse's (needs `make verify` first)
-	@$(STEP) --no-sync python steps/reconcile.py
+	@$(STEP) python steps/reconcile.py
 
 snapshot:  ## Publish gold's numbers for compare_products (needs `make verify` first)
-	@$(STEP) --no-sync python steps/snapshot.py
+	@$(STEP) python steps/snapshot.py
 
 demo:  ## Record the run: terminal and flow graph side by side (needs ttyd)
 	@uv run --frozen --no-sync python scripts/demo.py
