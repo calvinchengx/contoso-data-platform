@@ -355,3 +355,64 @@ def test_the_pin_moves_only_after_a_green_verify():
     # Writing to the repository is not the default and must be asked for
     # explicitly, or the push fails at the end of an eight-minute run.
     assert job.get("permissions", {}).get("contents") == "write"
+
+
+def _steps(workflow: str, job: str):
+    import yaml
+
+    wf = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / workflow).read_text(encoding="utf-8")
+    )
+    return wf["jobs"][job]["steps"]
+
+
+def _first_running(steps, prefix: str) -> int:
+    hits = [
+        i for i, s in enumerate(steps) if s.get("run", "").strip().startswith(prefix)
+    ]
+    assert hits, f"no step runs {prefix!r}"
+    return hits[0]
+
+
+def test_the_vendors_are_materialised_before_anything_reads_them():
+    """`make sources` first, or `make doctor` fails on an empty `_data/`.
+
+    While this platform carried its own copy of the vendors, a checkout was
+    already populated and the order of these two steps did not matter. Since
+    it stopped, `_data/` is gitignored inside contoso-sources and a fresh
+    checkout of that repo is empty until `make sources` delegates over there.
+    doctor checks the vendors are materialised and exits non-zero when they
+    are not, so it standing above the step that materialises them fails every
+    run before the emulator is so much as pulled.
+    """
+    steps = _steps("acceptance.yml", "verify")
+    sources = _first_running(steps, "make sources")
+    assert sources < _first_running(steps, "make doctor")
+    assert sources < _first_running(steps, "make up")
+
+
+def test_attribute_stands_up_the_same_platform_acceptance_does():
+    """Attribution is only worth anything if the two suites are identical.
+
+    This workflow runs ONLY when Acceptance is already red, so it is invisible
+    until the moment it is load-bearing -- and that is exactly where it went
+    stale. This repo became a platform that mounts contoso-sources' vendors
+    and runs a product out of a third repository; a lone checkout of this one
+    cannot start anything, and `make verify` without PRODUCT points at the
+    empty ./product mount and attributes nothing. A verdict of "it fails on
+    N-1 too, so the fault is ours" is worse than no verdict when the real
+    reason is that the runner never had the vendors.
+    """
+    steps = _steps("attribute.yml", "bisect")
+    checked_out = {
+        s.get("with", {}).get("repository")
+        for s in steps
+        if str(s.get("uses", "")).startswith("actions/checkout")
+    }
+    assert "calvinchengx/contoso-sources" in checked_out
+    assert "calvinchengx/contoso-data-product-fabric-notebook-pipelines" in checked_out
+
+    sources = _first_running(steps, "make sources")
+    assert sources < _first_running(steps, "make up")
+    verify = steps[_first_running(steps, "make verify")]["run"]
+    assert "PRODUCT=" in verify, "verify would run against the empty ./product mount"
