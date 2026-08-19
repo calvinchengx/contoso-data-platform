@@ -87,3 +87,7 @@ jobs:
             exit 1
           }
           echo "doctor correctly reported the absent Docker daemon"
+      # ruff was configured in pyproject.toml and never run, so the config
+      # described an intention rather than a guarantee.
+      - name: ruff
+        run: uvx ruff@0.15.22 check .
