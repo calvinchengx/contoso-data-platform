@@ -16,14 +16,42 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'failure' }}
     name: Did the release regress, or did we?
     runs-on: ubuntu-latest
+    # THE SAME LAYOUT ACCEPTANCE USES, because "the identical suite" is the
+    # whole claim this workflow makes. It only ever runs when Acceptance is
+    # already red, so it is invisible until the moment it is load-bearing, and
+    # it went stale exactly there: this repo became a platform that mounts
+    # another repo's vendors and runs a product out of a third, and a lone
+    # checkout of this one can no longer start anything.
+    defaults:
+      run:
+        working-directory: fabric-platform-notebook-pipelines
     steps:
+      # Nested, so the two siblings below land beside this repo rather than
+      # inside it. SOURCES and PRODUCT are both `../` paths.
       - uses: actions/checkout@v7
+        with:
+          path: fabric-platform-notebook-pipelines
+      # THE VENDORS. Declared in contoso-sources and materialised from it, so
+      # both workflows pull the same bytes as every other cell in the family.
+      - uses: actions/checkout@v7
+        with:
+          repository: calvinchengx/contoso-sources
+          path: contoso-sources
+      # THE PRODUCT THIS PLATFORM RUNS. Without PRODUCT, `make verify` points
+      # at the empty ./product mount point and attributes nothing.
+      - uses: actions/checkout@v7
+        with:
+          repository: calvinchengx/contoso-data-product-fabric-notebook-pipelines
+          path: contoso-data-product-fabric-notebook-pipelines
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: "0.11.32"
       # Re-pin one release back, then run the identical targets. The verdict is
       # whichever way this goes.
       - run: uv run --no-project python scripts/pin_previous.py
+      - run: make sources
       - run: make fixtures
       - run: make up
-      - run: make verify
+      - run: make verify PRODUCT=../contoso-data-product-fabric-notebook-pipelines
+      - if: always()
+        run: make down

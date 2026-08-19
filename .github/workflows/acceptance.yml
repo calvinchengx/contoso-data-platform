@@ -65,17 +65,24 @@ jobs:
           uv run --no-project python scripts/set_release.py \
             "${{ github.event.client_payload.version }}"
           git --no-pager diff --stat versions.env
+      # BEFORE doctor, which checks that the vendors are materialised and
+      # fails when they are not. `_data/` is gitignored and now lives in
+      # contoso-sources, so a fresh checkout of that repo has nothing to serve
+      # until this runs. While this platform carried its own copy of the
+      # vendors the checkout was already populated and the order did not
+      # matter; since it stopped, doctor is the first step that can see they
+      # are missing, and it ran before the step that materialises them.
+      #
+      # NOT optional either. Omitting it was the first thing a real release
+      # run caught: mokapi could not read its fixture, silently fell back to
+      # generating bodies from the schema, and answered a wrong API key with
+      # 200.
+      - run: make sources
       - run: make doctor
       - run: make fixtures
       # The tests `make test` deselects because they need these wheels. Here
       # the wheels exist, so they run rather than reading as absent.
       - run: make test-fixtures
-      # NOT optional. The vendors serve files from `sources/_data/`, which is
-      # gitignored, so a fresh checkout has nothing to serve. Omitting this
-      # was the first thing a real release run caught: mokapi could not read
-      # its fixture, silently fell back to generating bodies from the schema,
-      # and answered a wrong API key with 200.
-      - run: make sources
       - run: make up
       - run: make verify PRODUCT=../contoso-data-product-fabric-notebook-pipelines
       # ADOPT WHAT THIS RUN JUST PROVED. Everything above already ran against
