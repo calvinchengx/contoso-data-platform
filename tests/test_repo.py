@@ -297,7 +297,7 @@ def test_the_acceptance_run_uses_the_dispatched_version():
 def test_the_pin_moves_only_after_a_green_verify():
     """Adoption is automatic, so the GATE is the whole safety argument.
 
-    The acceptance run commits the dispatched version back to versions.env,
+    The acceptance run commits the verified version back to versions.env,
     which means a released emulator becomes the one this platform claims to
     support without a human in the loop. That is only sound while the commit
     is unreachable from a failed run: an `if: always()` here, or the step
@@ -332,9 +332,22 @@ def test_the_pin_moves_only_after_a_green_verify():
         "the adopt step runs even when verification failed; "
         "a red run must leave the pin where it is"
     )
-    assert "repository_dispatch" in cond, (
-        "adoption must be scoped to a release dispatch — the schedule verifies "
-        "the EXISTING pin and has nothing to adopt"
+    # THE SECOND HALF OF THE GATE: the pin must have actually moved.
+    #
+    # This used to assert `repository_dispatch` in the condition, on the reasoning
+    # that the schedule re-verified the EXISTING pin and so had nothing to adopt.
+    # That reasoning stopped being true when the schedule started resolving the
+    # NEWEST release, so that a missing or under-scoped dispatch token costs a day
+    # of latency rather than silence. A scheduled run that verified a newer
+    # release end to end has proved exactly what a dispatched one proves.
+    #
+    # What was load-bearing in that assertion was never the event: it was that a
+    # run with nothing new must not commit. That is now explicit, in the step, and
+    # asserted here directly rather than through a proxy for it.
+    run = steps[adopt].get("run", "")
+    assert "git diff --quiet versions.env" in run, (
+        "the adopt step does not check whether the pin actually moved, so a run "
+        "with nothing new would commit anyway"
     )
 
     # Writing to the repository is not the default and must be asked for
