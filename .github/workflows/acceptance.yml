@@ -59,24 +59,38 @@ jobs:
       # Only on dispatch: the schedule and manual runs verify the pin, which is
       # the other thing worth knowing (does the version we claim to support
       # still work today?).
-      - if: github.event_name == 'repository_dispatch'
-        name: Point at the released version
-        run: |
-          uv run --no-project python scripts/set_release.py \
-            "${{ github.event.client_payload.version }}"
-          git --no-pager diff --stat versions.env
-      # BEFORE doctor, which checks that the vendors are materialised and
-      # fails when they are not. `_data/` is gitignored and now lives in
-      # contoso-sources, so a fresh checkout of that repo has nothing to serve
-      # until this runs. While this platform carried its own copy of the
-      # vendors the checkout was already populated and the order did not
-      # matter; since it stopped, doctor is the first step that can see they
-      # are missing, and it ran before the step that materialises them.
+      # WHICH VERSION THIS RUN IS ABOUT.
       #
-      # NOT optional either. Omitting it was the first thing a real release
-      # run caught: mokapi could not read its fixture, silently fell back to
-      # generating bodies from the schema, and answered a wrong API key with
-      # 200.
+      # On a dispatch it is the release that fired. On the schedule it is the
+      # NEWEST release, resolved here rather than assumed to be the pin.
+      #
+      # THAT IS WHAT MAKES THE DISPATCH OPTIONAL. A cross-repository dispatch
+      # needs a token with write on every platform, and when that token expires
+      # or is under-scoped the platforms go quiet with nothing to say so. Polling
+      # costs a day of latency and no secret at all, so the dispatch is now an
+      # optimisation for immediacy rather than the only way this runs.
+      #
+      # When the platform is already current, `latest` equals the pin and this
+      # behaves exactly as the schedule did before: it answers "does the version
+      # we claim to support still work today?".
+      - name: Resolve the version to verify
+        id: target
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            version="${{ github.event.client_payload.version }}"
+            echo "dispatched for $version"
+          else
+            version=$(gh release view --repo calvinchengx/fabric-emulator \
+                        --json tagName -q .tagName | sed 's/^v//')
+            echo "newest release is $version"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Point at that version
+        run: |
+          uv run --no-project python scripts/set_release.py "${{ steps.target.outputs.version }}"
+          git --no-pager diff --stat versions.env
       - run: make sources
       - run: make doctor
       - run: make fixtures
@@ -100,10 +114,13 @@ jobs:
       # and have nothing to adopt — `set_release.py` never ran, so versions.env
       # is unchanged and the guard below would exit anyway. Saying so here
       # keeps the intent readable rather than incidental.
-      - if: github.event_name == 'repository_dispatch'
-        name: Adopt the version this run just verified
+      # ADOPT WHENEVER THE PIN MOVED, not only on a dispatch. A scheduled run
+      # that verified a newer release end to end has proved exactly what a
+      # dispatched one proves, and throwing that away would mean the pin only
+      # ever advances when a cross-repository token happens to be working.
+      - name: Adopt the version this run just verified
         env:
-          VERSION: ${{ github.event.client_payload.version }}
+          VERSION: ${{ steps.target.outputs.version }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
