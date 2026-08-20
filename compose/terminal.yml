@@ -26,9 +26,9 @@
 # across a family that ships in lockstep is its own bug.
 services:
   sail:
-    image: ghcr.io/calvinchengx/fabric-emulator-sail:${SAIL_VERSION_OVERRIDE:-dev}
+    image: ghcr.io/calvinchengx/emulator-sail:${SAIL_VERSION_OVERRIDE:-dev}
   spark-agent:
-    image: ghcr.io/calvinchengx/fabric-emulator-spark-agent:${SPARK_AGENT_VERSION_OVERRIDE:-dev}
+    image: ghcr.io/calvinchengx/emulator-spark-agent:${SPARK_AGENT_VERSION_OVERRIDE:-dev}
   fabric-emulator:
     image: ghcr.io/calvinchengx/fabric-emulator:${FABRIC_EMULATOR_VERSION_OVERRIDE:-dev}
     environment:
