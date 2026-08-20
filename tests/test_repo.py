@@ -12,21 +12,6 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 MAKEFILE = (ROOT / "Makefile").read_text(encoding="utf-8")
-# Every top-level module the fixture wheels provide, kept out of uv.lock on
-# purpose: which release they came from is the thing under test. Read off the
-# wheels' own RECORD files (contoso_fixtures, contoso_fixtures_advanced,
-# fabric-target) rather than guessed, and listed here because a clean checkout
-# — the case this guard exists for — has no wheel to ask.
-WHEELS = frozenset(
-    {
-        "fabric_target",
-        "common",
-        "source_system",
-        "erp_system",
-        "reference_data",
-        "web_store",
-    }
-)
 
 
 def _pins():
