@@ -12,7 +12,7 @@ const { chromium } = require('playwright')
 const fs = require('fs')
 const path = require('path')
 
-const OM = process.env.OM_URL || 'http://localhost:8585'
+const OM = process.env.OM_URL || 'http://localhost:18587'  // matches compose/governance.yml's OM_PORT default
 const OUT = process.env.SHOTS || '/capture/shots'
 
 const checks = []

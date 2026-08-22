@@ -69,7 +69,14 @@ services:
   openmetadata:
     profiles: [governance]
     image: ghcr.io/calvinchengx/openmetadata-server:${OPENMETADATA_VERSION:?see versions.env}
-    ports: ["${OM_PORT:-8585}:8585"]
+    # 18587, NOT 8585. The siblings publish OpenMetadata on 18585 and 18586;
+    # this one kept the service's own default, so it collided with any
+    # standalone OpenMetadata and with the family's other governance stacks.
+    # Worse than a bind failure: `capture/om_verify.js` defaults to
+    # localhost:8585 too, so with someone else's OpenMetadata on that port it
+    # would have verified this run's catalog against THEIR instance. Both
+    # defaults moved together; they are two languages and must agree.
+    ports: ["${OM_PORT:-18587}:8585"]
     environment: *om_env
     depends_on:
       om-migrate: {condition: service_completed_successfully}
