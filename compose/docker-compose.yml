@@ -15,12 +15,21 @@
 name: fabric-platform-notebook-pipelines
 
 services:
+# HOST PORTS FOR THE THREE AZURE EMULATORS ARE OVERRIDABLE, defaults unchanged.
+# They default to the emulators' own ports, which is also what a standalone
+# emulator or the family compose binds, so this stack could not come up beside
+# either: `Bind for 0.0.0.0:8444 failed`. Nothing on the host side of this
+# platform reaches these three ports (the steps talk to fabric-emulator and
+# sqlserver), so the override is free: ENTRA_PORT=18443 KEYVAULT_PORT=18444
+# ARM_PORT=18445 make up. The siblings moved to an 18xxx block by default;
+# moving this one's defaults is a separate decision, because its registry
+# entry and every witness that names a port would move with it.
   entra-emulator:
     image: ghcr.io/calvinchengx/entra-emulator:${ENTRA_EMULATOR_VERSION:?see versions.env}
     environment:
       ORIGIN_MODE: compat
       PUBLIC_ORIGIN: "https://entra-emulator:8443"
-    ports: ["8443:8443"]
+    ports: ["${ENTRA_PORT:-8443}:8443"]
     healthcheck:
       test: ["CMD", "/usr/local/bin/entra-emulator", "healthcheck"]
       interval: 5s
@@ -31,7 +40,7 @@ services:
     image: ghcr.io/calvinchengx/azure-keyvault-emulator:${KEYVAULT_EMULATOR_VERSION:?see versions.env}
     depends_on:
       entra-emulator: {condition: service_healthy}
-    ports: ["8444:8444"]
+    ports: ["${KEYVAULT_PORT:-8444}:8444"]
     environment:
       KV_ENTRA_ISSUER: "https://entra-emulator:8443/6f89cf12-978b-4d23-ac18-9ef0c127cf87/v2.0"
       KV_ENTRA_TLS_INSECURE: "true"
@@ -50,7 +59,7 @@ services:
     image: ghcr.io/calvinchengx/arm-emulator:${ARM_EMULATOR_VERSION:?see versions.env}
     depends_on:
       entra-emulator: {condition: service_healthy}
-    ports: ["8445:8445"]
+    ports: ["${ARM_PORT:-8445}:8445"]
     environment:
       ARM_ENTRA_ISSUER: "https://entra-emulator:8443/6f89cf12-978b-4d23-ac18-9ef0c127cf87/v2.0"
       ARM_ENTRA_JWKS_URL: "https://entra-emulator:8443/6f89cf12-978b-4d23-ac18-9ef0c127cf87/discovery/v2.0/keys"
