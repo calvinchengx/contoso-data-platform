@@ -15,13 +15,17 @@
 name: fabric-platform-notebook-pipelines
 
 services:
-# HOST PORTS FOR THE THREE AZURE EMULATORS ARE OVERRIDABLE, defaults unchanged.
+# HOST PORTS ARE OVERRIDABLE, defaults unchanged.
 # They default to the emulators' own ports, which is also what a standalone
 # emulator or the family compose binds, so this stack could not come up beside
 # either: `Bind for 0.0.0.0:8444 failed`. Nothing on the host side of this
 # platform reaches these three ports (the steps talk to fabric-emulator and
 # sqlserver), so the override is free: ENTRA_PORT=18443 KEYVAULT_PORT=18444
-# ARM_PORT=18445 make up. The siblings moved to an 18xxx block by default;
+# ARM_PORT=18445 make up. FABRIC_PORT does the same for 9443, and the host
+# side follows it without further change: the steps read the emulator through
+# `fabric_target`, which already takes FABRIC_EMULATOR_URL / ENTRA_EMULATOR_URL,
+# and scripts/demo.py and scripts/observe.py already take PORTAL_URL.
+# The siblings moved to an 18xxx block by default;
 # moving this one's defaults is a separate decision, because its registry
 # entry and every witness that names a port would move with it.
   entra-emulator:
@@ -82,7 +86,7 @@ services:
     # api.fabric + onelake.dfs + the portal, including the #flow view the
     # capture harness records while the pipeline runs.
     ports:
-      - "9443:9443"   # api.fabric + onelake.dfs + the portal
+      - "${FABRIC_PORT:-9443}:9443"   # api.fabric + onelake.dfs + the portal
       - "${TDS_PORT:-11433}:1433"  # the Warehouse's T-SQL/TDS surface
     environment:
       # The Warehouse surface: the emulator terminates Entra FedAuth on 1433 and
