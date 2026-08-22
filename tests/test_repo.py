@@ -685,3 +685,16 @@ def test_the_steps_reach_the_stack_this_platform_publishes():
     assert resolved("ENTRA_EMULATOR_URL", {"ENTRA_PORT": "18443"}) == (
         "https://localhost:18443"
     )
+
+    # EVERY published port a client can be pointed at, not the two that
+    # happened to fail first. Covering Fabric and Entra alone left ARM and the
+    # vault still defaulting, and the next run died one step later on another
+    # stack's ARM emulator.
+    for var, port_var, default, moved in (
+        ("VAULT_EMULATOR_URL", "KEYVAULT_PORT", "8444", "18444"),
+        ("FABRIC_ARM_URL", "ARM_PORT", "8445", "18445"),
+    ):
+        assert resolved(var, {}) == f"https://localhost:{default}"
+        assert resolved(var, {port_var: moved}) == f"https://localhost:{moved}", (
+            f"{port_var} moves the container but not {var}"
+        )
