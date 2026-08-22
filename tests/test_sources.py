@@ -85,3 +85,39 @@ def test_one_mokapi_instance_per_source():
     assert len(published) == len(set(published)), (
         f"two services publish the same host port: {published}"
     )
+
+
+def test_the_committed_vendor_ports_match_what_the_generator_emits():
+    """`vendor-ports.json` is the only committed record of these host ports.
+
+    The fragment is GENERATED at `make up` and gitignored, so nothing in any
+    repository recorded which host ports it publishes: the family registry
+    could not see them, and the check that refuses two members claiming one
+    host port was blind to nine of them. This file is what the hub reads; this
+    test is what keeps it true.
+
+    It goes through `generated_fragment()` like its siblings, so it reads the
+    same fragment `make up` hands compose rather than a second opinion about
+    what that fragment says.
+
+    Regenerate with:
+        uv run --no-project python scripts/sources.py \\
+            ../contoso-sources/sources.yaml $(cd ../contoso-sources && pwd) \\
+            --ports > vendor-ports.json
+    """
+    emitted = {
+        name: sorted(
+            int(str(m).split(":")[0])
+            for m in svc.get("ports", [])
+            if str(m).split(":")[0].isdigit()
+        )
+        for name, svc in generated_fragment()["services"].items()
+        if svc.get("ports")
+    }
+    assert emitted, (
+        "the generator published no host ports — this check would be vacuous"
+    )
+    committed = json.loads((ROOT / "vendor-ports.json").read_text(encoding="utf-8"))
+    assert committed == {k: v for k, v in sorted(emitted.items())}, (
+        "vendor-ports.json is stale; regenerate it (see this test's docstring)"
+    )
