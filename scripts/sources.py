@@ -35,13 +35,19 @@ import sys
 # which host port it is published on is a deployment fact, and two platforms
 # running side by side must not fight over it. These are the values this
 # repository has always used, kept so an existing checkout does not move.
+# (api, dashboard), both in THIS PLATFORM'S 1809x block. The dashboards used
+# to sit at 18081/18082/18084, which was 1808x with a hole punched in it for
+# Debezium at 18083 -- and 1808x is the family's AIRFLOW UI block, one port per
+# Airflow platform. So contoso_web's dashboard collided with
+# `databricks-platform-airflow3`'s Airflow and contoso_reference's with
+# `snowflake-platform-airflow3`'s: two pairs of cells that could not run at the
+# same time, and nothing said so, because a generated fragment is in no
+# committed compose for a check to read. Each dashboard is now its api + 3, so
+# a vendor's two ports stay adjacent and the whole platform stays in one block.
 HOST_PORTS = {
-    "contoso_pos": (18090, 18081),
-    "contoso_web": (18091, 18082),
-    # The dashboard SKIPS 18083 -- that one is Debezium's, below. Following the
-    # 1808x convention blindly collides, and compose reports that as a bind
-    # failure naming neither service.
-    "contoso_reference": (18092, 18084),
+    "contoso_pos": (18090, 18093),
+    "contoso_web": (18091, 18094),
+    "contoso_reference": (18092, 18095),
 }
 ERP_DB_PORT, ERP_BROKER_PORT, ERP_CONNECT_PORT = 55432, 19092, 18083
 
@@ -245,9 +251,36 @@ def fragment(decl: dict, sources_dir: str, pins: dict) -> dict:
     return {"services": services}
 
 
+def host_ports(frag: dict) -> dict:
+    """{service: [host ports]} for everything this fragment publishes.
+
+    DERIVED FROM THE FRAGMENT, not from a second table beside it. The host
+    ports live in `HOST_PORTS` and the `ERP_*` constants, and a function that
+    re-listed them here would be a copy free to drift from what compose is
+    actually handed -- which is the whole reason this is being written down.
+
+    It exists because the fragment is GENERATED at `make up` and gitignored,
+    so nothing committed anywhere records these ports: the family registry
+    could not see them, and neither could the check that refuses two members
+    claiming one host port.
+    """
+    out: dict[str, list[int]] = {}
+    for name, svc in frag.get("services", {}).items():
+        for mapping in svc.get("ports", []):
+            host = str(mapping).split(":")[0]
+            if host.isdigit():
+                out.setdefault(name, []).append(int(host))
+    return {k: sorted(v) for k, v in sorted(out.items())}
+
+
 def main() -> int:
+    if len(sys.argv) == 4 and sys.argv[3] == "--ports":
+        sys.argv = sys.argv[:3]
+        ports = True
+    else:
+        ports = False
     if len(sys.argv) != 3:
-        sys.exit("usage: sources.py <path-to-sources.yaml> <sources-dir-abs>")
+        sys.exit("usage: sources.py <path-to-sources.yaml> <sources-dir-abs> [--ports]")
     decl = _load(pathlib.Path(sys.argv[1]))
     if not decl["vendors"]:
         sys.exit("platform: that sources.yaml declares no vendors")
@@ -276,7 +309,8 @@ def main() -> int:
                     f"platform: vendor {v['name']!r} is kind={v.get('kind')!r} but "
                     f"{versions} does not pin {key}; this platform will not guess it"
                 )
-    print(json.dumps(fragment(decl, sys.argv[2], pins), indent=2))
+    frag = fragment(decl, sys.argv[2], pins)
+    print(json.dumps(host_ports(frag) if ports else frag, indent=2))
     return 0
 
 
