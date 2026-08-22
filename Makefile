@@ -71,7 +71,7 @@ export PRODUCT_GOLD := $(abspath $(PRODUCT))/gold
 PRODUCT ?= ./product
 STEP := uv run --directory $(PRODUCT) --frozen
 
-.PHONY: help doctor fixtures sources up down config lint fmt capture demo govern verify reconcile snapshot test test-fixtures clean
+.PHONY: help doctor fixtures sources up down config lint fmt capture demo govern verify reconcile snapshot test test-fixtures clean witness logs
 
 help:  ## Show the targets
 	@uv run --no-project python scripts/help.py
@@ -91,6 +91,9 @@ up:  ## Start the emulator family and the source systems
 down:  ## Stop everything and remove volumes
 	@uv run --no-project python scripts/compose.py down -v
 
+logs:  ## Follow the stack's logs (SVC=<service> to narrow)
+	@uv run --no-project python scripts/compose.py logs -f --tail 100 $(SVC)
+
 config:  ## Show the resolved compose config (proves the pin)
 	@uv run --no-project python scripts/compose.py config
 
@@ -102,6 +105,8 @@ govern:  ## Catalog the platform in OpenMetadata (also runs inside `make verify`
 
 verify:  ## Run the platform end to end against the pinned release
 	@$(STEP) python steps/pipeline.py
+
+witness: verify ## The family's one word for `verify`: run the cell, fail if it fails
 
 reconcile:  ## Prove the model's numbers ARE the warehouse's (needs `make verify` first)
 	@$(STEP) python steps/reconcile.py
