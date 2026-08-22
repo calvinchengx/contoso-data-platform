@@ -72,8 +72,16 @@ export SOURCES := $(abspath $(SOURCES))
 #
 # Deriving them here means the override cannot half-apply: one variable moves
 # the container and the client together.
+# ALL FOUR, not two. The first version of this covered Fabric and Entra and
+# stopped, which fixed the symptom I had in front of me and left the same split
+# open for the other two: the next run got one step further and died on
+# `https://localhost:8445`, ARM's default, answered by another stack's ARM
+# emulator. Every published port a client can be pointed at belongs here, or
+# the override half-applies again somewhere new.
 export FABRIC_EMULATOR_URL := https://localhost:$(or $(FABRIC_PORT),9443)
 export ENTRA_EMULATOR_URL  := https://localhost:$(or $(ENTRA_PORT),8443)
+export VAULT_EMULATOR_URL  := https://localhost:$(or $(KEYVAULT_PORT),8444)
+export FABRIC_ARM_URL      := https://localhost:$(or $(ARM_PORT),8445)
 
 export PLATFORM := $(CURDIR)
 # WHERE THE dbt CONTAINER FINDS THE PROJECT. The product stages its gold models
