@@ -162,18 +162,6 @@ wheels = [
 ]
 
 [[package]]
-name = "contoso-data-product"
-version = "0.3.0"
-source = { url = "https://github.com/calvinchengx/contoso-data-product/releases/download/v0.3.0/contoso_data_product-0.3.0-py3-none-any.whl" }
-wheels = [
-    { url = "https://github.com/calvinchengx/contoso-data-product/releases/download/v0.3.0/contoso_data_product-0.3.0-py3-none-any.whl", hash = "sha256:ff3b0881df14053b0be63689c61dd7c14d36425dc576744368bf2bf7a76fccc3" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "requests", marker = "extra == 'compare'", specifier = ">=2.32" }]
-provides-extras = ["compare"]
-
-[[package]]
 name = "deltalake"
 version = "1.6.2"
 source = { registry = "https://pypi.org/simple" }
@@ -209,7 +197,6 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "confluent-kafka" },
-    { name = "contoso-data-product" },
     { name = "deltalake" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pyarrow" },
@@ -228,7 +215,6 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "confluent-kafka", specifier = ">=2.6,<3" },
-    { name = "contoso-data-product", url = "https://github.com/calvinchengx/contoso-data-product/releases/download/v0.3.0/contoso_data_product-0.3.0-py3-none-any.whl" },
     { name = "deltalake", specifier = ">=0.23,<2" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
     { name = "pyarrow", specifier = ">=18,<24" },

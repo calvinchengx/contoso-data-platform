@@ -97,19 +97,51 @@ def stage_product_wheel() -> None:
     but does not apply it, so the agent needs the wheel by its documented
     `/opt/wheels` fallback instead.
 
-    THE VERSION IS THE ONE THIS PLATFORM INSTALLED. Read from the environment
-    rather than pinned here, so the engine cannot end up on a different release
-    of the product than the client, which would be a difference no test would
-    catch and every number would hide.
-    """
-    from importlib.metadata import PackageNotFoundError, version
+    THE VERSION IS THE PRODUCT'S, ASKED OF THE PRODUCT. This used to read
+    `version("contoso-data-product")` from THIS process, meaning the platform's
+    own virtualenv -- and the docstring above it claimed that stopped the engine
+    and the client diverging. It did the opposite. The client is the product's
+    steps, which run in the PRODUCT's virtualenv (`uv run --directory
+    $(PRODUCT)`), and this platform pinned its own copy of the product at 0.3.0
+    while the leaf had moved to 0.6.0. So the agent installed 0.3.0 and every
+    notebook ran three releases behind the process driving it -- exactly "a
+    difference no test would catch and every number would hide", written by the
+    line that was supposed to prevent it.
 
-    try:
-        v = version("contoso-data-product")
-    except PackageNotFoundError:
-        # `make up` before `uv sync`. The agent starts without the product and
-        # the bronze step fails naming it, which is better than a silent skip.
-        print("contoso-data-product is not installed; skipping the wheel stage")
+    Measured, not reasoned: the agent logged `installed from /opt/wheels:
+    contoso_data_product-0.3.0-py3-none-any.whl` while the leaf's venv answered
+    0.6.0, and the bronze notebook never reached a terminal state.
+    """
+    product = os.environ.get("PRODUCT")
+    if not product:
+        # `make up` without PRODUCT: the empty mount point. Nothing to stage.
+        print("PRODUCT is not set; skipping the wheel stage")
+        return
+    probe = subprocess.run(
+        [
+            "uv",
+            "run",
+            "--directory",
+            product,
+            "--frozen",
+            "--no-sync",
+            "python",
+            "-c",
+            "import importlib.metadata as m;print(m.version('contoso-data-product'))",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    v = probe.stdout.strip()
+    if probe.returncode != 0 or not v:
+        # The product has no environment yet (`make up` before its `uv sync`).
+        # The agent starts without the product and the bronze step fails naming
+        # it, which is better than a silent skip -- or than staging whatever
+        # version this repository happens to carry.
+        print(
+            f"could not read contoso-data-product from {product}; "
+            "skipping the wheel stage"
+        )
         return
 
     name = f"contoso_data_product-{v}-py3-none-any.whl"
