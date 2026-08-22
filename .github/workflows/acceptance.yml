@@ -48,6 +48,22 @@ jobs:
         with:
           repository: calvinchengx/contoso-data-product-fabric-notebook-pipelines
           path: contoso-data-product-fabric-notebook-pipelines
+      # THE FAMILY'S FIGURES, from the repository that owns them. Not the
+      # product and not a dependency of this platform: the last step of this
+      # job runs one script out of this checkout to hold the run's snapshot to
+      # the numbers every cell must produce.
+      #
+      # PINNED BY SHA, not tracking main. Core's own rules say a release is the
+      # unit of change and nothing tracks main, and a nightly whose expectations
+      # can move without a reviewed commit here is a nightly that can be turned
+      # green by editing another repository. A SHA is also what this workflow
+      # already does for every third-party action. Move it deliberately, and
+      # only when the family's numbers move.
+      - uses: actions/checkout@v7
+        with:
+          repository: calvinchengx/contoso-data-product
+          ref: 2cf7bae8a1e1f4a8cddd2cd5510d435e16febb3b
+          path: contoso-data-product
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: "0.11.32"
@@ -99,6 +115,30 @@ jobs:
       - run: make test-fixtures
       - run: make up
       - run: make verify PRODUCT=../contoso-data-product-fabric-notebook-pipelines
+      # PUBLISH THE NUMBERS THE RUN JUST PRODUCED. `snapshot` is not one of the
+      # product's STEPS -- the pipeline ends at `schedule` -- so this target has
+      # existed since the split and no unattended run has ever called it. Which
+      # is half of why G50 went unnoticed here: the other cells at least wrote a
+      # snapshot nobody read, and this one wrote nothing at all.
+      - run: make snapshot PRODUCT=../contoso-data-product-fabric-notebook-pipelines
+      # THE NUMBERS, not merely the run (G50). Everything above proves the
+      # platform executed end to end; this is the only step that can fail
+      # because gold returned different money.
+      #
+      # No `if: always()`. A failed run has no numbers worth checking, and a
+      # missing snapshot after a SUCCESSFUL run is a finding the script reports
+      # as one rather than skipping.
+      #
+      # THROUGH uv, like every other interpreter this repository invokes.
+      # `--no-project` is the stdlib-only form the diagnostics already use, and
+      # the script is stdlib-only by construction so that it can run from a bare
+      # checkout with nothing built.
+      - name: Assert the figures core publishes
+        run: |
+          uv run --no-project python \
+            ../contoso-data-product/scripts/assert_snapshot.py \
+            --label fabric-platform-notebook-pipelines \
+            ../contoso-data-product-fabric-notebook-pipelines/product_snapshot.json
       # ADOPT WHAT THIS RUN JUST PROVED. Everything above already ran against
       # the dispatched version — `set_release.py` rewrote versions.env in the
       # runner before `make up` — so by here the pin has been verified end to
