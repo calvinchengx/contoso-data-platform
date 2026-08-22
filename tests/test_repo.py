@@ -503,3 +503,56 @@ def test_the_product_steps_provision_their_own_environment():
         ln for ln in MAKEFILE.splitlines() if "$(STEP)" in ln and "--no-sync" in ln
     ]
     assert not recipes, f"these would run against an empty product venv: {recipes}"
+
+
+def test_the_acceptance_run_asserts_the_numbers_and_not_only_the_run():
+    """A nightly that proves the platform RAN proves nothing about the answer.
+
+    G50: across all seven platforms with an acceptance workflow, none compared a
+    snapshot against an expected value. This one was worse than the others --
+    `snapshot` is not in the product's STEPS list, so no unattended run had ever
+    produced a snapshot at all, let alone read one back. Gold could have
+    returned different money indefinitely behind a green tick.
+
+    BOTH HALVES ARE ASSERTED. `make snapshot` must run, and it must run after
+    the pipeline that gives it something to read and before the check.
+    """
+    acceptance = ROOT / ".github" / "workflows" / "acceptance.yml"
+    raw = acceptance.read_text(encoding="utf-8")
+    wf = "\n".join(ln for ln in raw.splitlines() if not ln.lstrip().startswith("#"))
+    for needed in ("make snapshot", "scripts/assert_snapshot.py"):
+        assert needed in wf, f"the acceptance run never runs `{needed}`"
+    through_uv = (
+        "uv run --no-project python \\\n"
+        "            ../contoso-data-product/scripts/assert_snapshot.py"
+    )
+    assert through_uv in wf, (
+        "the assert step must go through uv like every other interpreter here"
+    )
+    core = wf[wf.index("repository: calvinchengx/contoso-data-product\n") :]
+    assert re.search(r"ref: [0-9a-f]{40}", core[: core.index("path:")]), (
+        "the contoso-data-product checkout is not pinned to a commit"
+    )
+    assert (
+        wf.index("make verify")
+        < wf.index("make snapshot")
+        < wf.index("scripts/assert_snapshot.py")
+    ), "verify, then snapshot, then assert -- in that order or the check is empty"
+
+
+def test_the_snapshot_target_writes_where_the_acceptance_run_looks():
+    """The path is the part that can rot, and here it crosses two repositories.
+
+    `steps/snapshot.py` lives in the product and resolves its output against its
+    own ROOT, so the workflow's path is the product checkout plus that filename.
+    Restating it is how the two drift.
+    """
+    acceptance = ROOT / ".github" / "workflows" / "acceptance.yml"
+    wf = acceptance.read_text(encoding="utf-8")
+    product = "contoso-data-product-fabric-notebook-pipelines"
+    assert f"../{product}/product_snapshot.json" in wf, (
+        "the assert step does not read the product's snapshot"
+    )
+    assert f"make snapshot PRODUCT=../{product}" in wf, (
+        "`make snapshot` runs against a different checkout than the one read"
+    )
