@@ -556,3 +556,84 @@ def test_the_snapshot_target_writes_where_the_acceptance_run_looks():
     assert f"make snapshot PRODUCT=../{product}" in wf, (
         "`make snapshot` runs against a different checkout than the one read"
     )
+
+
+def test_no_image_comes_from_a_registry_the_family_does_not_trust():
+    """G44: OpenMetadata shipped from docker.getcollate.io and took this
+    nightly down twice in one morning.
+
+    That registry is backed by neither Docker Hub nor GHCR, and a pull failure
+    there reads as a broken governance step rather than as somebody else's
+    outage. The images are mirrored into ghcr.io/calvinchengx by
+    `calvinchengx/emulators` (`mirrors.json`, `scripts/mirror_images.py`), which
+    copies the manifest index and records the digest the registry serves.
+
+    AN ALLOWLIST, NOT A BAN ON ONE NAME. Asserting `getcollate` is absent would
+    pass the day somebody adds a different vendor registry, which is the same
+    defect one name later. This asks the opposite question: every image must
+    come from somewhere the family already depends on being up.
+
+    A VALUE THAT IS ENTIRELY A VARIABLE IS RESOLVED, not skipped. `${X}` hides
+    the host completely, so a check that ignored those would be a check with a
+    hole exactly where an unreviewed image would sit.
+    """
+    trusted = {
+        # The family's own, and the mirrors it keeps there.
+        "ghcr.io",
+        # Docker Hub, which is what a bare `name/image` resolves to.
+        "docker.io",
+        "mcr.microsoft.com",
+    }
+
+    env = {}
+    for line in (ROOT / "versions.env").read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            env[k.strip()] = v.strip()
+
+    def host_of(ref: str) -> str | None:
+        head = ref.split("/")[0]
+        return head if ("." in head or ":" in head) else "docker.io"
+
+    bad = []
+    for path in sorted((ROOT / "compose").rglob("*.yml")):
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            stripped = line.strip()
+            if not stripped.startswith("image:"):
+                continue
+            ref = stripped.split(":", 1)[1].strip()
+            whole = re.fullmatch(r"\$\{(\w+)(?::[?-][^}]*)?\}", ref)
+            if whole:
+                name = whole.group(1)
+                if name not in env:
+                    bad.append(
+                        f"{path.name}:{n}: ${{{name}}} is not in versions.env, "
+                        f"so nothing here can tell which registry it names"
+                    )
+                    continue
+                ref = env[name]
+            host = host_of(ref)
+            if host not in trusted:
+                bad.append(
+                    f"{path.name}:{n}: {host} is not a registry the family "
+                    f"trusts to be up ({ref})"
+                )
+    assert not bad, "untrusted registries:\n  " + "\n  ".join(bad)
+
+
+def test_openmetadata_comes_from_the_mirror():
+    """The allowlist above would also pass if OpenMetadata simply vanished.
+
+    So this names the thing G44 is about: the catalog's two images, from the
+    family's registry, by the tag versions.env pins.
+    """
+    gov = (ROOT / "compose" / "governance.yml").read_text(encoding="utf-8")
+    images = [ln.strip() for ln in gov.splitlines() if ln.strip().startswith("image:")]
+    for name in ("openmetadata-server", "openmetadata-postgresql"):
+        assert any(f"ghcr.io/calvinchengx/{name}:" in i for i in images), (
+            f"the governance stack does not pull {name} from the family's registry"
+        )
+    assert not any("getcollate" in i for i in images), (
+        "an image still comes straight from the vendor registry"
+    )
