@@ -1,14 +1,27 @@
-# OpenMetadata: the catalog, profile-gated.
+# OpenMetadata -- the human catalog.
 #
-# Heavy enough to be opt-in — the search backend alone wants a 1 GB heap — so
-# `make up` never starts it and `make govern` does. Its own Postgres is separate
-# from the ERP source's on purpose: a catalog's metadata store and a source
-# system have different lifecycles, and sharing one would make a `down -v` on
-# either destroy the other.
+# THE IMAGES COME FROM THE FAMILY'S OWN REGISTRY, not from the vendor's (G44).
+# `docker.getcollate.io` is backed by neither Docker Hub nor GHCR, four
+# repositories pull it on nightly crons, and on 2026-08-22 it took two of them
+# down: a TLS handshake timeout, then `connection reset by peer` on the rerun
+# nineteen minutes later. The bounded retry fabric-emulator carries for exactly
+# this would not have saved either.
+#
+# `calvinchengx/emulators` copies the manifest INDEX into GHCR with
+# `buildx imagetools create` and records the digest the registry serves;
+# `mirrors.json` there is the declaration and its weekly check is what would
+# notice a mirror going missing or losing an architecture. Both indexes carry
+# linux/amd64 and linux/arm64, and their digests are identical to upstream's.
+#
+# BY TAG, like every other image this platform pins, with the version in
+# versions.env. The digest lives in the hub, in one place for all four
+# consumers, rather than being copied into four repositories where
+# `repo:tag@digest` would let a version bump silently keep running the old
+# bytes -- docker resolves the digest and ignores the tag beside it.
 services:
   om-postgresql:
     profiles: [governance]
-    image: docker.getcollate.io/openmetadata/postgresql:${OPENMETADATA_VERSION:?see versions.env}
+    image: ghcr.io/calvinchengx/openmetadata-postgresql:${OPENMETADATA_VERSION:?see versions.env}
     command: "--work_mem=10MB"
     environment:
       POSTGRES_USER: postgres
@@ -39,7 +52,7 @@ services:
 
   om-migrate:
     profiles: [governance]
-    image: docker.getcollate.io/openmetadata/server:${OPENMETADATA_VERSION:?see versions.env}
+    image: ghcr.io/calvinchengx/openmetadata-server:${OPENMETADATA_VERSION:?see versions.env}
     command: "./bootstrap/openmetadata-ops.sh migrate"
     environment: &om_env
       DB_HOST: om-postgresql
@@ -55,7 +68,7 @@ services:
 
   openmetadata:
     profiles: [governance]
-    image: docker.getcollate.io/openmetadata/server:${OPENMETADATA_VERSION:?see versions.env}
+    image: ghcr.io/calvinchengx/openmetadata-server:${OPENMETADATA_VERSION:?see versions.env}
     ports: ["${OM_PORT:-8585}:8585"]
     environment: *om_env
     depends_on:
