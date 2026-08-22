@@ -5,6 +5,7 @@ the repository itself, so they are the part of CI that is green from day one and
 runs identically on all three platforms.
 """
 
+import os
 import pathlib
 import re
 import subprocess
@@ -636,4 +637,51 @@ def test_openmetadata_comes_from_the_mirror():
         )
     assert not any("getcollate" in i for i in images), (
         "an image still comes straight from the vendor registry"
+    )
+
+
+def test_the_steps_reach_the_stack_this_platform_publishes():
+    """FABRIC_PORT must move the client as well as the container.
+
+    The product's `fabric_target` defaults to https://localhost:9443 and
+    https://localhost:8443 when `FABRIC_EMULATOR_URL` / `ENTRA_EMULATOR_URL`
+    are unset. Those are this compose's defaults too, so everything agreed
+    until a port moved — and then the steps kept talking to 9443, which is
+    whatever else happens to be listening.
+
+    That is not a bind failure, it is a SUCCESSFUL run against the wrong
+    system: measured, a run with FABRIC_PORT=19443 provisioned a workspace,
+    landed four vendors and submitted a notebook job into another stack's
+    emulator, while the stack this platform had just started sat empty. The
+    only symptom was a job that never reached a terminal state.
+
+    So the Makefile derives both URLs from the port variables, and this asserts
+    the derivation rather than the comment.
+    """
+    import subprocess
+
+    root = pathlib.Path(__file__).resolve().parents[1]
+
+    def resolved(name, env):
+        out = subprocess.run(
+            ["make", "-C", str(root), "-p", "-n"],
+            capture_output=True,
+            text=True,
+            env={**os.environ, **env},
+        ).stdout
+        for line in out.splitlines():
+            if line.startswith(f"{name} :="):
+                return line.split(":=", 1)[1].strip()
+        return None
+
+    assert resolved("FABRIC_EMULATOR_URL", {}) == "https://localhost:9443"
+    assert resolved("ENTRA_EMULATOR_URL", {}) == "https://localhost:8443"
+    assert resolved("FABRIC_EMULATOR_URL", {"FABRIC_PORT": "19443"}) == (
+        "https://localhost:19443"
+    ), (
+        "FABRIC_PORT moved the container but not the client — "
+        "the exact split this prevents"
+    )
+    assert resolved("ENTRA_EMULATOR_URL", {"ENTRA_PORT": "18443"}) == (
+        "https://localhost:18443"
     )

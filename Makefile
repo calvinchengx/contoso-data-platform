@@ -58,6 +58,23 @@ export SOURCES := $(abspath $(SOURCES))
 # WHICH PLATFORM IS RUNNING THE PRODUCT. gold runs dbt inside a container this
 # platform defines, so the product has to be able to ask this platform to start
 # it -- it knows it needs a dbt container, not which compose files declare one.
+# WHERE THE STEPS REACH THE STACK, derived from the ports it publishes.
+#
+# The product's client (`fabric_target`) defaults to https://localhost:9443 and
+# https://localhost:8443 when these are unset. Those are the compose DEFAULTS,
+# so everything agreed until someone moved a port -- and then the steps kept
+# talking to 9443, which is whatever else is listening there. Measured, and it
+# is much worse than a bind failure: a run with FABRIC_PORT=19443 provisioned
+# its workspace, landed four vendors and submitted a notebook job into ANOTHER
+# STACK'S emulator, then failed with "the RunNotebook job never reached a
+# terminal state" because that emulator's agent was never asked to run it. The
+# stack this platform started sat empty and correct throughout.
+#
+# Deriving them here means the override cannot half-apply: one variable moves
+# the container and the client together.
+export FABRIC_EMULATOR_URL := https://localhost:$(or $(FABRIC_PORT),9443)
+export ENTRA_EMULATOR_URL  := https://localhost:$(or $(ENTRA_PORT),8443)
+
 export PLATFORM := $(CURDIR)
 # WHERE THE dbt CONTAINER FINDS THE PROJECT. The product stages its gold models
 # into its own gold/, so the mount has to follow PRODUCT rather than pointing at
